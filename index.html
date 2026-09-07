@@ -266,7 +266,8 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
+  return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1',
+          dims:{studio:true, subject:true, wall:true, size:true}, items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
@@ -285,6 +286,7 @@ function migrate(st){
   }
   // links made when there could only be one camera carry no active camera
   if (!st.items.some(i => i.id === st.activeCam && i.type === 'camera')) st.activeCam = firstCamId(st);
+  st.dims = {studio:true, subject:true, wall:true, size:true, ...(st.dims || {})};
   return st;
 }
 const firstCamId = st => st.items.find(i => i.type === 'camera')?.id || null;
@@ -323,6 +325,7 @@ function applyOrbit(){
 const studioGroup = new THREE.Group(); scene.add(studioGroup);
 const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
 const dimGroup = new THREE.Group(); scene.add(dimGroup);
+const measGroup = new THREE.Group(); scene.add(measGroup);
 const frustumGroup = new THREE.Group(); scene.add(frustumGroup);
 let labels = [];
 
@@ -401,77 +404,137 @@ function buildStudio(){
   fitOrtho();
 }
 
-// dimension lines + labels
-const dimMat = new THREE.LineBasicMaterial({color:0xffd9a8});
-function dimLine(a, b, tickDir, views){
-  const t = tickDir.clone().multiplyScalar(0.18);
-  const pts = [a, b, a.clone().sub(t), a.clone().add(t), b.clone().sub(t), b.clone().add(t)];
-  const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat); l.userData.views = views; dimGroup.add(l);
+// ---------- dimensions ----------
+// Every dimension is a thin ribbon in world space, never a 1px line: a hairline
+// vanishes the moment the drawing is scaled up for print. The weight is a
+// fraction of the room, so it reads the same whatever the studio size.
+const dimMat = new THREE.MeshBasicMaterial({color:0xffd9a8, depthTest:false, side:THREE.DoubleSide});
+const measMat = new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false, side:THREE.DoubleSide});
+const dimWidth = () => Math.max(0.03, Math.max(state.studio.w, state.studio.d) / 200);
+const V3 = THREE.Vector3;
+function bar(a, b, offDir, wd, mat, parent){
+  if (a.distanceTo(b) < 1e-4 || offDir.lengthSq() < 1e-8) return;
+  const off = offDir.clone().normalize().multiplyScalar(wd/2);
+  const q = [a.clone().sub(off), b.clone().sub(off), b.clone().add(off), a.clone().add(off)];
+  const pos = [];
+  for (const i of [0,1,2, 0,2,3]) pos.push(q[i].x, q[i].y, q[i].z);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.Mesh(g, mat); m.renderOrder = 6; m.userData.noHit = true; parent.add(m);
 }
+function dashedBar(a, b, offDir, wd, mat, parent){
+  const len = a.distanceTo(b); if (len < 1e-4) return;
+  const dir = new V3().subVectors(b, a).normalize();
+  const step = clamp(len/24, 0.18, 0.5), on = step*0.6;
+  for (let t = 0; t < len - 1e-4; t += step)
+    bar(a.clone().addScaledVector(dir, t), a.clone().addScaledVector(dir, Math.min(t+on, len)), offDir, wd, mat, parent);
+}
+function dimLine(a, b, tickDir, views, parent = dimGroup, mat = dimMat, dash = false){
+  const wd = dimWidth();
+  const g = new THREE.Group(); g.userData.views = views;
+  (dash ? dashedBar : bar)(a, b, tickDir, wd, mat, g);
+  const t = tickDir.clone().normalize().multiplyScalar(0.2);
+  const along = new V3().subVectors(b, a).normalize();
+  bar(a.clone().sub(t), a.clone().add(t), along, wd, mat, g);
+  bar(b.clone().sub(t), b.clone().add(t), along, wd, mat, g);
+  parent.add(g);
+}
+// the room: fixed, so it is rebuilt only when the studio changes
 function buildDims(){
   dimGroup.clear(); labels = [];
-  const {w,d,h} = state.studio; const o = 0.6; const V = THREE.Vector3;
-  const X = new V(1,0,0), Y = new V(0,1,0), Z = new V(0,0,1);
-  dimLine(new V(-w/2,0.01,d/2+o), new V(w/2,0.01,d/2+o), Z, ['plan','pers']);
-  labels.push({p:new V(0,0.01,d/2+o), text:`幅 ${fmt(w)} m`, cls:'dim', views:['plan','pers']});
-  dimLine(new V(w/2+o,0.01,-d/2), new V(w/2+o,0.01,d/2), X, ['plan','pers']);
-  labels.push({p:new V(w/2+o,0.01,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['plan','pers']});
-  dimLine(new V(w/2+o,0,d/2+o), new V(w/2+o,h,d/2+o), X, ['pers']);
-  labels.push({p:new V(w/2+o,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['pers']});
-  dimLine(new V(0,0,d/2+o), new V(0,h,d/2+o), Z, ['side']);
-  labels.push({p:new V(0,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['side']});
-  dimLine(new V(0,-o*0.6,-d/2), new V(0,-o*0.6,d/2), Y, ['side']);
-  labels.push({p:new V(0,-o*0.6,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['side']});
+  buildMeasures();
+  if (!state.dims.studio) return;
+  const {w,d,h} = state.studio; const o = 0.6;
+  const X = new V3(1,0,0), Y = new V3(0,1,0), Z = new V3(0,0,1);
+  dimLine(new V3(-w/2,0.01,d/2+o), new V3(w/2,0.01,d/2+o), Z, ['plan','pers']);
+  labels.push({p:new V3(0,0.01,d/2+o), text:`幅 ${fmt(w)} m`, cls:'dim', views:['plan','pers']});
+  dimLine(new V3(w/2+o,0.01,-d/2), new V3(w/2+o,0.01,d/2), X, ['plan','pers']);
+  labels.push({p:new V3(w/2+o,0.01,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['plan','pers']});
+  dimLine(new V3(w/2+o,0,d/2+o), new V3(w/2+o,h,d/2+o), X, ['pers']);
+  labels.push({p:new V3(w/2+o,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['pers']});
+  dimLine(new V3(0,0,d/2+o), new V3(0,h,d/2+o), Z, ['side']);
+  labels.push({p:new V3(0,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['side']});
+  dimLine(new V3(0,-o*0.6,-d/2), new V3(0,-o*0.6,d/2), Y, ['side']);
+  labels.push({p:new V3(0,-o*0.6,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['side']});
 }
-const distLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({color:0xe29a44, dashSize:0.2, gapSize:0.12, depthTest:false}));
-distLine.renderOrder = 7; distLine.visible = false; scene.add(distLine);
-let distLabel = null;
-function updateDist(){
-  const it = sel(), ci = camItem();
-  distLabel = null; distLine.visible = false;
-  if (!it || !ci || it.type === 'camera' || viewerMode || it.hidden || ci.hidden) return;
-  const a = new THREE.Vector3(ci.x, 0.02, ci.z), b = new THREE.Vector3(it.x, 0.02, it.z);
-  distLine.geometry.setFromPoints([a,b]); distLine.computeLineDistances(); distLine.visible = true;
-  distLabel = {p:a.clone().lerp(b,0.5), text:`${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','pers']};
+// what depends on where things stand: rebuilt whenever anything moves
+let measLabels = [];
+function measure(a, b, text){
+  const off = new V3(0,1,0).cross(new V3().subVectors(b, a));
+  dimLine(a, b, off, ['plan','pers'], measGroup, measMat, true);
+  measLabels.push({p:a.clone().lerp(b, 0.5), text, cls:'dist', views:['plan','pers']});
+}
+function buildMeasures(){
+  measGroup.clear(); measLabels = [];
+  const D = state.dims, ci = camItem();
+  if (!ci || ci.hidden) return;
+  const a = new V3(ci.x, 0.02, ci.z);
+  if (D.wall){
+    const {w,d} = state.studio;
+    const back = new V3(ci.x, 0.02, -d/2);
+    measure(a, back, `奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
+    const right = ci.x >= 0;
+    const side = new V3(right ? w/2 : -w/2, 0.02, ci.z);
+    measure(a, side, `${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
+  }
+  if (D.subject){
+    const subs = state.items.filter(i => i.type === 'person' && !i.hidden);
+    const s = sel();                                   // whatever is picked counts as a subject too
+    if (s && s !== ci && !s.hidden && s.type !== 'camera' && !subs.includes(s)) subs.push(s);
+    for (const it of subs){
+      const b = new V3(it.x, 0.02, it.z);
+      if (a.distanceTo(b) > 0.1) measure(a, b, `${a.distanceTo(b).toFixed(2)} m`);
+    }
+  }
 }
 const labelsEl = document.getElementById('labels');
+const num = v => fmt(+(+v).toFixed(2));
+const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind === 'wall');
 function itemLabels(view){
   const out = [];
-  const s = sel();
-  if (view === 'plan' && s && !s.hidden && s.w > 0 && s.d > 0){
-    out.push({p:new THREE.Vector3(s.x, 0.02, s.z + s.d/2 + 0.32),
-              text:`${fmt(+s.w.toFixed(2))} × ${fmt(+s.d.toFixed(2))} m`, cls:'dim', views:['plan']});
-  }
-  if (view !== 'side') return out;
+  if (!state.dims.size) return out;
   for (const it of state.items){
     if (it.hidden) continue;
+    if (view === 'plan'){
+      // a backdrop or a standing mirror has no depth worth writing, only a width
+      const off = (upright(it) ? 0.45 : (it.d || 0)/2 + 0.35);
+      const r = THREE.MathUtils.degToRad(it.rot || 0);
+      const p = new V3(it.x + Math.sin(r)*off, 0.02, it.z + Math.cos(r)*off);
+      if (upright(it)) out.push({p, text:`幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
+      else if (it.w > 0 && it.d > 0) out.push({p, text:`${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
+      continue;
+    }
+    if (view !== 'side') continue;
     let top, txt;
     if (it.type === 'person'){
       const R = personRig(it);
       top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (it.type === 'mirror' && it.kind !== 'wall') continue;
-    else if (it.h != null){ top = it.h; txt = `高さ ${fmt(+it.h.toFixed(2))} m`; }
+    else if (upright(it)){ top = it.h; txt = `${num(it.w)} × 高 ${num(it.h)} m`; }
+    else if (it.type === 'mirror') continue;
+    else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
-    out.push({p:new THREE.Vector3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
+    out.push({p:new V3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
   }
   return out;
 }
-function drawLabels(view, cam, rect){
-  if (view === 'cam' || !showDims){ labelsEl.innerHTML = ''; return; }
-  const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
-  let html = ''; const placed = [];
+function labelPositions(view, cam, rect, avoidPip = true){
+  const out = [];
+  if (view === 'cam' || !showDims) return out;
+  const all = labels.concat(measLabels, itemLabels(view));
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
-    if (pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
-    if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                   // drop labels that would sit on top of each other
-    placed.push({x, y});
-    html += `<span class="${L.cls}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${L.text}</span>`;
+    if (avoidPip && pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (out.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                       // drop labels that would sit on top of each other
+    out.push({x, y, text:L.text, cls:L.cls});
   }
-  labelsEl.innerHTML = html;
+  return out;
+}
+function drawLabels(view, cam, rect){
+  labelsEl.innerHTML = labelPositions(view, cam, rect)
+    .map(L => `<span class="${L.cls}" style="left:${L.x.toFixed(0)}px;top:${L.y.toFixed(0)}px">${L.text}</span>`).join('');
 }
 
 // ---------- item meshes ----------
@@ -825,7 +888,7 @@ function handleRadius(it){
 function updateSelectionVisuals(){
   const it = sel();
   gizmo.visible = !!it && !it.hidden && !viewerMode;
-  updateDist();
+  buildMeasures();
   if (!it) return;
   const r = handleRadius(it);
   gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(r);
@@ -889,11 +952,10 @@ function renderView(view, rect, isMain){
   });
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
-  dimGroup.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
+  for (const g of [dimGroup, measGroup]) g.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
   frustumGroup.visible = view !== 'cam' && !frustumGroup.userData.hidden;
   const showSel = isMain && view !== 'cam';
   const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !viewerMode;
-  distLine.visible = showDims && showSel && !!distLabel && (view === 'plan' || view === 'pers');
   renderer.setScissorTest(true);
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
@@ -1100,6 +1162,10 @@ function studioPanel(){
   h += `<h2>ホリゾント（R 壁）を付ける辺</h2><div class="row">` +
     [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
   h += `<p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>`;
+  h += `<h2>寸法の表示</h2><div class="row">` +
+    [['studio','スタジオ'],['subject','被写体まで'],['wall','壁まで'],['size','ものの寸法']]
+      .map(([k,l]) => `<button class="btn ${state.dims[k]?'on':''}" data-dim="${k}">${l}</button>`).join('') + `</div>`;
+  h += `<p class="hint">図面の定規ボタンは、この 4 つをまとめて出したり消したりします。「被写体まで」は人と、選んでいるものまでの距離です。</p>`;
   h += `<h2>見かた</h2><p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。選んだカメラの絵は小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>`;
   return h;
 }
@@ -1115,6 +1181,10 @@ function bindStudio(el){
   }
   el.querySelectorAll('[data-cove]').forEach(b => b.addEventListener('click', () => {
     state.studio.cove[b.dataset.cove] = !state.studio.cove[b.dataset.cove]; onStudioChange();
+  }));
+  el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
+    state.dims[b.dataset.dim] = !state.dims[b.dataset.dim];
+    buildDims(); renderSel(); needRender = true; saveHash();
   }));
 }
 
@@ -1659,12 +1729,38 @@ document.getElementById('reset').addEventListener('click', () => { if (confirm('
 document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); if (mainView === 'cam') setMain('plan'); resize(); saveHash(); });
 
 // png
+// Printed at A4 a screen-sized shot is mush, so this renders at twice the pixels.
+// The numbers are HTML on screen and would be missing from the image, so they are
+// painted onto a copy of the canvas here.
+const PNG_SCALE = 2;
+function pill(ctx, x, y, w, h, r){
+  if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); return; }
+  ctx.fillRect(x, y, w, h);
+}
 function capture(view, name){
-  const prevMain = mainView; mainView = view; fitOrtho();
-  renderView(view, mainRect(), false); renderer.setScissorTest(false);
-  const url = canvas.toDataURL('image/png');
-  mainView = prevMain; needRender = true;
-  const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = name;
+  const prevMain = mainView, pr = renderer.getPixelRatio();
+  mainView = view;
+  renderer.setPixelRatio(pr * PNG_SCALE);
+  fitOrtho();
+  renderView(view, mainRect(), true);                 // isMain draws the dimensions
+  renderer.setScissorTest(false);
+  const out = document.createElement('canvas');
+  out.width = canvas.width; out.height = canvas.height;
+  const ctx = out.getContext('2d');
+  ctx.drawImage(canvas, 0, 0);
+  const k = out.width / Math.max(1, W);               // image pixels per CSS pixel
+  ctx.font = `600 ${Math.round(12*k)}px "IBM Plex Mono", ui-monospace, monospace`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  for (const L of labelPositions(view, mainCam(), mainRect(), false)){
+    const x = L.x*k, y = L.y*k, tw = ctx.measureText(L.text).width, h = 21*k;
+    ctx.fillStyle = L.cls === 'dist' ? 'rgba(180,101,24,.95)' : 'rgba(20,22,26,.88)';
+    pill(ctx, x - tw/2 - 7*k, y - h/2, tw + 14*k, h, 5*k);
+    ctx.fillStyle = L.cls === 'dim' ? '#ffd9a8' : '#ffffff';
+    ctx.fillText(L.text, x, y);
+  }
+  const url = out.toDataURL('image/png');
+  renderer.setPixelRatio(pr); mainView = prevMain; resize();
+  const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = `${name}（${out.width} × ${out.height} px）`;
   document.getElementById('shotdl').href = url; s.classList.add('show');
 }
 document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));

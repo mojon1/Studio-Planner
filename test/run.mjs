@@ -562,6 +562,53 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// the four dimension switches, and an export that actually carries the numbers
+{
+  const g = await run('dims', { width: 1200, height: 820 }, false);
+  const labels = () => g.page.textContent('#labels');
+  await g.page.click('[data-tab="list"]');
+  await rowName(g.page, 'studio').click();
+  await g.page.waitForTimeout(400);
+  await g.page.screenshot({ path: `${OUT}/dims-panel.png` });
+  const on = await labels();
+  console.log('studio size shown:', on.includes('幅 8 m'), '/ wall distance:', on.includes('壁まで'),
+              '/ subject distance:', /\d\.\d\d m/.test(on));
+
+  await g.page.click('[data-dim="wall"]'); await g.page.waitForTimeout(400);
+  console.log('wall off:', !(await labels()).includes('壁まで'));
+  await g.page.click('[data-dim="studio"]'); await g.page.waitForTimeout(400);
+  console.log('studio off:', !(await labels()).includes('幅 8 m'));
+  await g.page.click('[data-dim="wall"]'); await g.page.click('[data-dim="studio"]');
+  await g.page.waitForTimeout(400);
+  console.log('both back:', (await labels()).includes('壁まで') && (await labels()).includes('幅 8 m'));
+
+  // a backdrop writes its width, a box its footprint
+  await g.page.click('#addfab'); await g.page.click('[data-add="chroma"]');
+  await g.page.waitForTimeout(500);
+  await g.page.click('#addfab'); await g.page.click('[data-add="table"]');
+  await g.page.waitForTimeout(600);
+  const withSizes = await labels();
+  console.log('backdrop width:', /幅 3 m/.test(withSizes), '/ table footprint:', /1\.8 × 0\.9 m/.test(withSizes));
+  await g.page.click('[data-tab="list"]');
+  await rowName(g.page, 'studio').click(); await g.page.waitForTimeout(300);
+  await g.page.click('[data-dim="size"]'); await g.page.waitForTimeout(400);
+  console.log('sizes off:', !/1\.8 × 0\.9 m/.test(await labels()));
+  await g.page.click('[data-dim="size"]'); await g.page.waitForTimeout(400);
+  await g.page.screenshot({ path: `${OUT}/dims-plan.png` });
+
+  // the export must be bigger than the screen and must contain the numbers
+  await g.page.click('[data-tab="share"]');
+  await g.page.click('#png-plan');
+  await g.page.waitForTimeout(1200);
+  const shot = await g.page.$eval('#shotimg', e => ({src:e.src.slice(0,22), w:e.naturalWidth, h:e.naturalHeight}));
+  const viewW = await g.page.$eval('#view', e => Math.round(e.getBoundingClientRect().width));
+  console.log('export is a png:', shot.src === 'data:image/png;base64,', '/ wider than the view:', shot.w >= viewW*2);
+  console.log('export size shown:', await g.page.textContent('#shotname'));
+  await g.page.screenshot({ path: `${OUT}/dims-export.png` });
+  console.log('dims errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
 // viewer mode
 r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
 console.log('viewer errors:', r.errors);
