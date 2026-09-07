@@ -1,0 +1,691 @@
+<title>スタジオプランナー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<style>
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --ink:#1d2027; --ink2:#4d5364; --muted:#858c9c; --rule:#d8dbe2;
+  --accent:#c2711f; --accent-bg:#fbeedd; --accent-ink:#8f5010;
+  --btn:#f3f4f7; --btn-on:#1d2027; --btn-on-ink:#ffffff; --danger:#a83a3a;
+  --viewport:#2a2d34;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171b; --panel:#1f2228; --ink:#eceef2; --ink2:#c0c5cf; --muted:#858c9c; --rule:#353942;
+    --accent:#e29a44; --accent-bg:#3a2a17; --accent-ink:#f2b76b;
+    --btn:#2a2e36; --btn-on:#eceef2; --btn-on-ink:#15171b; --danger:#e07b7b;
+    --viewport:#0f1114;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171b; --panel:#1f2228; --ink:#eceef2; --ink2:#c0c5cf; --muted:#858c9c; --rule:#353942;
+  --accent:#e29a44; --accent-bg:#3a2a17; --accent-ink:#f2b76b;
+  --btn:#2a2e36; --btn-on:#eceef2; --btn-on-ink:#15171b; --danger:#e07b7b;
+  --viewport:#0f1114;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
+#app{position:fixed;inset:0;display:grid;grid-template-columns:340px 1fr;grid-template-rows:1fr}
+#view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
+#view canvas{display:block;width:100%;height:100%}
+#panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
+#tabs{display:flex;border-bottom:1px solid var(--rule);flex:none}
+#tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
+#tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+#tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+#sheet{overflow-y:auto;padding:14px 16px 24px;flex:1;min-height:0}
+.sec{display:none}.sec.on{display:block}
+h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:700}
+h2:first-child{margin-top:0}
+.hint{font-size:.82rem;color:var(--ink2);margin:6px 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.btn{min-height:44px;padding:8px 14px;border:1px solid var(--rule);background:var(--btn);color:var(--ink);border-radius:8px;font:inherit;font-weight:500;cursor:pointer;flex:1 1 auto;text-align:center}
+.btn.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:var(--btn-on)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.btn.danger{color:var(--danger)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn:active{transform:translateY(1px)}
+label.f{display:grid;grid-template-columns:5.5em 1fr auto;align-items:center;gap:10px;margin:8px 0;font-size:.9rem}
+label.f .v{font-family:"IBM Plex Mono",monospace;font-size:.85rem;min-width:5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+input[type=range]{width:100%;accent-color:var(--accent);height:32px}
+input[type=number],select,input[type=text]{height:40px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;padding:0 10px;width:100%}
+.dims{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dims label{font-size:.8rem;color:var(--ink2)}
+.list{display:flex;flex-direction:column;gap:6px}
+.list button{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer;text-align:left}
+.list button.on{border-color:var(--accent);background:var(--accent-bg)}
+.list .sw{width:12px;height:12px;border-radius:50%;margin-right:10px;flex:none;display:inline-block}
+.list small{color:var(--muted);font-size:.78rem}
+#viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3}
+#viewbtns button{height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
+#viewbtns button.on{background:var(--accent)}
+#info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
+#pip{position:absolute;right:10px;bottom:10px;z-index:3;border:2px solid rgba(255,255,255,.6);border-radius:6px;cursor:pointer;background:transparent}
+#pip span{position:absolute;left:6px;top:4px;color:#fff;font-size:.72rem;font-weight:700;text-shadow:0 1px 2px #000}
+#toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+#shot{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+#shot.show{display:flex}
+#shot img{max-width:100%;max-height:75vh;border:1px solid #555}
+#shot p{color:#ddd;font-size:.85rem;margin:0}
+#shot .row{justify-content:center}
+#linkbox{font-family:"IBM Plex Mono",monospace;font-size:.75rem}
+.edithint{font-size:.8rem;color:var(--muted);margin-top:4px}
+#viewerbar{display:none;position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:3}
+body.viewer #panel{display:none}
+body.viewer #app{grid-template-columns:1fr}
+body.viewer #viewerbar{display:block}
+@media (max-width:760px){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
+  #view{order:1}
+  #sheet{padding:12px 14px 20px}
+  #tabs button{height:44px;font-size:.85rem}
+  #viewbtns button{height:36px;padding:0 10px;font-size:.8rem}
+  #info{font-size:.7rem}
+  label.f{grid-template-columns:5em 1fr auto}
+}
+</style>
+
+<div id="app">
+  <div id="panel">
+    <div id="tabs">
+      <button data-tab="studio" class="on">スタジオ</button>
+      <button data-tab="add">配置</button>
+      <button data-tab="sel">選択中</button>
+      <button data-tab="share">共有</button>
+    </div>
+    <div id="sheet">
+      <div class="sec on" data-sec="studio">
+        <h2>スタジオを選ぶ</h2>
+        <select id="preset"></select>
+        <div class="dims" style="margin-top:10px">
+          <label>幅 (m)<input type="number" id="sw" step="0.5" min="2" max="40"></label>
+          <label>奥行 (m)<input type="number" id="sd" step="0.5" min="2" max="40"></label>
+          <label>高さ (m)<input type="number" id="sh" step="0.5" min="2" max="15"></label>
+        </div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="cove">ホリゾント (R 壁)</button></div>
+        <p class="hint">上が奥の壁です。図面の 1 マスは 1 m。</p>
+        <h2>見かた</h2>
+        <p class="hint">「俯瞰」で置く、「カメラ」で絵を見る、「横」で高さを見る。右下の小窓をタップすると入れ替わります。</p>
+      </div>
+      <div class="sec" data-sec="add">
+        <h2>置くもの</h2>
+        <div class="row">
+          <button class="btn" data-add="person">人</button>
+          <button class="btn" data-add="camera">カメラ</button>
+          <button class="btn" data-add="light">ライト</button>
+          <button class="btn" data-add="mirror">反射面</button>
+        </div>
+        <p class="hint">俯瞰の図面で、置いたものを指でドラッグして動かせます。前の小さな丸をドラッグすると向きが変わります。</p>
+        <h2>置いてあるもの</h2>
+        <div class="list" id="items"></div>
+      </div>
+      <div class="sec" data-sec="sel"><div id="selbody"><p class="hint">図面のものをタップすると、ここで細かく変えられます。</p></div></div>
+      <div class="sec" data-sec="share">
+        <h2>リンクで共有</h2>
+        <p class="hint">このリンクを開くと、アプリ無しで同じ配置がそのまま見られます。</p>
+        <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
+        <input type="text" id="linkbox" readonly>
+        <h2>画像で共有</h2>
+        <div class="row"><button class="btn" id="png-plan">図面を画像に</button><button class="btn" id="png-cam">カメラの絵を画像に</button></div>
+        <p class="hint">スマホでは表示された画像を長押しして保存できます。</p>
+        <h2>最初から</h2>
+        <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="view">
+    <div id="viewbtns">
+      <button data-view="plan" class="on">俯瞰</button>
+      <button data-view="cam">カメラ</button>
+      <button data-view="side">横</button>
+    </div>
+    <div id="info"></div>
+    <div id="pip"><span></span></div>
+    <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
+    <div id="toast"></div>
+  </div>
+</div>
+<div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><a class="btn" id="shotdl" download="studio.png">保存</a><button class="btn" id="shotclose">閉じる</button></div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+
+// ---------- data ----------
+const PRESETS = [
+  {id:'s', name:'小スタジオ 5×4×3 m', w:5, d:4, h:3, cove:false},
+  {id:'m', name:'中スタジオ 8×6×4 m（白ホリ）', w:8, d:6, h:4, cove:true},
+  {id:'l', name:'大スタジオ 12×10×5 m（白ホリ）', w:12, d:10, h:5, cove:true},
+  {id:'r', name:'6 畳の部屋 3.6×2.7×2.4 m', w:3.6, d:2.7, h:2.4, cove:false},
+  {id:'custom', name:'数値で入力'},
+];
+const SENSORS = {ff:{name:'フルサイズ', w:36}, apsc:{name:'APS-C', w:23.5}, phone:{name:'スマホ', w:36}};
+const LENSES = {ff:[24,35,50,85,135], apsc:[16,24,35,56,85], phone:[13,24,48,72,120]};
+const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9};
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面'};
+
+let state = defaultState();
+let selectedId = null;
+let mainView = 'plan';      // plan | cam | side
+let pipView = 'cam';
+let viewerMode = false;
+let uid = 1;
+
+function defaultState(){
+  return {studio:{w:8,d:6,h:4,cove:true}, items:[
+    {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
+    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'3:2'},
+  ]};
+}
+
+// ---------- three setup ----------
+const viewEl = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x2a2d34);
+viewEl.appendChild(renderer.domElement);
+const canvas = renderer.domElement;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x3b3f47);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.1); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.castShadow = true; sun.shadow.mapSize.set(1024,1024);
+scene.add(sun); scene.add(sun.target);
+
+const planCam = new THREE.OrthographicCamera(-1,1,1,-1,0.1,200);
+planCam.up.set(0,0,-1);
+const sideCam = new THREE.OrthographicCamera(-1,1,1,-1,0.1,200);
+const shotCam = new THREE.PerspectiveCamera(50, 1.5, 0.05, 200);
+shotCam.rotation.order = 'YXZ';
+
+const studioGroup = new THREE.Group(); scene.add(studioGroup);
+const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
+const selRing = new THREE.Mesh(new THREE.RingGeometry(0.42,0.5,48), new THREE.MeshBasicMaterial({color:0xe29a44, side:THREE.DoubleSide, depthTest:false}));
+selRing.rotation.x = -Math.PI/2; selRing.renderOrder = 5; selRing.visible = false; scene.add(selRing);
+const handle = new THREE.Mesh(new THREE.CircleGeometry(0.16,24), new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false}));
+handle.rotation.x = -Math.PI/2; handle.renderOrder = 6; handle.visible = false; handle.userData.handle = true; scene.add(handle);
+const handleLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({color:0xffffff, depthTest:false}));
+handleLine.renderOrder = 6; handleLine.visible = false; scene.add(handleLine);
+
+const matWall = new THREE.MeshStandardMaterial({color:0xf2f2f0, roughness:0.95});
+const matFloor = new THREE.MeshStandardMaterial({color:0xdcdcd8, roughness:0.9});
+const matCove = new THREE.MeshStandardMaterial({color:0xf2f2f0, roughness:0.95, side:THREE.DoubleSide});
+const matCeil = new THREE.MeshStandardMaterial({color:0x8d8f94, roughness:1});
+
+function buildStudio(){
+  studioGroup.clear();
+  const {w,d,h,cove} = state.studio;
+  const R = cove ? Math.min(1.0, h*0.25) : 0;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d - R), matFloor);
+  floor.rotation.x = -Math.PI/2; floor.position.set(0,0,R/2); floor.receiveShadow = true; studioGroup.add(floor);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h - R), matWall);
+  back.position.set(0, R + (h-R)/2, -d/2); back.receiveShadow = true; studioGroup.add(back);
+  if (cove){
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(R,R,w,32,1,true, Math.PI, Math.PI/2), matCove);
+    c.rotation.z = Math.PI/2; c.position.set(0, R, -d/2 + R); c.receiveShadow = true; studioGroup.add(c);
+  }
+  // ceiling: only in the camera view, so reflections have something to show
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(w, d), matCeil);
+  ceil.rotation.x = Math.PI/2; ceil.position.set(0, h, 0); ceil.userData.camOnly = true; studioGroup.add(ceil);
+  for (const s of [-1,1]){
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(d, h), matWall);
+    side.rotation.y = s * Math.PI/2; side.position.set(-s*w/2, h/2, 0); side.receiveShadow = true; studioGroup.add(side);
+  }
+  // 1 m grid
+  const pts = [];
+  for (let x = -Math.floor(w/2); x <= w/2; x++) pts.push(new THREE.Vector3(x,0.003,-d/2), new THREE.Vector3(x,0.003,d/2));
+  for (let z = -Math.floor(d/2); z <= d/2; z++) pts.push(new THREE.Vector3(-w/2,0.003,z), new THREE.Vector3(w/2,0.003,z));
+  studioGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6})));
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-w/2,0.004,-d/2),new THREE.Vector3(w/2,0.004,-d/2),new THREE.Vector3(w/2,0.004,d/2),new THREE.Vector3(-w/2,0.004,d/2)]), new THREE.LineBasicMaterial({color:0x333}));
+  studioGroup.add(edge);
+  sun.position.set(w*0.4, h*1.5, d*0.6); sun.target.position.set(0,0,0);
+  const sc = sun.shadow.camera; const m = Math.max(w,d);
+  sc.left = -m; sc.right = m; sc.top = m; sc.bottom = -m; sc.near = 0.5; sc.far = m*4; sc.updateProjectionMatrix();
+  sideCam.position.set(60, h/2, 0); planCam.position.set(0,60,0);
+  fitOrtho();
+}
+
+// ---------- item meshes ----------
+const itemObjs = new Map(); // id -> {group, reflector?, planMarker?}
+function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
+function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
+
+function buildPerson(it){
+  const g = new THREE.Group(); const H = it.height; const c = mat(COLORS.person);
+  const headR = H*0.065, legH = H*0.47, torsoH = H*0.33, shoulderW = H*0.23;
+  const body = new THREE.Group();
+  const legL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.045, legH-H*0.09, 4, 8), c));
+  const legR = legL.clone();
+  const torso = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(shoulderW/2, torsoH - shoulderW/2, 4, 12), c));
+  const head = shadowed(new THREE.Mesh(new THREE.SphereGeometry(headR, 16, 12), c));
+  const armL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.035, torsoH*0.85, 4, 8), c)); const armR = armL.clone();
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(headR*0.35, headR*0.6, 8), c); nose.rotation.x = Math.PI/2;
+  body.add(legL, legR, torso, head, armL, armR, nose);
+  if (it.pose === 'sit'){
+    const seat = 0.45;
+    legL.rotation.x = Math.PI/2; legR.rotation.x = Math.PI/2; // thighs forward
+    legL.scale.y = 0.55; legR.scale.y = 0.55;
+    legL.position.set(-H*0.06, seat - H*0.02, legH*0.28); legR.position.set(H*0.06, seat - H*0.02, legH*0.28);
+    const shinL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.04, seat-H*0.1, 4, 8), c)); const shinR = shinL.clone();
+    shinL.position.set(-H*0.06, seat/2, legH*0.5); shinR.position.set(H*0.06, seat/2, legH*0.5); body.add(shinL, shinR);
+    torso.position.set(0, seat + torsoH/2, 0); head.position.set(0, seat + torsoH + headR*1.1, 0);
+    armL.position.set(-shoulderW/2-H*0.03, seat + torsoH*0.45, H*0.05); armR.position.set(shoulderW/2+H*0.03, seat + torsoH*0.45, H*0.05);
+    nose.position.set(0, seat + torsoH + headR*1.1, headR);
+    const stool = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), mat(0x777)));
+    stool.position.set(0, seat - 0.03, 0); body.add(stool);
+    const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,seat-0.05,8), mat(0x777))); post.position.set(0,(seat-0.05)/2,0); body.add(post);
+  } else {
+    legL.position.set(-H*0.06, legH/2, 0); legR.position.set(H*0.06, legH/2, 0);
+    torso.position.set(0, legH + torsoH/2, 0); head.position.set(0, legH + torsoH + headR*1.1, 0);
+    armL.position.set(-shoulderW/2-H*0.03, legH + torsoH*0.45, 0); armR.position.set(shoulderW/2+H*0.03, legH + torsoH*0.45, 0);
+    nose.position.set(0, legH + torsoH + headR*1.1, headR);
+    if (it.pose === 'lie'){ body.rotation.x = Math.PI/2; body.position.y = shoulderW/2 + 0.01; body.position.z = 0; }
+  }
+  g.add(body);
+  g.add(footDisc(0.35, COLORS.person));
+  return g;
+}
+function footDisc(r, color){
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 32), new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.55}));
+  m.rotation.x = -Math.PI/2; m.position.y = 0.006; m.userData.plan = true; return m;
+}
+function wedge(halfAngle, len, color, opacity=0.25){
+  const s = new THREE.Shape(); s.moveTo(0,0); s.lineTo(-Math.sin(halfAngle)*len, Math.cos(halfAngle)*len); s.lineTo(Math.sin(halfAngle)*len, Math.cos(halfAngle)*len); s.closePath();
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({color, transparent:true, opacity, depthWrite:false}));
+  m.rotation.x = -Math.PI/2; m.scale.y = -1; m.position.y = 0.005; m.userData.plan = true; return m;
+}
+function hfov(it){
+  const cam = SENSORS[it.sensor]; const ar = ASPECTS[it.aspect];
+  const fw = ar >= 1 ? cam.w : cam.w * ar; // long side of sensor across the wide direction
+  return 2*Math.atan(fw/2/it.focal);
+}
+function buildCamera(it){
+  const g = new THREE.Group(); const c = mat(COLORS.camera);
+  const tripod = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,it.y,8), c)); tripod.position.y = it.y/2; g.add(tripod);
+  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.16,0.11,0.09), c)); body.position.y = it.y; g.add(body);
+  const lens = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.04,0.09,12), mat(0x222)));
+  lens.rotation.x = Math.PI/2; lens.position.set(0,it.y,0.09); g.add(lens);
+  const base = new THREE.Mesh(new THREE.RingGeometry(0.2,0.24,4), new THREE.MeshBasicMaterial({color:0xe29a44})); base.rotation.x=-Math.PI/2; base.rotation.z = Math.PI/4; base.position.y=0.006; base.userData.plan=true; g.add(base);
+  g.add(wedge(hfov(it)/2, 40, 0xe29a44, 0.18));
+  return g;
+}
+function buildLight(it){
+  const g = new THREE.Group(); const c = mat(0x555);
+  const pole = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.02,it.y,8), c)); pole.position.y = it.y/2; g.add(pole);
+  const head = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,0.15), mat(COLORS.light, {emissive:0xe8c547, emissiveIntensity:0.6})));
+  head.position.set(0,it.y,0.1); head.rotation.x = 0; g.add(head);
+  for (const s of [-1,1]){ const leg = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.01,0.6,6), c)); leg.rotation.z = s*0.5; leg.position.set(s*0.15,0.25,0); g.add(leg); }
+  g.add(footDisc(0.3, COLORS.light));
+  g.add(wedge(0.6, 4, 0xe8c547, 0.2));
+  return g;
+}
+function buildMirror(it){
+  const g = new THREE.Group();
+  const tint = it.kind === 'water' ? 0x5f7d8c : 0xc9c9c9;
+  const res = 1024 * Math.min(devicePixelRatio,2) / 2;
+  let refl, marker;
+  if (it.kind === 'wall'){
+    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:tint});
+    refl.position.set(0, it.h/2 + 0.01, 0);
+    const frame = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w+0.06, it.h+0.06, 0.04), mat(0x333))); frame.position.set(0,it.h/2+0.01,-0.03); g.add(frame);
+    marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS.mirror}));
+    marker.rotation.x = -Math.PI/2; marker.position.y = 0.007; marker.userData.plan = true;
+    const dir = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.5), new THREE.MeshBasicMaterial({color:COLORS.mirror, transparent:true, opacity:0.25}));
+    dir.rotation.x = -Math.PI/2; dir.position.set(0,0.005,0.3); dir.userData.plan = true; g.add(dir);
+  } else {
+    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:tint});
+    refl.rotation.x = -Math.PI/2; refl.position.y = 0.01;
+    marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h), new THREE.MeshBasicMaterial({color:COLORS.mirror, transparent:true, opacity:0.45}));
+    marker.rotation.x = -Math.PI/2; marker.position.y = 0.007; marker.userData.plan = true;
+  }
+  refl.userData.reflector = true; g.add(refl); g.add(marker);
+  return g;
+}
+function rebuildItems(){
+  itemsGroup.clear();
+  for (const o of itemObjs.values()) o.group.traverse(n => { if (n.userData.reflector) n.dispose?.(); });
+  itemObjs.clear();
+  for (const it of state.items){
+    const g = it.type==='person'?buildPerson(it):it.type==='camera'?buildCamera(it):it.type==='light'?buildLight(it):buildMirror(it);
+    g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot);
+    itemsGroup.add(g); itemObjs.set(it.id, {group:g});
+  }
+  updateSelectionVisuals();
+}
+function updateItemTransform(it){
+  const o = itemObjs.get(it.id); if (!o) return;
+  o.group.position.set(it.x,0,it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
+  updateSelectionVisuals();
+}
+function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.7, it.h*0.5+0.3) : 0.7; }
+function updateSelectionVisuals(){
+  const it = sel();
+  selRing.visible = handle.visible = handleLine.visible = !!it && !viewerMode;
+  if (!it) return;
+  selRing.position.set(it.x, 0.01, it.z);
+  const r = handleRadius(it), a = THREE.MathUtils.degToRad(it.rot);
+  handle.position.set(it.x + Math.sin(a)*r, 0.012, it.z + Math.cos(a)*r);
+  handleLine.geometry.setFromPoints([new THREE.Vector3(it.x,0.012,it.z), handle.position.clone()]);
+}
+const sel = () => state.items.find(i => i.id === selectedId) || null;
+const camItem = () => state.items.find(i => i.type === 'camera') || null;
+
+// ---------- viewports ----------
+let W = 1, H = 1;
+function resize(){
+  const r = viewEl.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
+  renderer.setSize(W, H, false); canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  fitOrtho(); layoutPip(); needRender = true;
+}
+function fitOrtho(){
+  const {w,d,h} = state.studio;
+  for (const [cam, ew, eh, isPlan] of [[planCam, w, d, true],[sideCam, d, h, false]]){
+    const rect = cam === (mainView==='plan'||mainView==='side' ? (mainView==='plan'?planCam:sideCam) : null) ? mainRect() : pipRect();
+    const asp = rect.w / Math.max(1,rect.h);
+    let hw = ew/2*1.15, hh = eh/2*1.15;
+    if (hw/hh > asp) hh = hw/asp; else hw = hh*asp;
+    cam.left=-hw; cam.right=hw; cam.top=hh; cam.bottom=-hh;
+    if (isPlan){ cam.position.set(0,60,0); cam.lookAt(0,0,0); }
+    else { cam.position.x = 60; cam.up.set(0,1,0); cam.lookAt(0,cam.position.y,cam.position.z); }
+    cam.updateProjectionMatrix();
+  }
+}
+const pipEl = document.getElementById('pip');
+function mainRect(){ return {x:0,y:0,w:W,h:H}; }
+let pipR = {x:0,y:0,w:0,h:0};
+function pipRect(){ return pipR; }
+function layoutPip(){
+  const small = W < 760;
+  const pw = Math.round(Math.min(W*0.34, small?150:280)); const ph = Math.round(pw*0.66);
+  pipR = {x:W-pw-10, y:H-ph-10, w:pw, h:ph};
+  pipEl.style.width = pw+'px'; pipEl.style.height = ph+'px';
+  pipEl.style.display = (viewerMode && small) ? 'none' : 'block';
+  pipEl.querySelector('span').textContent = {plan:'俯瞰',cam:'カメラ',side:'横'}[pipView];
+}
+function renderView(view, rect, isMain){
+  const ci = camItem();
+  // toggle plan markers / reflectors
+  itemsGroup.traverse(n => {
+    if (n.userData.plan) n.visible = view !== 'cam';
+    if (n.userData.reflector) n.visible = view === 'cam';
+  });
+  studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam'; });
+  const showSel = isMain && view !== 'cam';
+  const s = sel(); selRing.visible = handle.visible = handleLine.visible = showSel && !!s && !viewerMode;
+  renderer.setScissorTest(true);
+  if (view === 'cam'){
+    renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
+    renderer.setClearColor(0x111214); renderer.clear();
+    if (!ci) return;
+    const ar = ASPECTS[ci.aspect]; let iw = rect.w, ih = rect.w/ar; if (ih > rect.h){ ih = rect.h; iw = rect.h*ar; }
+    const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
+    shotCam.aspect = iw/ih; shotCam.filmGauge = SENSORS[ci.sensor].w; shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
+    shotCam.position.set(ci.x, ci.y, ci.z); shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
+    renderer.setViewport(ix, H-iy-ih, iw, ih); renderer.setScissor(ix, H-iy-ih, iw, ih);
+    renderer.setClearColor(0x3b3f47); renderer.clear(); renderer.render(scene, shotCam);
+  } else {
+    renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
+    renderer.setClearColor(view==='plan'?0x2a2d34:0x30343b); renderer.clear();
+    renderer.render(scene, view==='plan'?planCam:sideCam);
+  }
+}
+let needRender = true;
+function frame(){
+  requestAnimationFrame(frame);
+  if (!needRender) return; needRender = false;
+  fitOrtho();
+  renderView(mainView, mainRect(), true);
+  if (!(viewerMode && W < 760)) renderView(pipView, pipRect(), false);
+  renderer.setScissorTest(false);
+  updateInfo();
+}
+function updateInfo(){
+  const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
+  let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
+  if (ci){ const eq = equiv(ci); t += `\n${SENSORS[ci.sensor].name} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`; }
+  el.textContent = t;
+}
+function equiv(ci){ return ci.sensor==='apsc' ? Math.round(ci.focal*36/23.5) : null; }
+
+// ---------- pointer interaction ----------
+const ray = new THREE.Raycaster(); const floorPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const pointers = new Map(); let drag = null; let pinch = null;
+function inRect(r, x, y){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
+function ndc(rect, x, y){ return new THREE.Vector2(((x-rect.x)/rect.w)*2-1, -((y-rect.y)/rect.h)*2+1); }
+function floorHit(x,y){
+  const cam = mainView==='plan'?planCam:sideCam; ray.setFromCamera(ndc(mainRect(),x,y), cam);
+  const p = new THREE.Vector3(); return ray.ray.intersectPlane(floorPlane, p) ? p : null;
+}
+function pick(x,y){
+  if (mainView !== 'plan') return null;
+  ray.setFromCamera(ndc(mainRect(),x,y), planCam);
+  if (handle.visible){ const h = ray.intersectObject(handle); if (h.length) return {handle:true}; }
+  const hits = ray.intersectObjects(itemsGroup.children, true);
+  for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
+  // generous pick: nearest item within 0.45 m on the floor
+  const p = floorHit(x,y); if (!p) return null;
+  let best = null, bd = 0.45;
+  for (const it of state.items){ const d = Math.hypot(it.x-p.x, it.z-p.z); if (d < bd){ bd = d; best = it; } }
+  return best ? {id:best.id} : null;
+}
+canvas.addEventListener('pointerdown', e => {
+  const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
+  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x,y,sx:x,sy:y});
+  if (pointers.size === 2){ const [a,b] = [...pointers.values()]; pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, cx:(a.x+b.x)/2, cy:(a.y+b.y)/2, p0: planCam.position.clone()}; drag = null; return; }
+  if (inRect(pipRect(), x, y) && !(viewerMode && W<760)){ drag = {pipTap:true}; return; }
+  if (viewerMode && mainView !== 'cam'){ drag = {pan:true, p0:planCam.position.clone(), s0:sideCam.position.clone()}; return; }
+  if (mainView === 'cam'){ const ci = camItem(); drag = ci ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
+  const hit = pick(x,y);
+  if (hit?.handle){ drag = {rotate:true}; return; }
+  if (hit?.id){ select(hit.id); const it = sel(); const p = floorHit(x,y); drag = {move:true, ox: it.x - p.x, oz: it.z - p.z, moved:false}; return; }
+  drag = {pan:true, p0:planCam.position.clone(), s0:sideCam.position.clone(), maybeDeselect:true};
+});
+canvas.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
+  const pt = pointers.get(e.pointerId); const dx = x - pt.x, dy = y - pt.y; pt.x = x; pt.y = y;
+  if (pinch && pointers.size === 2){
+    const [a,b] = [...pointers.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y); const k = d/pinch.d0;
+    if (mainView === 'cam'){ const ci = camItem(); if (ci){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
+    else { planCam.zoom = clamp(pinch.z0*k, 0.3, 6); sideCam.zoom = planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); }
+    needRender = true; return;
+  }
+  if (!drag) return;
+  if (drag.look){ const ci = camItem(); ci.rot = norm(drag.rot0 - dx*0.15); ci.pitch = clamp(Math.round(drag.pitch0 - dy*0.15), -60, 60); drag.rot0 = ci.rot; drag.pitch0 = ci.pitch; refreshCam(ci); needRender = true; return; }
+  if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; drag.moved = true; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
+  if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); if (it.type==='camera') refreshCam(it); needRender = true; return; }
+  if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
+    const cam = mainView==='plan'?planCam:sideCam; const spu = (cam.right-cam.left)/cam.zoom/W;
+    if (mainView==='plan'){ planCam.position.x -= dx*spu; planCam.position.z -= dy*spu; } else { sideCam.position.z += dx*spu; sideCam.position.y += dy*spu; }
+    needRender = true; }
+});
+function endPointer(e){
+  const had = pointers.has(e.pointerId); pointers.delete(e.pointerId);
+  if (!had) return;
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 0 && drag){
+    if (drag.pipTap){ swapViews(); }
+    else if (drag.pan && drag.maybeDeselect){ select(null); }
+    else if (drag.move || drag.rotate || drag.look) { renderSel(); saveHash(); }
+    drag = null;
+  }
+}
+canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e => { e.preventDefault(); if (mainView==='cam'){ const ci=camItem(); if(ci){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci);} } else { planCam.zoom = clamp(planCam.zoom*(e.deltaY<0?1.1:0.9),0.3,6); sideCam.zoom=planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); } needRender = true; }, {passive:false});
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const norm = a => ((a % 360) + 360) % 360;
+function setPos(it, x, z){ const {w,d} = state.studio; it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2); }
+function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildCamera(ci); g.userData.id = ci.id; g.position.copy(o.group.position); g.rotation.y = THREE.MathUtils.degToRad(ci.rot); itemsGroup.remove(o.group); itemsGroup.add(g); o.group = g; } updateSelectionVisuals(); }
+
+// ---------- view switching ----------
+function setMain(v){ if (v === mainView) return; if (v === pipView) pipView = mainView; mainView = v; planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); planCam.zoom = sideCam.zoom = 1; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); syncViewBtns(); layoutPip(); needRender = true; }
+function swapViews(){ const m = mainView; mainView = pipView; pipView = m; syncViewBtns(); layoutPip(); needRender = true; }
+function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
+document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
+
+// ---------- UI: tabs ----------
+const tabs = document.querySelectorAll('#tabs button');
+function showTab(name){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); }
+tabs.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// studio
+const presetEl = document.getElementById('preset');
+PRESETS.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; presetEl.appendChild(o); });
+presetEl.addEventListener('change', () => { const p = PRESETS.find(x => x.id === presetEl.value); if (p && p.w){ Object.assign(state.studio, {w:p.w,d:p.d,h:p.h,cove:p.cove}); clampAll(); onStudioChange(); } });
+for (const k of ['w','d','h']){ const el = document.getElementById('s'+k); el.addEventListener('change', () => { const v = parseFloat(el.value); if (isFinite(v)){ state.studio[k] = clamp(v, 2, 40); presetEl.value = 'custom'; clampAll(); onStudioChange(); } }); }
+document.getElementById('cove').addEventListener('click', () => { state.studio.cove = !state.studio.cove; onStudioChange(); });
+function clampAll(){ for (const it of state.items) setPos(it, it.x, it.z); }
+function onStudioChange(){ buildStudio(); rebuildItems(); renderStudio(); needRender = true; saveHash(); }
+function renderStudio(){
+  const s = state.studio; document.getElementById('sw').value = s.w; document.getElementById('sd').value = s.d; document.getElementById('sh').value = s.h;
+  document.getElementById('cove').classList.toggle('on', !!s.cove);
+  const p = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && !!x.cove===!!s.cove); presetEl.value = p ? p.id : 'custom';
+}
+
+// add
+document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
+function addItem(type){
+  const {w,d} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
+  let it;
+  if (type === 'person') it = {id, type, x:0, z:0, rot:0, height:1.7, pose:'stand'};
+  else if (type === 'camera'){ if (camItem()){ toast('カメラは 1 台です'); select(camItem().id); showTab('sel'); return; } it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'}; }
+  else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
+  else it = {id, type, x:0, z:0.5, rot:0, kind:'water', w:3, h:2};
+  // avoid stacking on an existing item
+  let tries = 0; while (tries++ < 20 && state.items.some(o => Math.hypot(o.x-it.x, o.z-it.z) < 0.5)) it.x += 0.6;
+  setPos(it, it.x, it.z);
+  state.items.push(it); rebuildItems(); select(id); showTab('sel'); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+}
+function renderList(){
+  const el = document.getElementById('items'); el.innerHTML = '';
+  const counts = {};
+  for (const it of state.items){
+    counts[it.type] = (counts[it.type]||0)+1;
+    const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
+    const sw = `<span class="sw" style="background:#${COLORS[it.type].toString(16).padStart(6,'0')}"></span>`;
+    const label = it.type==='camera' ? 'カメラ' : `${NAMES[it.type]} ${counts[it.type]}`;
+    const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
+    b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
+    b.addEventListener('click', () => { select(it.id); showTab('sel'); }); el.appendChild(b);
+  }
+  if (!state.items.length) el.innerHTML = '<p class="hint">まだ何も置いていません。</p>';
+}
+
+// select
+function select(id){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); needRender = true; }
+function renderSel(){
+  const it = sel(); const el = document.getElementById('selbody');
+  if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
+  const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
+  const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
+  let h = `<h2>${NAMES[it.type]}</h2>`;
+  if (it.type === 'person'){
+    h += range('height','身長',1.0,2.1,0.01,it.height,'m');
+    h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+  } else if (it.type === 'camera'){
+    h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
+    h += `<h2>レンズ${it.sensor==='phone'?'（換算）':''}</h2>` + btns('focal', LENSES[it.sensor].map(f => [f, f+'mm']), it.focal);
+    h += range('focal','細かく',10,400,1,it.focal,'mm');
+    h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]), it.aspect);
+    h += `<h2>位置</h2>` + range('y','高さ',0.2,4,0.05,it.y,'m') + range('pitch','上下の向き',-45,45,1,it.pitch,'°');
+    h += `<p class="hint">「カメラ」の画面で指を動かすと向きが変わり、2 本指で広げるとズームします。</p>`;
+  } else if (it.type === 'light'){
+    h += range('y','高さ',0.3,5,0.05,it.y,'m');
+    h += `<p class="hint">ライトは位置と向きの目安だけで、明るさは計算しません。</p>`;
+  } else {
+    h += `<h2>種類</h2>` + btns('kind', [['water','床の水面'],['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
+    h += range('w', it.kind==='wall'?'幅':'幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
+    h += `<p class="hint">映り込みは「カメラ」の画面で確認できます。</p>`;
+  }
+  h += `<h2>向きと位置</h2>` + range('rot','向き',0,359,1,it.rot,'°');
+  h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
+  el.innerHTML = h;
+  el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
+  el.querySelectorAll('[data-range]').forEach(r => {
+    r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
+    r.addEventListener('change', () => { renderSel(); saveHash(); });
+  });
+  el.querySelector('[data-del]').addEventListener('click', () => { state.items = state.items.filter(i => i !== it); select(null); rebuildItems(); saveHash(); });
+}
+const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
+function setProp(it, k, v, live=false){
+  if (['height','y','w','h','rot','pitch','focal'].includes(k)) v = parseFloat(v); else if (k === 'focal') v = parseInt(v);
+  if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; }
+  else it[k] = v;
+  if (it.type === 'camera'){ refreshCam(it); }
+  else if (live && (k === 'rot')) updateItemTransform(it);
+  else rebuildItems();
+  if (!live){ renderSel(); renderList(); saveHash(); }
+  needRender = true;
+}
+
+// ---------- share ----------
+function b64u(bytes){ let s=''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function unb64u(s){ s = s.replace(/-/g,'+').replace(/_/g,'/'); while (s.length%4) s+='='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+async function encode(){
+  const json = JSON.stringify(state); const bytes = new TextEncoder().encode(json);
+  if (typeof CompressionStream !== 'undefined'){
+    const cs = new CompressionStream('deflate-raw'); const wr = cs.writable.getWriter(); wr.write(bytes); wr.close();
+    const out = new Uint8Array(await new Response(cs.readable).arrayBuffer()); return 'z' + b64u(out);
+  }
+  return 'j' + b64u(bytes);
+}
+async function decode(s){
+  const kind = s[0], body = unb64u(s.slice(1));
+  let bytes = body;
+  if (kind === 'z'){ const ds = new DecompressionStream('deflate-raw'); const wr = ds.writable.getWriter(); wr.write(body); wr.close(); bytes = new Uint8Array(await new Response(ds.readable).arrayBuffer()); }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+let saveT = null;
+function saveHash(){ clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':''); history.replaceState(null, '', h); document.getElementById('linkbox').value = location.href; }, 250); }
+async function loadHash(){
+  const m = location.hash.match(/s=([^&]+)/); if (!m) return false;
+  try { const st = await decode(m[1]); if (st?.studio && Array.isArray(st.items)){ state = st; return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
+  return false;
+}
+async function copyLink(viewOnly){
+  const h = '#s=' + await encode() + (viewOnly?'&m=v':'');
+  const url = location.origin + location.pathname + location.search + h;
+  try { await navigator.clipboard.writeText(url); toast(viewOnly ? '見るだけリンクをコピーしました' : 'リンクをコピーしました'); }
+  catch { document.getElementById('linkbox').value = url; document.getElementById('linkbox').select(); toast('下の欄から手でコピーしてください'); }
+}
+document.getElementById('copy').addEventListener('click', () => copyLink(false));
+document.getElementById('copyview').addEventListener('click', () => copyLink(true));
+document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; select(null); buildStudio(); rebuildItems(); renderStudio(); saveHash(); } });
+document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); resize(); saveHash(); });
+
+// png
+function capture(view, name){
+  const prevMain = mainView; mainView = view; fitOrtho();
+  renderView(view, mainRect(), false); renderer.setScissorTest(false);
+  const url = canvas.toDataURL('image/png');
+  mainView = prevMain; needRender = true;
+  const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = name;
+  document.getElementById('shotdl').href = url; s.classList.add('show');
+}
+document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));
+document.getElementById('png-cam').addEventListener('click', () => capture('cam', 'カメラの絵'));
+document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
+
+let toastT; function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+
+// ---------- boot ----------
+(async () => {
+  await loadHash();
+  viewerMode = /m=v/.test(location.hash);
+  if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; pipView = 'plan'; syncViewBtns(); }
+  buildStudio(); rebuildItems(); renderStudio(); renderList(); renderSel();
+  new ResizeObserver(resize).observe(viewEl); resize();
+  document.getElementById('linkbox').value = location.href;
+  frame();
+})();
+</script>
