@@ -1,0 +1,6 @@
+node_modules/
+test/out/
+test/*.glb
+*.log
+.DS_Store
+Thumbs.db

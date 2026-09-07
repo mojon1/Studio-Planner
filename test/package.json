@@ -1,0 +1,14 @@
+{
+  "name": "studio-planner-test",
+  "private": true,
+  "type": "module",
+  "description": "Studio Planner のヘッドレスブラウザ動作確認",
+  "scripts": {
+    "test": "node run.mjs",
+    "postinstall": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0",
+    "three": "0.170.0"
+  }
+}
