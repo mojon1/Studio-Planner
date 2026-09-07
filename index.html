@@ -68,8 +68,12 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .dims{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .dims label{font-size:.8rem;color:var(--ink2)}
 .list{display:flex;flex-direction:column;gap:6px}
-.list button{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer;text-align:left}
-.list button.on{border-color:var(--accent);background:var(--accent-bg)}
+.itemrow{display:flex;gap:6px;align-items:stretch}
+.itemrow>button:first-child{flex:1;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer;text-align:left;min-width:0}
+.itemrow>button:first-child.on{border-color:var(--accent);background:var(--accent-bg)}
+.itemrow .eye{flex:0 0 44px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.itemrow.hidden-item>button:first-child{opacity:.45}
+.itemrow.hidden-item .eye{color:var(--muted)}
 .list .sw{width:12px;height:12px;border-radius:50%;margin-right:10px;flex:none;display:inline-block}
 .list small{color:var(--muted);font-size:.78rem}
 #viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3}
@@ -296,23 +300,26 @@ function buildStudio(){
   const rb = cv.back?R:0, rl = cv.left?R:0, rr = cv.right?R:0;
   const cl = cv.back&&cv.left ? R : 0, cr = cv.back&&cv.right ? R : 0; // vertical corner coves
   const V = THREE.Vector3; const S = Math.PI/2;
+  // every wall part gets its own material so it can be faded per view; userData.sides says which wall(s) it belongs to
+  const wallMat = () => { const m = matWall.clone(); m.transparent = true; return m; };
+  const add = (mesh, ...sides) => { mesh.userData.sides = sides; studioGroup.add(mesh); return mesh; };
   // floor
-  studioGroup.add(quad(-w/2+rl, w/2-rr, 0, 0, -d/2+rb, d/2, matFloor, 'y'));
+  add(quad(-w/2+rl, w/2-rr, 0, 0, -d/2+rb, d/2, matFloor, 'y'), 'floor');
   // back wall
-  studioGroup.add(quad(-w/2+cl, w/2-cr, rb, h, -d/2, -d/2, matWall, 'z'));
+  add(quad(-w/2+cl, w/2-cr, rb, h, -d/2, -d/2, wallMat(), 'z'), 'back');
   // side walls
-  studioGroup.add(quad(-w/2, -w/2, rl, h, -d/2+cl, d/2, matWall, 'x'));
-  studioGroup.add(quad(w/2, w/2, rr, h, -d/2+cr, d/2, matWall, 'x'));
+  add(quad(-w/2, -w/2, rl, h, -d/2+cl, d/2, wallMat(), 'x'), 'left');
+  add(quad(w/2, w/2, rr, h, -d/2+cr, d/2, wallMat(), 'x'), 'right');
   // horizontal coves
-  if (rb) studioGroup.add(patch((u,v) => { const a = v*S; return new V(-w/2+cl + u*(w-cl-cr), R - R*Math.cos(a), -d/2+R - R*Math.sin(a)); }, 1, 12, matWall));
-  if (rl) studioGroup.add(patch((u,v) => { const a = v*S; return new V(-w/2+R - R*Math.sin(a), R - R*Math.cos(a), -d/2+cl + u*(d-cl)); }, 1, 12, matWall));
-  if (rr) studioGroup.add(patch((u,v) => { const a = v*S; return new V(w/2-R + R*Math.sin(a), R - R*Math.cos(a), -d/2+cr + u*(d-cr)); }, 1, 12, matWall));
+  if (rb) add(patch((u,v) => { const a = v*S; return new V(-w/2+cl + u*(w-cl-cr), R - R*Math.cos(a), -d/2+R - R*Math.sin(a)); }, 1, 12, wallMat()), 'back');
+  if (rl) add(patch((u,v) => { const a = v*S; return new V(-w/2+R - R*Math.sin(a), R - R*Math.cos(a), -d/2+cl + u*(d-cl)); }, 1, 12, wallMat()), 'left');
+  if (rr) add(patch((u,v) => { const a = v*S; return new V(w/2-R + R*Math.sin(a), R - R*Math.cos(a), -d/2+cr + u*(d-cr)); }, 1, 12, wallMat()), 'right');
   // vertical corner coves + sphere corners
-  for (const [on, sx] of [[cl,-1],[cr,1]]){
+  for (const [on, sx, side] of [[cl,-1,'left'],[cr,1,'right']]){
     if (!on) continue;
     const cx = sx*(w/2-R), cz = -d/2+R;
-    studioGroup.add(patch((u,v) => { const b = u*S; return new V(cx + sx*R*Math.cos(b), R + v*(h-R), cz - R*Math.sin(b)); }, 12, 1, matWall));
-    studioGroup.add(patch((u,v) => { const b = u*S, ph = v*S; return new V(cx + sx*R*Math.cos(b)*Math.sin(ph), R - R*Math.cos(ph), cz - R*Math.sin(b)*Math.sin(ph)); }, 12, 12, matWall));
+    add(patch((u,v) => { const b = u*S; return new V(cx + sx*R*Math.cos(b), R + v*(h-R), cz - R*Math.sin(b)); }, 12, 1, wallMat()), 'back', side);
+    add(patch((u,v) => { const b = u*S, ph = v*S; return new V(cx + sx*R*Math.cos(b)*Math.sin(ph), R - R*Math.cos(ph), cz - R*Math.sin(b)*Math.sin(ph)); }, 12, 12, wallMat()), 'back', side);
   }
   // ceiling: only in the camera / perspective views
   const ceil = quad(-w/2, w/2, h, h, -d/2, d/2, matCeil, 'y'); ceil.userData.camOnly = true; studioGroup.add(ceil);
@@ -359,7 +366,7 @@ let distLabel = null;
 function updateDist(){
   const it = sel(), ci = camItem();
   distLabel = null; distLine.visible = false;
-  if (!it || !ci || it.type === 'camera' || viewerMode) return;
+  if (!it || !ci || it.type === 'camera' || viewerMode || it.hidden || ci.hidden) return;
   const a = new THREE.Vector3(ci.x, 0.02, ci.z), b = new THREE.Vector3(it.x, 0.02, it.z);
   distLine.geometry.setFromPoints([a,b]); distLine.computeLineDistances(); distLine.visible = true;
   distLabel = {p:a.clone().lerp(b,0.5), text:`${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','pers']};
@@ -369,6 +376,7 @@ function itemLabels(view){
   const out = [];
   if (view !== 'side') return out;
   for (const it of state.items){
+    if (it.hidden) continue;
     const tall = it.type==='chroma' || (it.type==='mirror' && it.kind==='wall');
     const top = it.type==='person' ? (it.pose==='lie' ? 0.35 : it.pose==='sit' ? 0.45 + it.height*0.5 : it.height) : tall ? it.h : (it.y ?? 0);
     const txt = it.type==='person' ? `身長 ${fmt(it.height)} m` : (it.type==='camera'||it.type==='light') ? `高さ ${fmt(it.y)} m` : tall ? `高さ ${fmt(it.h)} m` : null;
@@ -529,10 +537,10 @@ function rebuildItems(){
   itemObjs.clear();
   for (const it of state.items){
     const g = it.type==='person'?buildPerson(it):it.type==='camera'?buildCamera(it):it.type==='light'?buildLight(it):it.type==='chroma'?buildChroma(it):buildMirror(it);
-    g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot);
+    g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
     itemsGroup.add(g); itemObjs.set(it.id, {group:g});
   }
-  buildFrustum(camItem());
+  const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
   updateSelectionVisuals();
 }
 function updateItemTransform(it){
@@ -544,7 +552,7 @@ function updateItemTransform(it){
 function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.8, it.h*0.5+0.3) : it.type==='chroma' ? Math.max(1.0, (it.drape||0)+0.4) : 0.8; }
 function updateSelectionVisuals(){
   const it = sel();
-  gizmo.visible = !!it && !viewerMode;
+  gizmo.visible = !!it && !it.hidden && !viewerMode;
   updateDist();
   if (!it) return;
   const r = handleRadius(it);
@@ -594,10 +602,11 @@ function renderView(view, rect, isMain){
     if (n.userData.reflector) n.visible = view === 'cam';
   });
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
+  applyWallVisibility(view);
   dimGroup.traverse(n => { if (n.userData.views) n.visible = isMain && n.userData.views.includes(view); });
-  frustumGroup.visible = view !== 'cam';
+  frustumGroup.visible = view !== 'cam' && !frustumGroup.userData.hidden;
   const showSel = isMain && view !== 'cam';
-  const s = sel(); gizmo.visible = showSel && !!s && !viewerMode;
+  const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !viewerMode;
   distLine.visible = showSel && !!distLabel && (view === 'plan' || view === 'pers');
   renderer.setScissorTest(true);
   if (view === 'cam'){
@@ -619,6 +628,19 @@ function renderView(view, rect, isMain){
   }
 }
 function mainCam(){ return mainView==='plan'?planCam:mainView==='side'?sideCam:mainView==='pers'?persCam:shotCam; }
+// side view: the wall nearest the viewer (right, +x) is dropped; perspective: walls the eye is outside of turn see-through
+function applyWallVisibility(view){
+  const {w,d} = state.studio; const p = persCam.position;
+  const outside = {right: p.x > w/2, left: p.x < -w/2, back: p.z < -d/2, floor:false};
+  for (const n of studioGroup.children){
+    const sides = n.userData.sides; if (!sides) continue;
+    if (sides[0] === 'floor'){ n.visible = true; continue; }
+    if (view === 'side'){ n.visible = !sides.includes('right'); n.material.opacity = 1; n.material.depthWrite = true; continue; }
+    n.visible = true;
+    const fade = view === 'pers' && sides.some(s => outside[s]);
+    n.material.opacity = fade ? 0.22 : 1; n.material.depthWrite = !fade;
+  }
+}
 let needRender = true;
 function frame(){
   requestAnimationFrame(frame);
@@ -649,13 +671,13 @@ function floorHit(x,y){
 function pick(x,y){
   if (mainView === 'cam') return null;
   ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
-  if (sel() && !viewerMode){ gizmo.updateMatrixWorld(true); const h = ray.intersectObject(gizHit); if (h.length) return {gizmo:true}; }
-  const hits = ray.intersectObjects(itemsGroup.children, true);
+  if (sel() && !sel().hidden && !viewerMode){ gizmo.updateMatrixWorld(true); const h = ray.intersectObject(gizHit); if (h.length) return {gizmo:true}; }
+  const hits = ray.intersectObjects(itemsGroup.children.filter(g => g.visible), true);
   for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
   if (mainView === 'side') return null;
   const p = floorHit(x,y); if (!p) return null;
   let best = null, bd = 0.45;
-  for (const it of state.items){ const d = Math.hypot(it.x-p.x, it.z-p.z); if (d < bd){ bd = d; best = it; } }
+  for (const it of state.items){ if (it.hidden) continue; const d = Math.hypot(it.x-p.x, it.z-p.z); if (d < bd){ bd = d; best = it; } }
   return best ? {id:best.id} : null;
 }
 canvas.addEventListener('pointerdown', e => {
@@ -777,17 +799,24 @@ function addItem(type){
   state.items.push(it); rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
 function itemColor(it){ return it.type === 'chroma' ? (it.color || '#1fb24a') : '#' + COLORS[it.type].toString(16).padStart(6,'0'); }
+const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
   const counts = {};
   for (const it of state.items){
     counts[it.type] = (counts[it.type]||0)+1;
+    const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : '');
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
     const label = it.type==='camera' ? 'カメラ' : `${NAMES[it.type]} ${counts[it.type]}`;
     const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: it.type==='chroma'?`${it.w}×${it.h} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
     b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
-    b.addEventListener('click', () => { select(it.id, true); }); el.appendChild(b);
+    b.addEventListener('click', () => { select(it.id, true); });
+    const eye = document.createElement('button'); eye.className = 'eye'; eye.title = it.hidden ? '表示する' : '隠す'; eye.setAttribute('aria-label', eye.title);
+    eye.innerHTML = it.hidden ? EYE_OFF : EYE_ON;
+    eye.addEventListener('click', () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
+    row.append(b, eye); el.appendChild(row);
   }
   if (!state.items.length) el.innerHTML = '<p class="hint">まだ何も置いていません。</p>';
 }
@@ -801,6 +830,7 @@ function renderSel(){
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
   let h = `<h2>${NAMES[it.type]}</h2>`;
+  if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
   if (it.type === 'person'){
     h += range('height','身長',1.0,2.1,0.01,it.height,'m');
     h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
