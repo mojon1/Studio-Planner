@@ -37,16 +37,14 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 #tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
-#tabs #fold{flex:0 0 44px;font-size:1.2rem;color:var(--ink2)}
-body.folded #tabs #fold{transform:rotate(180deg)}
-body.folded #sheet{display:none}
-#unfold{display:none;position:absolute;left:80px;bottom:20px;z-index:3;height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.8);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
-@media (min-width:761px){
-  body.folded:not(.viewer) #panel{display:none}
-  body.folded:not(.viewer) #app{grid-template-columns:1fr}
-  body.folded:not(.viewer) #unfold{display:block}
-}
+#gear{position:absolute;left:80px;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#gear.on{background:var(--accent)}
+#gear:focus-visible{outline:3px solid #fff;outline-offset:2px}
+body.viewer #gear{display:none}
+body.folded:not(.viewer) #panel{display:none}
+body.folded:not(.viewer) #app{grid-template-columns:1fr}
 #sheet{overflow-y:auto;padding:14px 16px 24px;flex:1;min-height:0}
+#selbody:not(:empty){margin-top:18px;padding-top:16px;border-top:2px solid var(--rule)}
 .sec{display:none}.sec.on{display:block}
 h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:700}
 h2:first-child{margin-top:0}
@@ -123,6 +121,7 @@ body.viewer #viewerbar{display:block}
   #addpop .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
   #addfab{width:52px;height:52px;font-size:1.7rem}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  body.folded:not(.viewer) #app{grid-template-rows:1fr}
   #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
   #view{order:1}
   #sheet{padding:12px 14px 20px}
@@ -136,35 +135,15 @@ body.viewer #viewerbar{display:block}
 <div id="app">
   <div id="panel">
     <div id="tabs">
-      <button data-tab="studio" class="on">スタジオ</button>
-      <button data-tab="list">リスト</button>
-      <button data-tab="sel">選択中</button>
+      <button data-tab="list" class="on">リスト</button>
       <button data-tab="share">共有</button>
-      <button id="fold" title="設定を閉じる" aria-label="設定を閉じる">▾</button>
     </div>
     <div id="sheet">
-      <div class="sec on" data-sec="studio">
-        <h2>スタジオを選ぶ</h2>
-        <select id="preset"></select>
-        <div class="dims" style="margin-top:10px">
-          <label>幅 (m)<input type="number" id="sw" step="0.5" min="2" max="40"></label>
-          <label>奥行 (m)<input type="number" id="sd" step="0.5" min="2" max="40"></label>
-          <label>高さ (m)<input type="number" id="sh" step="0.5" min="2" max="15"></label>
-        </div>
-        <h2>ホリゾント（R 壁）を付ける辺</h2>
-        <div class="row"><button class="btn" data-cove="left">左</button><button class="btn" data-cove="back">奥</button><button class="btn" data-cove="right">右</button></div>
-        <p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>
-        <h2>見かた</h2>
-        <p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。カメラの絵は右下の小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>
-      </div>
-      <div class="sec" data-sec="list">
-        <h2>置いてあるもの</h2>
+      <div class="sec on" data-sec="list">
         <div class="row"><button class="btn primary" data-openadd>＋ 置くものを追加</button></div>
         <div class="list" id="items"></div>
-        <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。目のマークで一時的に隠せます。</p>
-        <p class="hint">カメラは何台でも置けます。選んだカメラの絵が小窓に出ます。</p>
+        <div id="selbody"></div>
       </div>
-      <div class="sec" data-sec="sel"><div id="selbody"><p class="hint">図面のものをタップすると、ここで細かく変えられます。</p></div></div>
       <div class="sec" data-sec="share">
         <h2>リンクで共有</h2>
         <p class="hint">このリンクを開くと、アプリ無しで同じ配置がそのまま見られます。</p>
@@ -183,13 +162,15 @@ body.viewer #viewerbar{display:block}
       <button data-view="plan" class="on">上面</button>
       <button data-view="side">側面</button>
       <button data-view="pers">パース</button>
-      <button data-view="cam">カメラ全画面</button>
+      <button data-view="cam">ファインダー</button>
     </div>
     <div id="labels"></div>
     <div id="info"></div>
     <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
     <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
-    <button id="unfold" title="設定を開く">設定を開く</button>
+    <button id="gear" title="設定の開閉" aria-label="設定の開閉">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </button>
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
@@ -264,7 +245,8 @@ function sensorName(it){
   return s ? s.name : `センサー ${sensorW(it)}mm`;
 }
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
-const norm = a => ((a % 360) + 360) % 360;
+// rotations live in -180..180 so a slider has zero in the middle
+const norm = a => { const n = ((a % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
 
 let state = defaultState();
@@ -289,6 +271,7 @@ function migrate(st){
     }
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
     if (it.type === 'person' && !it.body) it.body = 'm';
+    if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
   if (!st.items.some(i => i.id === st.activeCam && i.type === 'camera')) st.activeCam = firstCamId(st);
@@ -1056,26 +1039,51 @@ document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('c
 const tabs = document.querySelectorAll('#tabs button[data-tab]');
 let folded = false;
 try { const f = localStorage.getItem('studio3d.folded'); folded = f === null ? (innerWidth <= 760) : f === '1'; } catch { folded = innerWidth <= 760; }
-function setFolded(v){ folded = v; document.body.classList.toggle('folded', v); try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {} }
+const gearEl = document.getElementById('gear');
+function setFolded(v){
+  folded = v; document.body.classList.toggle('folded', v); gearEl.classList.toggle('on', !v);
+  try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {}
+}
 function showTab(name, open){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); if (open) setFolded(false); }
-tabs.forEach(b => b.addEventListener('click', () => { if (b.classList.contains('on') && !folded) setFolded(true); else showTab(b.dataset.tab, true); }));
-document.getElementById('fold').addEventListener('click', () => setFolded(!folded));
-document.getElementById('unfold').addEventListener('click', () => setFolded(false));
+tabs.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab, true)));
+gearEl.addEventListener('click', () => setFolded(!folded));
 setFolded(folded);
 
-// studio
-const presetEl = document.getElementById('preset');
-PRESETS.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; presetEl.appendChild(o); });
-presetEl.addEventListener('change', () => { const p = PRESETS.find(x => x.id === presetEl.value); if (p && p.w){ Object.assign(state.studio, {w:p.w,d:p.d,h:p.h,cove:{...p.cove}}); clampAll(); onStudioChange(); } });
-for (const k of ['w','d','h']){ const el = document.getElementById('s'+k); el.addEventListener('change', () => { const v = parseFloat(el.value); if (isFinite(v)){ state.studio[k] = clamp(v, 2, 40); presetEl.value = 'custom'; clampAll(); onStudioChange(); } }); }
-document.querySelectorAll('[data-cove]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cove; state.studio.cove[k] = !state.studio.cove[k]; onStudioChange(); }));
+// studio: the room is the first row of the list and edits like anything else
+const STUDIO = 'studio';
 function clampAll(){ for (const it of state.items) setPos(it, it.x, it.z); }
-function onStudioChange(){ buildStudio(); rebuildItems(); renderStudio(); needRender = true; saveHash(); }
-function renderStudio(){
-  const s = state.studio; document.getElementById('sw').value = s.w; document.getElementById('sd').value = s.d; document.getElementById('sh').value = s.h;
-  document.querySelectorAll('[data-cove]').forEach(b => b.classList.toggle('on', !!s.cove[b.dataset.cove]));
+function onStudioChange(){ buildStudio(); rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); }
+function studioPanel(){
+  const s = state.studio;
   const same = (a,b) => !!a.back===!!b.back && !!a.left===!!b.left && !!a.right===!!b.right;
-  const p = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && x.cove && same(x.cove, s.cove)); presetEl.value = p ? p.id : 'custom';
+  const cur = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && x.cove && same(x.cove, s.cove));
+  const id = cur ? cur.id : 'custom';
+  let h = `<h2>スタジオ</h2><select id="preset">` +
+    PRESETS.map(p => `<option value="${p.id}"${p.id===id?' selected':''}>${esc(p.name)}</option>`).join('') + `</select>`;
+  h += `<div class="dims" style="margin-top:10px">
+          <label>幅 (m)<input type="number" id="sw" step="0.5" min="2" max="40" value="${s.w}"></label>
+          <label>奥行 (m)<input type="number" id="sd" step="0.5" min="2" max="40" value="${s.d}"></label>
+          <label>高さ (m)<input type="number" id="sh" step="0.5" min="2" max="15" value="${s.h}"></label>
+        </div>`;
+  h += `<h2>ホリゾント（R 壁）を付ける辺</h2><div class="row">` +
+    [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
+  h += `<p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>`;
+  h += `<h2>見かた</h2><p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。選んだカメラの絵は小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>`;
+  return h;
+}
+function bindStudio(el){
+  const pre = el.querySelector('#preset');
+  pre.addEventListener('change', () => {
+    const p = PRESETS.find(x => x.id === pre.value);
+    if (p && p.w){ Object.assign(state.studio, {w:p.w, d:p.d, h:p.h, cove:{...p.cove}}); clampAll(); onStudioChange(); }
+  });
+  for (const k of ['w','d','h']){
+    const n = el.querySelector('#s' + k);
+    n.addEventListener('change', () => { const v = parseFloat(n.value); if (isFinite(v)){ state.studio[k] = clamp(v, 2, 40); clampAll(); onStudioChange(); } });
+  }
+  el.querySelectorAll('[data-cove]').forEach(b => b.addEventListener('click', () => {
+    state.studio.cove[b.dataset.cove] = !state.studio.cove[b.dataset.cove]; onStudioChange();
+  }));
 }
 
 // add: the choices live in a popup, so the panel can stay a list of what is placed
@@ -1121,10 +1129,18 @@ const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stro
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
+  {                                              // the room itself, edited like anything else
+    const row = document.createElement('div'); row.className = 'itemrow'; row.dataset.kind = STUDIO;
+    const b = document.createElement('button'); b.classList.toggle('on', selectedId === STUDIO);
+    const s = state.studio;
+    b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span><small>${fmt(s.w)}×${fmt(s.d)}×高 ${fmt(s.h)} m</small>`;
+    b.addEventListener('click', () => select(STUDIO, true));
+    row.append(b); el.appendChild(row);
+  }
   const counts = {};
   for (const it of state.items){
     counts[it.type] = (counts[it.type]||0)+1;
-    const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : '');
+    const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : ''); row.dataset.kind = it.type;
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
     const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
@@ -1145,21 +1161,32 @@ function renderList(){
     eye.addEventListener('click', () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
     row.append(b, eye); el.appendChild(row);
   }
-  if (!state.items.length) el.innerHTML = '<p class="hint">まだ何も置いていません。</p>';
+  if (!state.items.length){
+    const p = document.createElement('p'); p.className = 'hint';
+    p.textContent = 'まだ何も置いていません。＋ から選んでください。';
+    el.appendChild(p);
+  }
 }
 
 // select
-// selecting on the canvas switches to the 選択中 tab but never unfolds the panel (that would shift the view mid-drag)
+// the settings sit under the list, so selecting only has to show that tab;
+// tapping on the canvas never unfolds the panel (that would shift the view mid-drag)
 function select(id, open=false){
   const it = state.items.find(i => i.id === id);
   if (it?.type === 'camera') setActiveCam(id);
   selectedId = id; updateSelectionVisuals(); renderSel(); renderList();
-  if (id && !viewerMode) showTab('sel', open);
+  if (id && !viewerMode) showTab('list', open);
   needRender = true;
 }
 function renderSel(){
-  const it = sel(); const el = document.getElementById('selbody');
-  if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
+  const el = document.getElementById('selbody');
+  if (selectedId === STUDIO){ el.innerHTML = studioPanel(); bindStudio(el); return; }
+  const it = sel();
+  if (!it){
+    el.innerHTML = '<p class="hint">リストから選ぶか、図面のものをタップすると、ここで細かく変えられます。</p>'
+      + '<p class="hint">図面のものは指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。目のマークで一時的に隠せます。</p>';
+    return;
+  }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
   const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
@@ -1228,7 +1255,7 @@ function renderSel(){
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
     h += `<p class="hint">映り込みはカメラの小窓で確認できます。</p>`;
   }
-  h += `<h2>向きと位置</h2>` + range('rot','向き',0,359,1,it.rot,'°');
+  h += `<h2>向きと位置</h2>` + range('rot','向き',-180,180,1,it.rot,'°');
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
@@ -1586,7 +1613,7 @@ async function copyLink(viewOnly){
 }
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
-document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; select(null); buildStudio(); rebuildItems(); renderStudio(); saveHash(); } });
+document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; select(null); buildStudio(); rebuildItems(); renderList(); saveHash(); } });
 document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); if (mainView === 'cam') setMain('plan'); resize(); saveHash(); });
 
 // png
@@ -1609,7 +1636,7 @@ let toastT; function toast(msg){ const t = document.getElementById('toast'); t.t
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; syncViewBtns(); }
-  buildStudio(); rebuildItems(); renderStudio(); renderList(); renderSel();
+  buildStudio(); rebuildItems(); renderList(); renderSel();
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;
   frame();

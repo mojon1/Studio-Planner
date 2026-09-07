@@ -132,6 +132,10 @@ const browser = await chromium.launch({
   ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
+// rows are addressed by what they hold, not by position: the list starts with the studio
+const row = (page, kind, n = 0) => page.locator(`#items .itemrow[data-kind="${kind}"]`).nth(n);
+const rowName = (page, kind, n = 0) => row(page, kind, n).locator('button').first();
+
 async function run(name, viewport, mobile, hash = '', init = null) {
   const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
@@ -173,7 +177,8 @@ await r.page.waitForTimeout(500);
 await r.page.mouse.move(700, 150); await r.page.mouse.down(); await r.page.mouse.move(600, 200, {steps: 8}); await r.page.mouse.up();
 await r.page.waitForTimeout(500);
 await r.page.screenshot({ path: `${OUT}/desktop-pers.png` });
-await r.page.click('[data-tab="studio"]');
+await r.page.click('[data-tab="list"]');
+await rowName(r.page, 'studio').click();
 await r.page.click('[data-cove="left"]'); await r.page.click('[data-cove="right"]');
 await r.page.waitForTimeout(500);
 await r.page.screenshot({ path: `${OUT}/desktop-pers-cove.png` });
@@ -183,7 +188,7 @@ await r.page.waitForTimeout(400);
 await r.page.screenshot({ path: `${OUT}/desktop-pers-fade.png` });
 // hide the mirror via the eye button
 await r.page.click('[data-tab="list"]');
-await r.page.click('#items .itemrow:nth-child(3) .eye'); await r.page.waitForTimeout(300);
+await row(r.page, 'mirror').locator('.eye').click(); await r.page.waitForTimeout(300);
 console.log('hidden rows:', await r.page.$$eval('#items .itemrow.hidden-item', b => b.length));
 await r.page.click('[data-view="side"]'); await r.page.waitForTimeout(400);
 await r.page.screenshot({ path: `${OUT}/desktop-side2.png` });
@@ -197,10 +202,10 @@ await r.page.waitForTimeout(400);
 console.log('pip rect:', await r.page.$eval('#pip', e => e.style.cssText));
 await r.page.screenshot({ path: `${OUT}/desktop-pip.png` });
 // select camera via list, choose custom sensor
-await r.page.click('[data-tab="studio"]'); await r.page.click('[data-tab="list"]');
-await r.page.click('#items .itemrow:nth-child(2) > button:first-child');
+await r.page.click('[data-tab="list"]');
+await rowName(r.page, 'camera').click();
 await r.page.waitForTimeout(200);
-console.log('sel tab open:', await r.page.$eval('[data-tab="sel"]', b => b.classList.contains('on')));
+console.log('settings under the list:', (await r.page.textContent('#selbody')).includes('センサー'));
 await r.page.click('[data-set="sensor"][data-val="custom"]');
 await r.page.fill('[data-num="sensorW"]', '24.9');
 await r.page.press('[data-num="sensorW"]', 'Enter');
@@ -226,7 +231,7 @@ await r.page.screenshot({ path: `${OUT}/desktop-cam2.png` });
 console.log('info:', await r.page.textContent('#info'));
 await r.page.click('[data-view="plan"]');
 await r.page.click('[data-tab="list"]');
-await r.page.click('#items .itemrow:nth-child(1) > button:first-child');
+await rowName(r.page, 'person').click();
 await r.page.waitForTimeout(400);
 await r.page.screenshot({ path: `${OUT}/desktop-plan2.png` });
 // rotate ring drag: person at world (0,-0.5); plan scale ~86.7 px/m, centre (810,400)
@@ -237,10 +242,10 @@ await r.page.mouse.move(810+69, 357); await r.page.mouse.down(); await r.page.mo
 await r.page.waitForTimeout(300);
 console.log('rot before/after ring drag:', rotBefore, await r.page.inputValue('[data-range="rot"]'));
 // fold / unfold
-await r.page.click('#fold'); await r.page.waitForTimeout(300);
+await r.page.click('#gear'); await r.page.waitForTimeout(300);
 console.log('folded panel hidden:', await r.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
 await r.page.screenshot({ path: `${OUT}/desktop-folded.png` });
-await r.page.click('#unfold'); await r.page.waitForTimeout(200);
+await r.page.click('#gear'); await r.page.waitForTimeout(200);
 // share link
 await r.page.click('[data-tab="share"]');
 await r.page.waitForTimeout(500);
@@ -262,7 +267,8 @@ await r.page.touchscreen.tap(cx, cy);
 await r.page.waitForTimeout(300);
 await r.page.screenshot({ path: `${OUT}/mobile-selected.png` });
 await r.page.screenshot({ path: `${OUT}/mobile-folded.png` });
-await r.page.tap('[data-tab="sel"]'); await r.page.waitForTimeout(300);
+await r.page.tap('#gear'); await r.page.waitForTimeout(300);   // the panel starts folded on a phone
+await r.page.tap('[data-tab="list"]'); await r.page.waitForTimeout(300);
 await r.page.screenshot({ path: `${OUT}/mobile-open.png` });
 console.log('mobile errors end:', r.errors);
 await r.ctx.close();
@@ -340,7 +346,7 @@ await r.ctx.close();
   await g.page.reload();
   await g.page.waitForTimeout(2500);
   await g.page.click('[data-tab="list"]');
-  await g.page.click('#items .itemrow:last-child > button:first-child');
+  await g.page.locator('#items .itemrow[data-kind="model"] button').first().click();
   await g.page.waitForTimeout(400);
   console.log('after reload ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 60));
 
@@ -439,7 +445,7 @@ await r.ctx.close();
 {
   const g = await run('selfshot', { width: 1000, height: 700 }, false);
   await g.page.click('[data-tab="list"]');
-  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await rowName(g.page, 'camera').click();
   await g.page.waitForTimeout(300);
   const slide = async (name, v) => g.page.$eval(`[data-range="${name}"]`, (el, val) => {
     el.value = val;
@@ -452,11 +458,11 @@ await r.ctx.close();
   await g.page.waitForTimeout(2600);                       // let any toast fade out
   const shown = await g.page.locator('#view').screenshot({ path: `${OUT}/selfshot.png` });
   await g.page.click('[data-tab="list"]');
-  await g.page.click('#items .itemrow:nth-child(2) .eye');  // hide the camera by hand
+  await row(g.page, 'camera').locator('.eye').click();      // hide the camera by hand
   await g.page.waitForTimeout(800);
   const hidden = await g.page.locator('#view').screenshot();
   console.log('camera absent from its own shot:', shown.equals(hidden));
-  await g.page.click('#items .itemrow:nth-child(2) .eye');  // show it again
+  await row(g.page, 'camera').locator('.eye').click();      // show it again
   await g.page.waitForTimeout(400);
   // and it is still pickable in the plan, i.e. nothing was left invisible
   await g.page.click('[data-view="plan"]');
@@ -488,9 +494,10 @@ await r.ctx.close();
   console.log('two cameras listed:', await rows());
   console.log('window shows the new one:', await g.page.textContent('#pipname'));
   // pick the first camera: the window follows the selection
-  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await rowName(g.page, 'camera', 0).click();
   await g.page.waitForTimeout(400);
-  console.log('window follows selection:', await g.page.textContent('#pipname'), (await rows())[1]);
+  console.log('window follows selection:', await g.page.textContent('#pipname'),
+    (await rows()).find(t => t.startsWith('カメラ 1')));
   // the share link carries which camera is being shown
   await g.page.click('[data-tab="share"]');
   await g.page.waitForTimeout(600);
@@ -501,7 +508,7 @@ await r.ctx.close();
   await back.ctx.close();
   // delete the shown camera; the other one takes over
   await g.page.click('[data-tab="list"]');
-  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await rowName(g.page, 'camera', 0).click();
   await g.page.waitForTimeout(300);
   await g.page.click('[data-del]');
   await g.page.waitForTimeout(500);
