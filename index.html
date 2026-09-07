@@ -63,6 +63,10 @@ input[type=number],select,input[type=text]{height:40px;border:1px solid var(--ru
 #viewbtns button{height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
 #viewbtns button.on{background:var(--accent)}
 #info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+#labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#labels span.dim{color:#ffd9a8}
+#labels span.dist{color:#fff;background:rgba(194,113,31,.85)}
 #pip{position:absolute;right:10px;bottom:10px;z-index:3;border:2px solid rgba(255,255,255,.6);border-radius:6px;cursor:pointer;background:transparent}
 #pip span{position:absolute;left:6px;top:4px;color:#fff;font-size:.72rem;font-weight:700;text-shadow:0 1px 2px #000}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -85,7 +89,7 @@ body.viewer #viewerbar{display:block}
   #sheet{padding:12px 14px 20px}
   #tabs button{height:44px;font-size:.85rem}
   #viewbtns button{height:36px;padding:0 10px;font-size:.8rem}
-  #info{font-size:.7rem}
+  #info{font-size:.68rem;top:52px;left:10px;right:auto;padding:4px 8px}
   label.f{grid-template-columns:5em 1fr auto}
 }
 </style>
@@ -110,7 +114,7 @@ body.viewer #viewerbar{display:block}
         <div class="row" style="margin-top:10px"><button class="btn" id="cove">ホリゾント (R 壁)</button></div>
         <p class="hint">上が奥の壁です。図面の 1 マスは 1 m。</p>
         <h2>見かた</h2>
-        <p class="hint">「俯瞰」で置く、「カメラ」で絵を見る、「横」で高さを見る。右下の小窓をタップすると入れ替わります。</p>
+        <p class="hint">「上面」で置く、「カメラ」で絵を見る、「側面」で高さを見る、「パース」は指でくるくる回せます。右下の小窓をタップすると入れ替わります。</p>
       </div>
       <div class="sec" data-sec="add">
         <h2>置くもの</h2>
@@ -119,8 +123,9 @@ body.viewer #viewerbar{display:block}
           <button class="btn" data-add="camera">カメラ</button>
           <button class="btn" data-add="light">ライト</button>
           <button class="btn" data-add="mirror">反射面</button>
+          <button class="btn" data-add="chroma">クロマキー布</button>
         </div>
-        <p class="hint">俯瞰の図面で、置いたものを指でドラッグして動かせます。前の小さな丸をドラッグすると向きが変わります。</p>
+        <p class="hint">上面の図面で、置いたものを指でドラッグして動かせます。前の小さな丸をドラッグすると向きが変わります。</p>
         <h2>置いてあるもの</h2>
         <div class="list" id="items"></div>
       </div>
@@ -140,10 +145,12 @@ body.viewer #viewerbar{display:block}
   </div>
   <div id="view">
     <div id="viewbtns">
-      <button data-view="plan" class="on">俯瞰</button>
+      <button data-view="plan" class="on">上面</button>
       <button data-view="cam">カメラ</button>
-      <button data-view="side">横</button>
+      <button data-view="side">側面</button>
+      <button data-view="pers">パース</button>
     </div>
+    <div id="labels"></div>
     <div id="info"></div>
     <div id="pip"><span></span></div>
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
@@ -164,15 +171,18 @@ const PRESETS = [
   {id:'r', name:'6 畳の部屋 3.6×2.7×2.4 m', w:3.6, d:2.7, h:2.4, cove:false},
   {id:'custom', name:'数値で入力'},
 ];
-const SENSORS = {ff:{name:'フルサイズ', w:36}, apsc:{name:'APS-C', w:23.5}, phone:{name:'スマホ', w:36}};
-const LENSES = {ff:[24,35,50,85,135], apsc:[16,24,35,56,85], phone:[13,24,48,72,120]};
+const SENSORS = {ff:{name:'フルサイズ', w:36}, apsc:{name:'APS-C', w:23.5}, mft:{name:'マイクロフォーサーズ', w:17.3}, custom:{name:'手動', w:null}};
+const LENSES = {ff:[24,35,50,85,135], apsc:[16,24,35,56,85], mft:[12,17,25,42,75], custom:[24,35,50,85,135]};
 const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面'};
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a};
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'クロマキー布'};
+const CHROMA = {green:0x1fb24a, blue:0x1f5fd0};
+const sensorW = it => it.sensor === 'custom' ? clamp(+it.sensorW || 36, 4, 80) : SENSORS[it.sensor]?.w || 36;
+const sensorName = it => it.sensor === 'custom' ? `センサー ${sensorW(it)}mm` : SENSORS[it.sensor]?.name || 'フルサイズ';
 
 let state = defaultState();
 let selectedId = null;
-let mainView = 'plan';      // plan | cam | side
+let mainView = 'plan';      // plan | cam | side | pers
 let pipView = 'cam';
 let viewerMode = false;
 let uid = 1;
@@ -206,6 +216,16 @@ planCam.up.set(0,0,-1);
 const sideCam = new THREE.OrthographicCamera(-1,1,1,-1,0.1,200);
 const shotCam = new THREE.PerspectiveCamera(50, 1.5, 0.05, 200);
 shotCam.rotation.order = 'YXZ';
+const persCam = new THREE.PerspectiveCamera(45, 1.5, 0.05, 500);
+const orbit = {theta:0.7, phi:1.0, radius:12, target:new THREE.Vector3()};
+function resetOrbit(){ const {w,d,h} = state.studio; orbit.theta = 0.7; orbit.phi = 1.0; orbit.radius = Math.max(w,d)*1.5; orbit.target.set(0, h*0.3, 0); }
+function applyOrbit(){
+  const {theta, phi, radius, target} = orbit;
+  persCam.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
+  persCam.up.set(0,1,0); persCam.lookAt(target);
+}
+const dimGroup = new THREE.Group(); scene.add(dimGroup);
+let labels = []; // {p:Vector3, text, cls, views:[...]}
 
 const studioGroup = new THREE.Group(); scene.add(studioGroup);
 const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
@@ -251,7 +271,67 @@ function buildStudio(){
   const sc = sun.shadow.camera; const m = Math.max(w,d);
   sc.left = -m; sc.right = m; sc.top = m; sc.bottom = -m; sc.near = 0.5; sc.far = m*4; sc.updateProjectionMatrix();
   sideCam.position.set(60, h/2, 0); planCam.position.set(0,60,0);
+  resetOrbit(); buildDims();
   fitOrtho();
+}
+// dimension lines + labels
+const dimMat = new THREE.LineBasicMaterial({color:0xffd9a8});
+function dimLine(a, b, tickDir, views){
+  const t = tickDir.clone().multiplyScalar(0.18);
+  const pts = [a, b, a.clone().sub(t), a.clone().add(t), b.clone().sub(t), b.clone().add(t)];
+  const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat); l.userData.views = views; dimGroup.add(l);
+}
+function buildDims(){
+  dimGroup.clear(); labels = [];
+  const {w,d,h} = state.studio; const o = 0.6;
+  const X = new THREE.Vector3(1,0,0), Y = new THREE.Vector3(0,1,0), Z = new THREE.Vector3(0,0,1);
+  // width (front edge) and depth (right edge): plan + pers
+  dimLine(new THREE.Vector3(-w/2,0.01,d/2+o), new THREE.Vector3(w/2,0.01,d/2+o), Z, ['plan','pers']);
+  labels.push({p:new THREE.Vector3(0,0.01,d/2+o), text:`幅 ${fmt(w)} m`, cls:'dim', views:['plan','pers']});
+  dimLine(new THREE.Vector3(w/2+o,0.01,-d/2), new THREE.Vector3(w/2+o,0.01,d/2), X, ['plan','pers']);
+  labels.push({p:new THREE.Vector3(w/2+o,0.01,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['plan','pers']});
+  // height at the front-right corner: pers + side
+  dimLine(new THREE.Vector3(w/2+o,0,d/2+o), new THREE.Vector3(w/2+o,h,d/2+o), X, ['pers']);
+  labels.push({p:new THREE.Vector3(w/2+o,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['pers']});
+  dimLine(new THREE.Vector3(0,0,d/2+o), new THREE.Vector3(0,h,d/2+o), Z, ['side']);
+  labels.push({p:new THREE.Vector3(0,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['side']});
+  dimLine(new THREE.Vector3(0,-o*0.6,-d/2), new THREE.Vector3(0,-o*0.6,d/2), Y, ['side']);
+  labels.push({p:new THREE.Vector3(0,-o*0.6,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['side']});
+}
+// distance camera -> selected subject (plan / pers)
+const distLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({color:0xe29a44, dashSize:0.2, gapSize:0.12, depthTest:false}));
+distLine.renderOrder = 7; distLine.visible = false; scene.add(distLine);
+let distLabel = null;
+function updateDist(){
+  const it = sel(), ci = camItem();
+  distLabel = null; distLine.visible = false;
+  if (!it || !ci || it.type === 'camera' || viewerMode) return;
+  const a = new THREE.Vector3(ci.x, 0.02, ci.z), b = new THREE.Vector3(it.x, 0.02, it.z);
+  distLine.geometry.setFromPoints([a,b]); distLine.computeLineDistances(); distLine.visible = true;
+  distLabel = {p:a.clone().lerp(b,0.5), text:`${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','pers']};
+}
+const labelsEl = document.getElementById('labels');
+function itemLabels(view){
+  const out = [];
+  if (view !== 'side') return out;
+  for (const it of state.items){
+    const top = it.type==='person' ? (it.pose==='lie' ? 0.35 : it.pose==='sit' ? 0.45 + it.height*0.5 : it.height) : it.type==='chroma'||it.type==='mirror'&&it.kind==='wall' ? it.h : it.y ?? 0;
+    const txt = it.type==='person' ? `身長 ${fmt(it.height)} m` : it.type==='camera' ? `高さ ${fmt(it.y)} m` : it.type==='light' ? `高さ ${fmt(it.y)} m` : (it.type==='chroma'||(it.type==='mirror'&&it.kind==='wall')) ? `高さ ${fmt(it.h)} m` : null;
+    if (txt) out.push({p:new THREE.Vector3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
+  }
+  return out;
+}
+function drawLabels(view, cam, rect){
+  if (view === 'cam'){ labelsEl.innerHTML = ''; return; }
+  const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
+  let html = '';
+  for (const L of all){
+    if (!L.views.includes(view)) continue;
+    const v = L.p.clone().project(cam); if (v.z > 1) continue;
+    const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
+    html += `<span class="${L.cls}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${L.text}</span>`;
+  }
+  labelsEl.innerHTML = html;
 }
 
 // ---------- item meshes ----------
@@ -304,9 +384,22 @@ function wedge(halfAngle, len, color, opacity=0.25){
   m.rotation.x = -Math.PI/2; m.scale.y = -1; m.position.y = 0.005; m.userData.plan = true; return m;
 }
 function hfov(it){
-  const cam = SENSORS[it.sensor]; const ar = ASPECTS[it.aspect];
-  const fw = ar >= 1 ? cam.w : cam.w * ar; // long side of sensor across the wide direction
+  const sw = sensorW(it); const ar = ASPECTS[it.aspect];
+  const fw = ar >= 1 ? sw : sw * ar; // long side of sensor across the wide direction
   return 2*Math.atan(fw/2/it.focal);
+}
+function buildChroma(it){
+  const g = new THREE.Group(); const col = CHROMA[it.kind] || CHROMA.green;
+  const cloth = new THREE.MeshStandardMaterial({color:col, roughness:1, side:THREE.DoubleSide});
+  const wall = shadowed(new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h), cloth)); wall.position.set(0, it.h/2, 0); g.add(wall);
+  if (it.drape > 0){
+    const fl = shadowed(new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.drape), cloth)); fl.rotation.x = -Math.PI/2; fl.position.set(0, 0.012, it.drape/2); g.add(fl);
+    const cove = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,it.w,16,1,true, Math.PI, Math.PI/2), cloth); cove.rotation.z = Math.PI/2; cove.position.set(0,0.25,0.25); g.add(cove);
+  }
+  const bar = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,it.w+0.3,8), mat(0x444))); bar.rotation.z = Math.PI/2; bar.position.set(0,it.h+0.02,-0.03); g.add(bar);
+  for (const s of [-1,1]){ const pole = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,it.h+0.04,8), mat(0x444))); pole.position.set(s*(it.w/2+0.12), (it.h+0.04)/2, -0.03); g.add(pole); }
+  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w+0.3, 0.14), new THREE.MeshBasicMaterial({color:col})); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; marker.userData.plan = true; g.add(marker);
+  return g;
 }
 function buildCamera(it){
   const g = new THREE.Group(); const c = mat(COLORS.camera);
@@ -355,7 +448,7 @@ function rebuildItems(){
   for (const o of itemObjs.values()) o.group.traverse(n => { if (n.userData.reflector) n.dispose?.(); });
   itemObjs.clear();
   for (const it of state.items){
-    const g = it.type==='person'?buildPerson(it):it.type==='camera'?buildCamera(it):it.type==='light'?buildLight(it):buildMirror(it);
+    const g = it.type==='person'?buildPerson(it):it.type==='camera'?buildCamera(it):it.type==='light'?buildLight(it):it.type==='chroma'?buildChroma(it):buildMirror(it);
     g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot);
     itemsGroup.add(g); itemObjs.set(it.id, {group:g});
   }
@@ -366,10 +459,11 @@ function updateItemTransform(it){
   o.group.position.set(it.x,0,it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
   updateSelectionVisuals();
 }
-function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.7, it.h*0.5+0.3) : 0.7; }
+function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.7, it.h*0.5+0.3) : it.type==='chroma' ? Math.max(0.8, (it.drape||0)+0.4) : 0.7; }
 function updateSelectionVisuals(){
   const it = sel();
   selRing.visible = handle.visible = handleLine.visible = !!it && !viewerMode;
+  updateDist();
   if (!it) return;
   selRing.position.set(it.x, 0.01, it.z);
   const r = handleRadius(it), a = THREE.MathUtils.degToRad(it.rot);
@@ -388,10 +482,11 @@ function resize(){
 }
 function fitOrtho(){
   const {w,d,h} = state.studio;
+  const pr = mainView==='pers' ? mainRect() : pipRect(); persCam.aspect = pr.w/Math.max(1,pr.h); persCam.updateProjectionMatrix(); applyOrbit();
   for (const [cam, ew, eh, isPlan] of [[planCam, w, d, true],[sideCam, d, h, false]]){
     const rect = cam === (mainView==='plan'||mainView==='side' ? (mainView==='plan'?planCam:sideCam) : null) ? mainRect() : pipRect();
     const asp = rect.w / Math.max(1,rect.h);
-    let hw = ew/2*1.15, hh = eh/2*1.15;
+    let hw = ew/2 + 1.4, hh = eh/2 + 1.4;
     if (hw/hh > asp) hh = hw/asp; else hw = hh*asp;
     cam.left=-hw; cam.right=hw; cam.top=hh; cam.bottom=-hh;
     if (isPlan){ cam.position.set(0,60,0); cam.lookAt(0,0,0); }
@@ -409,7 +504,7 @@ function layoutPip(){
   pipR = {x:W-pw-10, y:H-ph-10, w:pw, h:ph};
   pipEl.style.width = pw+'px'; pipEl.style.height = ph+'px';
   pipEl.style.display = (viewerMode && small) ? 'none' : 'block';
-  pipEl.querySelector('span').textContent = {plan:'俯瞰',cam:'カメラ',side:'横'}[pipView];
+  pipEl.querySelector('span').textContent = {plan:'上面',cam:'カメラ',side:'側面',pers:'パース'}[pipView];
 }
 function renderView(view, rect, isMain){
   const ci = camItem();
@@ -418,26 +513,32 @@ function renderView(view, rect, isMain){
     if (n.userData.plan) n.visible = view !== 'cam';
     if (n.userData.reflector) n.visible = view === 'cam';
   });
-  studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam'; });
+  studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
+  dimGroup.traverse(n => { if (n.userData.views) n.visible = isMain && n.userData.views.includes(view); });
   const showSel = isMain && view !== 'cam';
   const s = sel(); selRing.visible = handle.visible = handleLine.visible = showSel && !!s && !viewerMode;
+  distLine.visible = showSel && !!distLabel && (view === 'plan' || view === 'pers');
   renderer.setScissorTest(true);
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
     renderer.setClearColor(0x111214); renderer.clear();
+    if (isMain) drawLabels(view, shotCam, rect);
     if (!ci) return;
     const ar = ASPECTS[ci.aspect]; let iw = rect.w, ih = rect.w/ar; if (ih > rect.h){ ih = rect.h; iw = rect.h*ar; }
     const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
-    shotCam.aspect = iw/ih; shotCam.filmGauge = SENSORS[ci.sensor].w; shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
+    shotCam.aspect = iw/ih; shotCam.filmGauge = sensorW(ci); shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
     shotCam.position.set(ci.x, ci.y, ci.z); shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
     renderer.setViewport(ix, H-iy-ih, iw, ih); renderer.setScissor(ix, H-iy-ih, iw, ih);
     renderer.setClearColor(0x3b3f47); renderer.clear(); renderer.render(scene, shotCam);
   } else {
+    const cam = view==='plan'?planCam:view==='side'?sideCam:persCam;
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
     renderer.setClearColor(view==='plan'?0x2a2d34:0x30343b); renderer.clear();
-    renderer.render(scene, view==='plan'?planCam:sideCam);
+    renderer.render(scene, cam);
+    if (isMain) drawLabels(view, cam, rect);
   }
 }
+function mainCam(){ return mainView==='plan'?planCam:mainView==='side'?sideCam:mainView==='pers'?persCam:shotCam; }
 let needRender = true;
 function frame(){
   requestAnimationFrame(frame);
@@ -451,10 +552,10 @@ function frame(){
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
-  if (ci){ const eq = equiv(ci); t += `\n${SENSORS[ci.sensor].name} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`; }
+  if (ci){ const eq = equiv(ci); t += `\n${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`; }
   el.textContent = t;
 }
-function equiv(ci){ return ci.sensor==='apsc' ? Math.round(ci.focal*36/23.5) : null; }
+function equiv(ci){ const w = sensorW(ci); return Math.abs(w-36) < 0.01 ? null : Math.round(ci.focal*36/w); }
 
 // ---------- pointer interaction ----------
 const ray = new THREE.Raycaster(); const floorPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
@@ -462,15 +563,16 @@ const pointers = new Map(); let drag = null; let pinch = null;
 function inRect(r, x, y){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
 function ndc(rect, x, y){ return new THREE.Vector2(((x-rect.x)/rect.w)*2-1, -((y-rect.y)/rect.h)*2+1); }
 function floorHit(x,y){
-  const cam = mainView==='plan'?planCam:sideCam; ray.setFromCamera(ndc(mainRect(),x,y), cam);
+  ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
   const p = new THREE.Vector3(); return ray.ray.intersectPlane(floorPlane, p) ? p : null;
 }
 function pick(x,y){
-  if (mainView !== 'plan') return null;
-  ray.setFromCamera(ndc(mainRect(),x,y), planCam);
+  if (mainView === 'cam') return null;
+  ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
   if (handle.visible){ const h = ray.intersectObject(handle); if (h.length) return {handle:true}; }
   const hits = ray.intersectObjects(itemsGroup.children, true);
   for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
+  if (mainView === 'side') return null;
   // generous pick: nearest item within 0.45 m on the floor
   const p = floorHit(x,y); if (!p) return null;
   let best = null, bd = 0.45;
@@ -480,14 +582,14 @@ function pick(x,y){
 canvas.addEventListener('pointerdown', e => {
   const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
   canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x,y,sx:x,sy:y});
-  if (pointers.size === 2){ const [a,b] = [...pointers.values()]; pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, cx:(a.x+b.x)/2, cy:(a.y+b.y)/2, p0: planCam.position.clone()}; drag = null; return; }
+  if (pointers.size === 2){ const [a,b] = [...pointers.values()]; pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, r0: orbit.radius, cx:(a.x+b.x)/2, cy:(a.y+b.y)/2}; drag = null; return; }
   if (inRect(pipRect(), x, y) && !(viewerMode && W<760)){ drag = {pipTap:true}; return; }
-  if (viewerMode && mainView !== 'cam'){ drag = {pan:true, p0:planCam.position.clone(), s0:sideCam.position.clone()}; return; }
-  if (mainView === 'cam'){ const ci = camItem(); drag = ci ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
+  if (mainView === 'cam'){ const ci = camItem(); drag = ci && !viewerMode ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
+  if (viewerMode){ drag = {pan:true}; return; }
   const hit = pick(x,y);
   if (hit?.handle){ drag = {rotate:true}; return; }
-  if (hit?.id){ select(hit.id); const it = sel(); const p = floorHit(x,y); drag = {move:true, ox: it.x - p.x, oz: it.z - p.z, moved:false}; return; }
-  drag = {pan:true, p0:planCam.position.clone(), s0:sideCam.position.clone(), maybeDeselect:true};
+  if (hit?.id){ select(hit.id); if (mainView === 'side'){ drag = {pan:true}; return; } const it = sel(); const p = floorHit(x,y); if (!p){ drag = {pan:true}; return; } drag = {move:true, ox: it.x - p.x, oz: it.z - p.z, moved:false}; return; }
+  drag = {pan:true, maybeDeselect:true};
 });
 canvas.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
@@ -495,7 +597,8 @@ canvas.addEventListener('pointermove', e => {
   const pt = pointers.get(e.pointerId); const dx = x - pt.x, dy = y - pt.y; pt.x = x; pt.y = y;
   if (pinch && pointers.size === 2){
     const [a,b] = [...pointers.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y); const k = d/pinch.d0;
-    if (mainView === 'cam'){ const ci = camItem(); if (ci){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
+    if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
+    else if (mainView === 'pers'){ orbit.radius = clamp(pinch.r0/k, 1.5, 80); }
     else { planCam.zoom = clamp(pinch.z0*k, 0.3, 6); sideCam.zoom = planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); }
     needRender = true; return;
   }
@@ -504,6 +607,7 @@ canvas.addEventListener('pointermove', e => {
   if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; drag.moved = true; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
   if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); if (it.type==='camera') refreshCam(it); needRender = true; return; }
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
+    if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, 1.5); needRender = true; return; }
     const cam = mainView==='plan'?planCam:sideCam; const spu = (cam.right-cam.left)/cam.zoom/W;
     if (mainView==='plan'){ planCam.position.x -= dx*spu; planCam.position.z -= dy*spu; } else { sideCam.position.z += dx*spu; sideCam.position.y += dy*spu; }
     needRender = true; }
@@ -520,14 +624,14 @@ function endPointer(e){
   }
 }
 canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
-canvas.addEventListener('wheel', e => { e.preventDefault(); if (mainView==='cam'){ const ci=camItem(); if(ci){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci);} } else { planCam.zoom = clamp(planCam.zoom*(e.deltaY<0?1.1:0.9),0.3,6); sideCam.zoom=planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); } needRender = true; }, {passive:false});
+canvas.addEventListener('wheel', e => { e.preventDefault(); if (mainView==='cam'){ const ci=camItem(); if(ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci);} } else if (mainView==='pers'){ orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, 80); } else { planCam.zoom = clamp(planCam.zoom*(e.deltaY<0?1.1:0.9),0.3,6); sideCam.zoom=planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); } needRender = true; }, {passive:false});
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const norm = a => ((a % 360) + 360) % 360;
 function setPos(it, x, z){ const {w,d} = state.studio; it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2); }
 function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildCamera(ci); g.userData.id = ci.id; g.position.copy(o.group.position); g.rotation.y = THREE.MathUtils.degToRad(ci.rot); itemsGroup.remove(o.group); itemsGroup.add(g); o.group = g; } updateSelectionVisuals(); }
 
 // ---------- view switching ----------
-function setMain(v){ if (v === mainView) return; if (v === pipView) pipView = mainView; mainView = v; planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); planCam.zoom = sideCam.zoom = 1; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); syncViewBtns(); layoutPip(); needRender = true; }
+function setMain(v){ if (v === mainView) return; if (v === pipView) pipView = mainView; mainView = v; planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); planCam.zoom = sideCam.zoom = 1; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); resetOrbit(); syncViewBtns(); layoutPip(); needRender = true; }
 function swapViews(){ const m = mainView; mainView = pipView; pipView = m; syncViewBtns(); layoutPip(); needRender = true; }
 function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
 document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
@@ -554,11 +658,12 @@ function renderStudio(){
 // add
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
 function addItem(type){
-  const {w,d} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
+  const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
   if (type === 'person') it = {id, type, x:0, z:0, rot:0, height:1.7, pose:'stand'};
   else if (type === 'camera'){ if (camItem()){ toast('カメラは 1 台です'); select(camItem().id); showTab('sel'); return; } it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'}; }
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
+  else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, kind:'green', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
   else it = {id, type, x:0, z:0.5, rot:0, kind:'water', w:3, h:2};
   // avoid stacking on an existing item
   let tries = 0; while (tries++ < 20 && state.items.some(o => Math.hypot(o.x-it.x, o.z-it.z) < 0.5)) it.x += 0.6;
@@ -573,7 +678,7 @@ function renderList(){
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:#${COLORS[it.type].toString(16).padStart(6,'0')}"></span>`;
     const label = it.type==='camera' ? 'カメラ' : `${NAMES[it.type]} ${counts[it.type]}`;
-    const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
+    const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: it.type==='chroma'?`${{green:'グリーン',blue:'ブルー'}[it.kind]} ${it.w}×${it.h} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
     b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
     b.addEventListener('click', () => { select(it.id); showTab('sel'); }); el.appendChild(b);
   }
@@ -581,7 +686,7 @@ function renderList(){
 }
 
 // select
-function select(id){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); needRender = true; }
+function select(id){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); if (id && !viewerMode) showTab('sel'); needRender = true; }
 function renderSel(){
   const it = sel(); const el = document.getElementById('selbody');
   if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
@@ -593,7 +698,8 @@ function renderSel(){
     h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
   } else if (it.type === 'camera'){
     h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
-    h += `<h2>レンズ${it.sensor==='phone'?'（換算）':''}</h2>` + btns('focal', LENSES[it.sensor].map(f => [f, f+'mm']), it.focal);
+    if (it.sensor === 'custom') h += `<label class="f"><span>横幅</span><input type="number" data-num="sensorW" step="0.1" min="4" max="80" value="${sensorW(it)}"><span class="v">mm</span></label><p class="hint">センサーの横幅を mm で。例: 1 型 13.2、Super35 24.9、中判 43.8</p>`;
+    h += `<h2>レンズ</h2>` + btns('focal', LENSES[it.sensor].map(f => [f, f+'mm']), it.focal);
     h += range('focal','細かく',10,400,1,it.focal,'mm');
     h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]), it.aspect);
     h += `<h2>位置</h2>` + range('y','高さ',0.2,4,0.05,it.y,'m') + range('pitch','上下の向き',-45,45,1,it.pitch,'°');
@@ -601,6 +707,10 @@ function renderSel(){
   } else if (it.type === 'light'){
     h += range('y','高さ',0.3,5,0.05,it.y,'m');
     h += `<p class="hint">ライトは位置と向きの目安だけで、明るさは計算しません。</p>`;
+  } else if (it.type === 'chroma'){
+    h += `<h2>色</h2>` + btns('kind', [['green','グリーン'],['blue','ブルー']], it.kind);
+    h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
+    h += `<p class="hint">「床に垂らす」を 0 にすると背景だけの布になります。</p>`;
   } else {
     h += `<h2>種類</h2>` + btns('kind', [['water','床の水面'],['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
     h += range('w', it.kind==='wall'?'幅':'幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
@@ -610,6 +720,7 @@ function renderSel(){
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
+  el.querySelectorAll('[data-num]').forEach(n => n.addEventListener('change', () => { setProp(it, n.dataset.num, n.value); }));
   el.querySelectorAll('[data-range]').forEach(r => {
     r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
@@ -618,8 +729,9 @@ function renderSel(){
 }
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
 function setProp(it, k, v, live=false){
-  if (['height','y','w','h','rot','pitch','focal'].includes(k)) v = parseFloat(v); else if (k === 'focal') v = parseInt(v);
-  if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; }
+  if (['height','y','w','h','rot','pitch','focal','drape','sensorW'].includes(k)) v = parseFloat(v);
+  if (k === 'sensorW' && !(v > 0)) return;
+  if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
   if (it.type === 'camera'){ refreshCam(it); }
   else if (live && (k === 'rot')) updateItemTransform(it);
@@ -649,7 +761,7 @@ let saveT = null;
 function saveHash(){ clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':''); history.replaceState(null, '', h); document.getElementById('linkbox').value = location.href; }, 250); }
 async function loadHash(){
   const m = location.hash.match(/s=([^&]+)/); if (!m) return false;
-  try { const st = await decode(m[1]); if (st?.studio && Array.isArray(st.items)){ state = st; return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
+  try { const st = await decode(m[1]); if (st?.studio && Array.isArray(st.items)){ state = st; for (const it of state.items) if (it.type==='camera' && !SENSORS[it.sensor]) it.sensor = 'ff'; return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
   return false;
 }
 async function copyLink(viewOnly){
