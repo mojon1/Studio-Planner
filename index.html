@@ -1292,6 +1292,16 @@ async function parseModel(buf, ext, assets){
     if (ext === 'glb' || ext === 'gltf'){
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       const loader = new GLTFLoader(manager);
+      // three reads embedded textures with ImageBitmapLoader, which fetch()es the
+      // blob: URL. Where fetch is shut but an <img> is not, read them that way
+      // instead of silently losing every texture in the file.
+      const cap = await imageCaps();
+      if (!cap.fetch && cap.blob) loader.register(parser => {
+        const tl = new THREE.TextureLoader(parser.options.manager);
+        tl.crossOrigin = undefined;                 // blob: and data: need no CORS check
+        parser.textureLoader = tl;
+        return {name:'STUDIO_texture_via_img'};
+      });
       json = gltfJSON(buf, ext);
       try { await attachDecoders(loader, new Set(json?.extensionsUsed || [])); }
       catch(e){ console.warn('decoder setup failed', e); throw new Error('compressed'); }
@@ -1336,27 +1346,27 @@ function gltfFacts(json){
   return {defs:(json.textures || []).length, mats:mats.length, prims, noMat, refs,
           mimes:[...new Set(imgs.map(i => i.mimeType || (i.uri ? `外部 ${baseOf(i.uri)}` : '種類不明')))]};
 }
-// glTF hands embedded textures to three as blob: URLs, and a sandboxed page does
-// not always allow that. When textures fail, measure which door is shut rather
-// than guessing: a 1x1 PNG offered four ways.
+// glTF hands a texture embedded in a GLB to three as a blob: URL, and a sandboxed
+// page does not always allow every way of reading one back. Measure it once with a
+// 1x1 PNG instead of guessing, and let the result pick the loader below.
 const PROBE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
-let probed = null;
-async function imageProbe(){
-  if (probed) return probed;
+let caps = null;
+async function imageCaps(){
+  if (caps) return caps;
   try {
     const bytes = Uint8Array.from(atob(PROBE_PNG), c => c.charCodeAt(0));
     const blob = new Blob([bytes], {type:'image/png'});
     const burl = URL.createObjectURL(blob);
-    const img = src => new Promise(r => { const i = new Image(); i.onload = () => r('可'); i.onerror = () => r('不可'); i.src = src; });
-    const ok = p => p.then(() => '可', () => '不可');
-    const out = [`data ${await img('data:image/png;base64,' + PROBE_PNG)}`,
-                 `blob ${await img(burl)}`,
-                 `fetch ${await ok(fetch(burl))}`,
-                 `bitmap ${await ok(createImageBitmap(blob))}`];
+    const img = src => new Promise(r => { const i = new Image(); i.onload = () => r(true); i.onerror = () => r(false); i.src = src; });
+    const ok = p => p.then(() => true, () => false);
+    caps = {data: await img('data:image/png;base64,' + PROBE_PNG), blob: await img(burl),
+            fetch: await ok(fetch(burl)), bitmap: await ok(createImageBitmap(blob))};
     URL.revokeObjectURL(burl);
-    return probed = out.join('・');
-  } catch(e){ return probed = '判定できず'; }
+  } catch(e){ caps = {data:true, blob:true, fetch:true, bitmap:true, failed:true}; }
+  return caps;
 }
+const yn = v => v ? '可' : '不可';
+const capsText = c => c ? `data ${yn(c.data)}・blob ${yn(c.blob)}・fetch ${yn(c.fetch)}・bitmap ${yn(c.bitmap)}` : '';
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
   const mains = [], sides = [];
@@ -1392,7 +1402,7 @@ async function importFiles(files){
       const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       modelCache.set(key, obj);
       const info = {...inspectModel(obj, json), missing, failed};
-      if (info.meshes && !info.textures && info.refs) info.probe = await imageProbe();
+      if (info.meshes && !info.textures && info.refs) info.probe = capsText(await imageCaps());
       modelInfo.set(key, info);
       // keep only the files this model actually asked for, not the whole dropped folder
       const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));

@@ -132,9 +132,10 @@ const browser = await chromium.launch({
   ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-async function run(name, viewport, mobile, hash = '') {
+async function run(name, viewport, mobile, hash = '', init = null) {
   const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
+  if (init) await page.addInitScript(init);
   const errors = [];
   page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -411,6 +412,24 @@ await r.ctx.close();
   await g.page.waitForTimeout(1500);
   console.log('glTF alone ->', await g.page.textContent('#toast'));
   console.log('texture errors:', g.errors.filter(e => !e.includes('404') && !e.includes("Couldn't load texture")));
+  await g.ctx.close();
+}
+
+// a page where fetch() of a blob: URL is refused, as a sandboxed artifact does.
+// three reads embedded textures that way, so the app must fall back to an <img>.
+{
+  const g = await run('nofetch', { width: 1280, height: 800 }, false, '', () => {
+    const real = window.fetch;
+    window.fetch = (u, o) => (String(u?.url || u).startsWith('blob:')
+      ? Promise.reject(new TypeError('blocked by test')) : real(u, o));
+  });
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/painted.glb`);
+  await g.page.waitForTimeout(2500);
+  console.log('fetch(blob) blocked ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 80));
+  await g.page.click('[data-view="pers"]'); await g.page.waitForTimeout(900);
+  await g.page.screenshot({ path: `${OUT}/nofetch.png` });
+  console.log('nofetch errors:', g.errors.filter(e => !e.includes('GL Driver') && !e.includes('blocked by test')));
   await g.ctx.close();
 }
 
