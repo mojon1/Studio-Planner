@@ -65,6 +65,12 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .swatches{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .swatches button{width:36px;height:36px;border-radius:50%;border:2px solid var(--rule);cursor:pointer;padding:0}
 .swatches button.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+.row.saved .btn{min-height:40px;font-size:.85rem;display:flex;align-items:center;justify-content:center;gap:6px;flex:1 1 40%}
+.row.saved .btn small{color:var(--muted);font-size:.75rem;font-family:"IBM Plex Mono",monospace}
+.row.saved .btn.on small{color:inherit;opacity:.7}
+.row.saved .btn.del{flex:0 0 40px;min-height:40px;padding:0;color:var(--danger);font-size:1.1rem}
+.row.nm input[type=text]{flex:1 1 7em;width:auto;min-width:0}
+.row.nm .btn{flex:0 0 auto}
 .dims{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .dims label{font-size:.8rem;color:var(--ink2)}
 .list{display:flex;flex-direction:column;gap:6px}
@@ -193,14 +199,24 @@ const PRESETS = [
   {id:'r', name:'6 畳の部屋 3.6×2.7×2.4 m', w:3.6, d:2.7, h:2.4, cove:{back:false,left:false,right:false}},
   {id:'custom', name:'数値で入力'},
 ];
-const SENSORS = {ff:{name:'フルサイズ', w:36}, apsc:{name:'APS-C', w:23.5}, mft:{name:'マイクロフォーサーズ', w:17.3}, custom:{name:'手動', w:null}};
-const LENSES = {ff:[24,35,50,85,135], apsc:[16,24,35,56,85], mft:[12,17,25,42,75], custom:[24,35,50,85,135]};
+// sensor formats, not camera models: these are standards, so the list never needs updating
+const SENSORS = {s35:{name:'スーパー35', w:25}, ff:{name:'フルサイズ', w:36}, mft:{name:'マイクロフォーサーズ', w:17.3}, custom:{name:'手動', w:null}};
+const LENSES = {s35:[18,25,32,50,75], ff:[24,35,50,85,135], mft:[12,17,25,42,75], custom:[24,35,50,85,135]};
+// widths the user saved under their own names, kept on this device only
+let savedSensors = [];
+try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
+function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
 const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a};
 const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布'};
 const SWATCHES = [['#1fb24a','グリーン'],['#1f5fd0','ブルー'],['#f4f4f2','白'],['#8a8a8a','グレー'],['#1a1a1a','黒'],['#c9b79c','ベージュ']];
 const sensorW = it => it.sensor === 'custom' ? clamp(+it.sensorW || 36, 4, 80) : SENSORS[it.sensor]?.w || 36;
-const sensorName = it => it.sensor === 'custom' ? `センサー ${sensorW(it)}mm` : SENSORS[it.sensor]?.name || 'フルサイズ';
+function sensorName(it){
+  if (it.sensor !== 'custom') return SENSORS[it.sensor]?.name || 'フルサイズ';
+  const s = savedSensors.find(s => Math.abs(s.w - sensorW(it)) < 0.01);
+  return s ? s.name : `センサー ${sensorW(it)}mm`;
+}
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const norm = a => ((a % 360) + 360) % 360;
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
@@ -220,7 +236,11 @@ function defaultState(){
 function migrate(st){
   if (typeof st.studio.cove !== 'object' || !st.studio.cove) st.studio.cove = {back:!!st.studio.cove, left:false, right:false};
   for (const it of st.items){
-    if (it.type === 'camera' && !SENSORS[it.sensor]) it.sensor = 'ff';
+    if (it.type === 'camera'){
+      if (it.sensor === 'apsc'){ it.sensor = 'custom'; it.sensorW = 23.5; }   // links made before the format list
+      else if (it.sensor === 'phone') it.sensor = 'ff';
+      if (!SENSORS[it.sensor]) it.sensor = 'ff';
+    }
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
   }
   return st;
@@ -836,8 +856,16 @@ function renderSel(){
     h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
   } else if (it.type === 'camera'){
     h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
-    if (it.sensor === 'custom') h += `<label class="f"><span>横幅</span><input type="number" data-num="sensorW" step="0.1" min="4" max="80" value="${sensorW(it)}"><span class="v">mm</span></label><p class="hint">センサーの横幅を mm で。例: 1 型 13.2、Super35 24.9、中判 43.8</p>`;
-    h += `<h2>レンズ</h2>` + btns('focal', LENSES[it.sensor].map(f => [f, f+'mm']), it.focal);
+    if (it.sensor === 'custom'){
+      h += `<label class="f"><span>横幅</span><input type="number" data-num="sensorW" step="0.1" min="4" max="80" value="${sensorW(it)}"><span class="v">mm</span></label>`;
+      if (savedSensors.length) h += `<div class="row saved">` + savedSensors.map((s,i) =>
+        `<button class="btn ${Math.abs(s.w - sensorW(it)) < 0.01 ? 'on':''}" data-sensorpreset="${i}">${esc(s.name)}<small>${s.w}mm</small></button><button class="btn del" data-sensordel="${i}" title="${esc(s.name)} を消す" aria-label="${esc(s.name)} を消す">×</button>`).join('') + `</div>`;
+      h += `<div class="row nm"><input type="text" data-sensorname placeholder="機材の名前" maxlength="20"><button class="btn" data-sensorsave>この幅を保存</button></div>`;
+      h += `<p class="hint">保存するとこの端末に残り、次回からボタンで選べます。<br>規格値: 1 型 13.2 / マイクロフォーサーズ 17.3 / APS-C 23.5 / スーパー35 フィルム基準 24.9 / スーパー35 デジタル 27 前後 / フルサイズ 36 / ビスタビジョン 41 / ALEXA 65 は 54 前後</p>`;
+    } else if (it.sensor === 's35'){
+      h += `<p class="hint">実機は 24.9〜28.3mm と幅があります。正確に見たいときは「手動」で実測値を入れてください。</p>`;
+    }
+    h += `<h2>レンズ</h2>` + btns('focal', (LENSES[it.sensor]||LENSES.ff).map(f => [f, f+'mm']), it.focal);
     h += range('focal','細かく',10,400,1,it.focal,'mm');
     h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]), it.aspect);
     h += `<h2>位置</h2>` + range('y','高さ',0.2,4,0.05,it.y,'m') + range('pitch','上下の向き',-45,45,1,it.pitch,'°');
@@ -860,6 +888,17 @@ function renderSel(){
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
   el.querySelectorAll('[data-num]').forEach(n => n.addEventListener('change', () => { setProp(it, n.dataset.num, n.value); }));
+  el.querySelectorAll('[data-sensorpreset]').forEach(b => b.addEventListener('click', () => setProp(it, 'sensorW', savedSensors[+b.dataset.sensorpreset].w)));
+  el.querySelectorAll('[data-sensordel]').forEach(b => b.addEventListener('click', () => { savedSensors.splice(+b.dataset.sensordel, 1); saveSensors(); renderSel(); needRender = true; }));
+  const nameEl = el.querySelector('[data-sensorname]'), saveBtn = el.querySelector('[data-sensorsave]');
+  if (saveBtn) saveBtn.addEventListener('click', () => {
+    const n = (nameEl.value || '').trim();
+    if (!n){ toast('名前を入れてください'); nameEl.focus(); return; }
+    const w = sensorW(it), i = savedSensors.findIndex(s => s.name === n);
+    if (i >= 0) savedSensors[i].w = w; else savedSensors.push({name:n, w});
+    if (savedSensors.length > 12) savedSensors = savedSensors.slice(-12);
+    saveSensors(); renderSel(); needRender = true; toast(`「${n}」を保存しました`);
+  });
   el.querySelectorAll('[data-color]').forEach(n => { n.addEventListener('input', () => setProp(it, 'color', n.value, true)); n.addEventListener('change', () => setProp(it, 'color', n.value)); });
   el.querySelectorAll('[data-range]').forEach(r => {
     r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
