@@ -609,6 +609,46 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// the camera dial reads 0 when it points at the back wall
+{
+  const g = await run('camrot', { width: 1100, height: 780 }, false);
+  const stored = async () => {
+    const link = await g.page.inputValue('#linkbox');
+    if (!link.includes('#s=')) throw new Error('no scene in the link yet: ' + link);
+    const enc = link.slice(link.indexOf('#s=') + 3).split('&')[0];
+    const b64 = enc.slice(1).replace(/-/g,'+').replace(/_/g,'/');
+    const bytes = Buffer.from(b64, 'base64');
+    const text = enc[0] === 'z' ? zlib.inflateRawSync(bytes).toString('utf8') : bytes.toString('utf8');
+    const json = JSON.parse(text);
+    return json.items.find(i => i.type === 'camera').rot;
+  };
+  await g.page.click('[data-tab="list"]');
+  // the link only carries a scene once something has been touched; the eye twice
+  // leaves the scene exactly as it was
+  await row(g.page, 'camera').locator('.eye').click();
+  await row(g.page, 'camera').locator('.eye').click();
+  await g.page.waitForTimeout(500);
+  await rowName(g.page, 'camera').click();
+  await g.page.waitForTimeout(300);
+  console.log('dial reads 0 facing the back wall:', await g.page.inputValue('[data-range="rot"]'));
+  await g.page.click('[data-tab="share"]'); await g.page.waitForTimeout(600);
+  console.log('stored rotation is unchanged:', await stored());
+  await g.page.click('[data-tab="list"]');
+  await g.page.$eval('[data-range="rot"]', el => {
+    el.value = '90';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await g.page.waitForTimeout(600);
+  console.log('dial 90 stores -90:', await stored(), '/ dial still shows 90:', await g.page.inputValue('[data-range="rot"]'));
+  // a person keeps the old meaning: 0 faces the front
+  await rowName(g.page, 'person').click();
+  await g.page.waitForTimeout(300);
+  console.log('person dial untouched:', await g.page.inputValue('[data-range="rot"]'));
+  console.log('camrot errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
 // viewer mode
 r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
 console.log('viewer errors:', r.errors);

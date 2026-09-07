@@ -1357,7 +1357,8 @@ function renderSel(){
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
     h += `<p class="hint">映り込みはカメラの小窓で確認できます。</p>`;
   }
-  h += `<h2>向きと位置</h2>` + range('rot','向き',-180,180,1,it.rot,'°');
+  h += `<h2>向きと位置</h2>` + range('rot','向き',-180,180,1,rotShown(it),'°');
+  if (it.type === 'camera') h += `<p class="hint">0° で奥の壁のほうを向きます。</p>`;
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
@@ -1395,8 +1396,15 @@ addEventListener('keydown', e => {
   const it = sel(); if (!it) return;
   e.preventDefault(); deleteItem(it);
 });
+// A camera at 0 should face the back wall, the way a set is normally laid out.
+// Everything else keeps 0 = facing the front, so a person looks at the camera.
+// Only the dial is offset; what is stored stays one convention for the whole scene.
+const CAM_FACE = 180;
+const rotShown = it => it.type === 'camera' ? norm(it.rot - CAM_FACE) : it.rot;
+const rotStored = (it, v) => it.type === 'camera' ? norm(v + CAM_FACE) : v;
 function setProp(it, k, v, live=false){
   if (['height','y','w','d','h','rot','pitch','focal','drape','sensorW','seatH','targetH'].includes(k)) v = parseFloat(v);
+  if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
   if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
   else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
