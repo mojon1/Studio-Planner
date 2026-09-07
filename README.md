@@ -60,6 +60,11 @@ node run.mjs
   足りないファイルがあるときは、その名前を画面に出す。
 - DRACO / KTX2 / meshopt で圧縮した glTF は、必要なときだけデコーダを CDN から取りに行く。
   通信が制限された環境では読めないので、その場合は非圧縮の GLB を使う。
+- GLB に埋め込まれたテクスチャを three は blob URL 経由で読む。r170 の GLTFLoader は
+  `ImageBitmapLoader`（内部で `fetch`）を使うが、サンドボックスされたページでは
+  その `fetch` が拒否されることがある。1x1 の PNG で data URI・blob URL・fetch・
+  createImageBitmap の 4 通りを実測し、fetch が塞がれていて `<img>` が通る環境では
+  `TextureLoader` に切り替える。
 - 取り込んだモデルのマテリアルには小さな環境マップを当てている。glTF の
   メタリック既定値は 1 なので、映り込む物が何も無いと真っ黒になってしまうため。
   スタジオ側のマテリアルには当てていない（図面の見た目を変えないため）。
