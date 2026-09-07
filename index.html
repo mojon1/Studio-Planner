@@ -867,7 +867,13 @@ function renderView(view, rect, isMain){
     const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
     setShotCam(ci, iw/ih);
     renderer.setViewport(ix, H-iy-ih, iw, ih); renderer.setScissor(ix, H-iy-ih, iw, ih);
-    renderer.setClearColor(0x3b3f47); renderer.clear(); renderer.render(scene, shotCam);
+    renderer.setClearColor(0x3b3f47); renderer.clear();
+    // the tripod would be in its own shot once the camera is tilted down. Hidden
+    // for this one draw and put back immediately, so picking still finds it.
+    const self = itemObjs.get(ci.id)?.group, wasVisible = self?.visible;
+    if (self) self.visible = false;
+    renderer.render(scene, shotCam);
+    if (self) self.visible = wasVisible;
   } else {
     const cam = view==='plan'?planCam:view==='side'?sideCam:persCam;
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);

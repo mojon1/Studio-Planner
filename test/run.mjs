@@ -433,6 +433,45 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// a tilted camera must not have its own tripod in the shot, and must still be
+// selectable afterwards: the view is compared against the same shot with the
+// camera hidden by hand, which has to be pixel for pixel the same picture
+{
+  const g = await run('selfshot', { width: 1000, height: 700 }, false);
+  await g.page.click('[data-tab="add"]');
+  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await g.page.waitForTimeout(300);
+  const slide = async (name, v) => g.page.$eval(`[data-range="${name}"]`, (el, val) => {
+    el.value = val;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, v);
+  await slide('y', '3');
+  await slide('pitch', '-40');
+  await g.page.click('[data-view="cam"]');
+  await g.page.waitForTimeout(2600);                       // let any toast fade out
+  const shown = await g.page.locator('#view').screenshot({ path: `${OUT}/selfshot.png` });
+  await g.page.click('[data-tab="add"]');
+  await g.page.click('#items .itemrow:nth-child(2) .eye');  // hide the camera by hand
+  await g.page.waitForTimeout(800);
+  const hidden = await g.page.locator('#view').screenshot();
+  console.log('camera absent from its own shot:', shown.equals(hidden));
+  await g.page.click('#items .itemrow:nth-child(2) .eye');  // show it again
+  await g.page.waitForTimeout(400);
+  // and it is still pickable in the plan, i.e. nothing was left invisible
+  await g.page.click('[data-view="plan"]');
+  await g.page.waitForTimeout(500);
+  const box = await g.page.$eval('#view', e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+  await g.page.mouse.click(box.x + 60, box.y + 140);        // empty floor: drops the selection
+  await g.page.waitForTimeout(300);
+  console.log('deselected first:', !(await g.page.textContent('#selbody')).includes('センサー'));
+  await g.page.mouse.click(box.x + box.w / 2, box.y + box.h / 2 + 2.4 * 61.1);
+  await g.page.waitForTimeout(300);
+  console.log('camera still selectable:', (await g.page.textContent('#selbody')).includes('センサー'));
+  console.log('selfshot errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
 // viewer mode
 r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
 console.log('viewer errors:', r.errors);
