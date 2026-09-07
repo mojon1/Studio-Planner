@@ -168,8 +168,8 @@ body.viewer #viewerbar{display:block}
         </div>
         <h2>3D モデルを取り込む</h2>
         <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
-        <input type="file" id="file" accept=".glb,.gltf,.fbx" multiple hidden>
-        <p class="hint">GLB と FBX が読めます。画面にドラッグしても入ります。FBX はテクスチャを埋め込んで書き出してください。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
+        <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
+        <p class="hint">GLB・glTF・FBX が読めます。テクスチャが別ファイルの glTF は、<b>.bin と画像も一緒に選ぶ</b>か、書き出しフォルダごと画面にドラッグしてください。GLB に埋め込んで書き出すのが一番確実です。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
         <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。</p>
         <h2>置いてあるもの</h2>
         <div class="list" id="items"></div>
@@ -454,6 +454,7 @@ function drawLabels(view, cam, rect){
 // ---------- item meshes ----------
 const itemObjs = new Map();
 const modelCache = new Map();   // key -> parsed Object3D for models this device holds
+const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox, model:buildModel};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
@@ -624,6 +625,29 @@ function buildBox(it){
   g.add(planeMarker(it.w, it.d, COLORS.box));
   return g;
 }
+// A metal material with nothing to reflect renders black, and glTF's default
+// metallic factor is 1, so imported models need something around them. This is a
+// plain room-ish gradient, put on the model's materials only: the studio itself
+// keeps the flat look the drawings rely on.
+let envTex = null;
+function modelEnv(){
+  if (envTex) return envTex;
+  const w = 16, h = 32, data = new Uint8Array(w*h*4);
+  for (let y = 0; y < h; y++){
+    const t = y/(h-1);                                    // 0 = up, 1 = down
+    const v = t < 0.5 ? 235 - t*180 : 120 - (t-0.5)*130;  // bright ceiling, dark floor
+    for (let x = 0; x < w; x++){
+      const i = (y*w+x)*4;
+      data[i] = v; data[i+1] = v*0.99; data[i+2] = v*0.96; data[i+3] = 255;
+    }
+  }
+  const src = new THREE.DataTexture(data, w, h);
+  src.mapping = THREE.EquirectangularReflectionMapping; src.needsUpdate = true;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  envTex = pmrem.fromEquirectangular(src).texture;
+  pmrem.dispose(); src.dispose();
+  return envTex;
+}
 // imported model: the real mesh when this device has the file, a labelled box otherwise
 function buildModel(it){
   const g = new THREE.Group(), src = modelCache.get(it.key);
@@ -634,7 +658,14 @@ function buildModel(it){
     inst.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(inst), ctr = bb.getCenter(new THREE.Vector3());
     inst.position.set(-ctr.x, -bb.min.y, -ctr.z);
-    inst.traverse(n => { if (n.isMesh){ n.castShadow = true; n.receiveShadow = true; } });
+    inst.traverse(n => {
+      if (!n.isMesh) return;
+      n.castShadow = true; n.receiveShadow = true;
+      for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+        if (!m?.isMeshStandardMaterial || m.envMap) continue;
+        m.envMap = modelEnv(); m.envMapIntensity = 1; m.needsUpdate = true;
+      }
+    });
     g.add(inst);
   } else {
     const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, it.d), mat(COLORS.model, {roughness:0.9, transparent:true, opacity:0.7})));
@@ -1097,6 +1128,12 @@ function renderSel(){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
     if (!here) h += `<p class="hint">このモデルの実体はこの端末にありません。実寸の箱で表示しています。</p>`;
+    else {
+      const info = modelInfo.get(it.key);
+      const note = textureNote(it.key);
+      if (note) h += `<p class="hint" style="color:var(--accent-ink)">${esc(note)}</p>`;
+      else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚を読み込みました。</p>`;
+    }
     h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
     h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} m ・ 奥行 ${fmt(+it.d.toFixed(2))} m。高さを入れると全体が合わせて拡大縮小します。</p>`;
     if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
@@ -1151,7 +1188,7 @@ function renderSel(){
   });
   el.querySelector('[data-del]').addEventListener('click', () => {
     state.items = state.items.filter(i => i !== it);
-    if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); idbDel(it.key); }
+    if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
     select(null); rebuildItems(); saveHash();
   });
 }
@@ -1182,38 +1219,159 @@ async function idbPut(key, val){ const db = await idb(); return new Promise((res
 async function idbGet(key){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
 
-// loaders are pulled in only when someone actually imports something
-async function parseModel(buf, ext){
-  if (ext === 'glb' || ext === 'gltf'){
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    return new Promise((res, rej) => new GLTFLoader().parse(buf, '', r => res(r.scene), rej));
+const MODEL_EXT = ['glb','gltf','fbx'];
+// what a "glTF Separate" or non-embedded FBX export drops next to the model file
+const ASSET_EXT = ['bin','png','jpg','jpeg','webp','ktx2','basis','bmp','gif','tga','dds','tif','tiff','hdr','exr'];
+const extOf = name => (String(name).split('.').pop() || '').toLowerCase();
+const baseOf = name => String(name).split(/[\\/]/).pop().toLowerCase();
+
+// The .bin and the texture images are handed to the loaders as blob URLs, so an
+// export folder works with no server behind it. Anything the loader asks for and
+// we do not have is recorded, so the user can be told which file is missing
+// instead of watching an untextured model appear.
+function assetURLs(assets){
+  const urls = new Map(), made = [], missing = new Set(), used = new Set();
+  for (const [name, buf] of Object.entries(assets || {})){
+    const u = URL.createObjectURL(new Blob([buf])); made.push(u); urls.set(baseOf(name), u);
   }
-  const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
-  return new FBXLoader().parse(buf, '');
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier(url => {
+    if (/^(data|blob|https?):/i.test(url)) return url;
+    const name = baseOf(decodeURIComponent(url.split(/[?#]/)[0]));
+    const hit = urls.get(name);
+    if (hit){ used.add(name); return hit; }
+    missing.add(name);
+    return url;                                   // let it 404; the name is already recorded
+  });
+  return {manager, missing, used, revoke: () => made.forEach(URL.revokeObjectURL)};
+}
+
+// the glTF JSON, so we only fetch a decoder when the file actually needs one
+function gltfJSON(buf, ext){
+  try {
+    const bytes = new Uint8Array(buf);
+    if (ext === 'glb' || String.fromCharCode(...bytes.subarray(0,4)) === 'glTF'){
+      const dv = new DataView(buf);
+      if (dv.getUint32(0, true) !== 0x46546C67) return null;
+      const len = dv.getUint32(12, true);
+      return JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + len)));
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return null; }
+}
+const DECODER_BASE = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/';
+let draco = null, ktx2 = null, meshopt = null;
+async function attachDecoders(loader, used){
+  if (used.has('KHR_draco_mesh_compression')){
+    if (!draco){
+      const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+      draco = new DRACOLoader().setDecoderPath(DECODER_BASE + 'libs/draco/gltf/');
+    }
+    loader.setDRACOLoader(draco);
+  }
+  if (used.has('KHR_texture_basisu')){
+    if (!ktx2){
+      const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
+      ktx2 = new KTX2Loader().setTranscoderPath(DECODER_BASE + 'libs/basis/').detectSupport(renderer);
+    }
+    loader.setKTX2Loader(ktx2);
+  }
+  if (used.has('EXT_meshopt_compression')){
+    if (!meshopt) meshopt = (await import('three/addons/libs/meshopt_decoder.module.js')).MeshoptDecoder;
+    loader.setMeshoptDecoder(meshopt);
+  }
+}
+// loaders are pulled in only when someone actually imports something
+async function parseModel(buf, ext, assets){
+  const {manager, missing, used, revoke} = assetURLs(assets);
+  try {
+    let obj;
+    if (ext === 'glb' || ext === 'gltf'){
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const loader = new GLTFLoader(manager);
+      const used = new Set(gltfJSON(buf, ext)?.extensionsUsed || []);
+      try { await attachDecoders(loader, used); }
+      catch(e){ console.warn('decoder setup failed', e); throw new Error('compressed'); }
+      obj = await new Promise((res, rej) => loader.parse(buf, '', r => res(r.scene), rej));
+    } else {
+      const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+      obj = new FBXLoader(manager).parse(buf, '');
+    }
+    await new Promise(r => setTimeout(r, 0));       // let queued texture loads settle
+    return {obj, missing:[...missing], used:[...used]};
+  } finally { setTimeout(revoke, 20000); }          // textures decode asynchronously
+}
+// how much of the model actually arrived, so the panel can say so plainly
+function inspectModel(obj){
+  let meshes = 0; const maps = new Set();
+  obj.traverse(n => {
+    if (!n.isMesh) return;
+    meshes++;
+    for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+      if (!m) continue;
+      for (const k of ['map','emissiveMap','normalMap','roughnessMap','metalnessMap','aoMap']) if (m[k]) maps.add(m[k].uuid);
+    }
+  });
+  return {meshes, textures:maps.size};
 }
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
+  const mains = [], sides = [];
   for (const f of files){
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (!['glb','gltf','fbx'].includes(ext)){ toast(`${f.name} は GLB か FBX ではありません`); continue; }
+    const ext = extOf(f.name);
+    if (MODEL_EXT.includes(ext)) mains.push(f);
+    else if (ASSET_EXT.includes(ext)) sides.push(f);
+    else if (files.length === 1) toast(`${f.name} は読めない種類です`);
+  }
+  if (!mains.length){
+    toast(sides.length ? 'GLB / glTF / FBX の本体も一緒に選んでください' : 'GLB / glTF / FBX を選んでください');
+    return;
+  }
+  const assets = {};
+  let sideBytes = 0;
+  for (const f of sides){
+    if (sideBytes + f.size > 120*1024*1024){ toast('付属ファイルが多すぎるので一部を読みませんでした'); break; }
+    sideBytes += f.size;
+    assets[f.name] = await f.arrayBuffer();
+  }
+  const sliceAll = () => Object.fromEntries(Object.entries(assets).map(([k,v]) => [k, v.slice(0)]));
+  for (const f of mains){
     if (f.size > 60*1024*1024){ toast(`${f.name} は大きすぎます（60MB まで）`); continue; }
+    const ext = extOf(f.name);
     toast(`${f.name} を読み込み中`);
     try {
       const buf = await f.arrayBuffer();
-      const obj = await parseModel(buf.slice(0), ext);
+      const {obj, missing, used} = await parseModel(buf.slice(0), ext, sliceAll());
       const raw = sizeOf(obj), max = Math.max(raw.x, raw.y, raw.z);
       if (!(max > 0)){ toast(`${f.name} に形がありません`); continue; }
       let scale = 1;                                  // glTF is metres by spec; FBX units vary
       if (ext === 'fbx'){ if (max > 5000) scale = 0.001; else if (max > 100) scale = 0.01; }
       const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       modelCache.set(key, obj);
-      await idbPut(key, {buf, ext, name:f.name}).catch(() => toast('この端末に保存できませんでした'));
+      modelInfo.set(key, {...inspectModel(obj), missing});
+      // keep only the files this model actually asked for, not the whole dropped folder
+      const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
+      await idbPut(key, {buf, ext, name:f.name, assets:keep}).catch(() => toast('この端末に保存できませんでした'));
       addItem('model', {key, name:f.name, scale, upFix:false,
         w:+(raw.x*scale).toFixed(3), d:+(raw.z*scale).toFixed(3), h:+(raw.y*scale).toFixed(3)});
-      if (f.size > 15*1024*1024) toast(`${f.name} は重いのでスマホでは動きが鈍くなります`);
+      const note = textureNote(key);
+      if (note) toast(note);
+      else if (f.size > 15*1024*1024) toast(`${f.name} は重いのでスマホでは動きが鈍くなります`);
       else if (max*scale > 60 || max*scale < 0.02) toast('大きさが怪しいので「高さ」で直してください');
-    } catch(e){ console.warn('import failed', e); toast(`${f.name} を読めませんでした`); }
+    } catch(e){
+      console.warn('import failed', e);
+      toast(e?.message === 'compressed' ? `${f.name} は圧縮形式で、変換部品を取りに行けませんでした`
+        : ext === 'gltf' ? `${f.name} を読めませんでした。.bin とテクスチャも一緒に選んでください`
+        : `${f.name} を読めませんでした`);
+    }
   }
+}
+// one line for the panel and the toast; null when the model came in whole
+function textureNote(key){
+  const info = modelInfo.get(key); if (!info) return null;
+  if (info.missing?.length) return `${info.missing.slice(0,3).join('・')} が見つかりません。一緒に選ぶかフォルダごとドラッグしてください`;
+  if (info.meshes && !info.textures) return 'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください';
+  return null;
 }
 async function restoreModels(){
   const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
@@ -1222,16 +1380,43 @@ async function restoreModels(){
     if (modelCache.has(key)) continue;
     try {
       const rec = await idbGet(key); if (!rec) continue;
-      modelCache.set(key, await parseModel(rec.buf.slice(0), rec.ext)); any = true;
+      const assets = Object.fromEntries(Object.entries(rec.assets || {}).map(([k,v]) => [k, v.slice(0)]));
+      const {obj, missing} = await parseModel(rec.buf.slice(0), rec.ext, assets);
+      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj), missing}); any = true;
     } catch(e){ console.warn('model restore failed', e); }
   }
   if (any){ rebuildItems(); renderList(); renderSel(); needRender = true; }
+}
+// a dropped folder (the shape C4D and Blender write) is walked for its files
+async function filesFromDrop(dt){
+  const entries = [...(dt.items || [])].map(i => i.webkitGetAsEntry?.()).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const out = [];
+  const walk = async e => {
+    if (out.length > 400) return;
+    if (e.isFile) out.push(await new Promise((res, rej) => e.file(res, rej)));
+    else if (e.isDirectory){
+      const rd = e.createReader();
+      for (;;){
+        const batch = await new Promise((res, rej) => rd.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c);
+      }
+    }
+  };
+  for (const e of entries) await walk(e).catch(() => {});
+  return out;
 }
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
 document.getElementById('file').addEventListener('change', e => { if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
 for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
 for (const ev of ['dragleave','drop']) viewEl.addEventListener(ev, e => { e.preventDefault(); viewEl.classList.remove('drop'); });
-viewEl.addEventListener('drop', e => { if (!viewerMode && e.dataTransfer?.files?.length) importFiles([...e.dataTransfer.files]); });
+viewEl.addEventListener('drop', e => {
+  if (viewerMode || !e.dataTransfer) return;
+  const dt = e.dataTransfer;
+  if (!dt.items?.length && !dt.files?.length) return;
+  filesFromDrop(dt).then(fs => { if (fs.length) importFiles(fs); });
+});
 
 // ---------- share ----------
 function b64u(bytes){ let s=''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }

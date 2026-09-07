@@ -30,6 +30,79 @@ function makeGLB(){
   return Buffer.concat([header, jc, js, bc, bin]);
 }
 
+// --- a textured box, as GLB (embedded) and as the "glTF Separate" trio ---
+function crc32(buf){
+  const t = []; let c;
+  for (let n = 0; n < 256; n++){ c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  let crc = 0xFFFFFFFF;
+  for (const b of buf) crc = t[(crc ^ b) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function pngChunk(type, data){
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
+  return Buffer.concat([len, td, crc]);
+}
+function makePNG(N = 16){
+  const raw = [];
+  for (let y = 0; y < N; y++){
+    raw.push(0);
+    for (let x = 0; x < N; x++){ const c = ((x >> 1) + (y >> 1)) % 2 ? [235,60,40] : [250,230,90]; raw.push(...c); }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(N, 0); ihdr.writeUInt32BE(N, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]),
+    pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(Buffer.from(raw))), pngChunk('IEND', Buffer.alloc(0))]);
+}
+// embed:true puts the PNG in the binary chunk (GLB); false points at paint.png (glTF Separate)
+function texturedGLTF(embed){
+  const png = makePNG();
+  const verts = [], uvs = [], norms = [], idx = [];
+  const hx = 1, hy = 1.5, hz = 0.5;
+  const faces = [
+    [[-hx,-hy,hz],[hx,-hy,hz],[hx,hy,hz],[-hx,hy,hz],[0,0,1]],
+    [[hx,-hy,-hz],[-hx,-hy,-hz],[-hx,hy,-hz],[hx,hy,-hz],[0,0,-1]],
+    [[hx,-hy,hz],[hx,-hy,-hz],[hx,hy,-hz],[hx,hy,hz],[1,0,0]],
+    [[-hx,-hy,-hz],[-hx,-hy,hz],[-hx,hy,hz],[-hx,hy,-hz],[-1,0,0]],
+    [[-hx,hy,hz],[hx,hy,hz],[hx,hy,-hz],[-hx,hy,-hz],[0,1,0]],
+    [[-hx,-hy,-hz],[hx,-hy,-hz],[hx,-hy,hz],[-hx,-hy,hz],[0,-1,0]],
+  ];
+  faces.forEach((f, i) => {
+    for (let k = 0; k < 4; k++){ verts.push(f[k][0], f[k][1] + hy, f[k][2]); norms.push(...f[4]); }
+    uvs.push(0,1, 1,1, 1,0, 0,0);
+    const o = i*4; idx.push(o, o+1, o+2, o, o+2, o+3);
+  });
+  const vb = Buffer.from(new Float32Array(verts).buffer), nb = Buffer.from(new Float32Array(norms).buffer);
+  const tb = Buffer.from(new Float32Array(uvs).buffer), ib = Buffer.from(new Uint16Array(idx).buffer);
+  const parts = [vb, nb, tb, ib];
+  if (embed) parts.push(png, Buffer.alloc((4 - png.length % 4) % 4));
+  const bin = Buffer.concat(parts);
+  let off = 0; const bv = [];
+  for (const p of [vb, nb, tb, ib]){ bv.push({buffer:0, byteOffset:off, byteLength:p.length}); off += p.length; }
+  if (embed) bv.push({buffer:0, byteOffset:off, byteLength:png.length});
+  const json = { asset:{version:'2.0'}, scene:0, scenes:[{nodes:[0]}], nodes:[{mesh:0, name:'Box'}],
+    meshes:[{primitives:[{attributes:{POSITION:0, NORMAL:1, TEXCOORD_0:2}, indices:3, material:0}]}],
+    materials:[{name:'Painted', pbrMetallicRoughness:{baseColorTexture:{index:0}, metallicFactor:0, roughnessFactor:0.8}}],
+    textures:[{source:0, sampler:0}], samplers:[{magFilter:9729, minFilter:9987, wrapS:10497, wrapT:10497}],
+    images:[embed ? {bufferView:4, mimeType:'image/png'} : {uri:'paint.png'}],
+    buffers:[embed ? {byteLength:bin.length} : {uri:'scene.bin', byteLength:bin.length}],
+    bufferViews:bv,
+    accessors:[
+      {bufferView:0, componentType:5126, count:verts.length/3, type:'VEC3', min:[-hx,0,-hz], max:[hx,hy*2,hz]},
+      {bufferView:1, componentType:5126, count:norms.length/3, type:'VEC3'},
+      {bufferView:2, componentType:5126, count:uvs.length/2, type:'VEC2'},
+      {bufferView:3, componentType:5123, count:idx.length, type:'SCALAR'}] };
+  if (!embed) return { gltf: Buffer.from(JSON.stringify(json), 'utf8'), bin, png };
+  let js = Buffer.from(JSON.stringify(json), 'utf8');
+  while (js.length % 4) js = Buffer.concat([js, Buffer.from(' ')]);
+  const header = Buffer.alloc(12); header.write('glTF', 0, 'ascii'); header.writeUInt32LE(2, 4);
+  header.writeUInt32LE(12 + 8 + js.length + 8 + bin.length, 8);
+  const jc = Buffer.alloc(8); jc.writeUInt32LE(js.length, 0); jc.writeUInt32LE(0x4E4F534A, 4);
+  const bc = Buffer.alloc(8); bc.writeUInt32LE(bin.length, 0); bc.writeUInt32LE(0x004E4942, 4);
+  return { glb: Buffer.concat([header, jc, js, bc, bin]), png };
+}
+
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
   if (!fs.existsSync(p)) { res.writeHead(404); res.end(); return; }
@@ -219,6 +292,70 @@ await r.ctx.close();
   const g = await run('shared-model', { width: 1280, height: 800 }, false, '#s=' + enc);
   console.log('placeholder row:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim())));
   console.log('shared-model errors:', g.errors);
+  await g.ctx.close();
+}
+
+// textures: embedded in a GLB, split across a glTF trio, and the trio missing its parts
+{
+  const g = await run('textures', { width: 1280, height: 800 }, false);
+  const emb = texturedGLTF(true), sep = texturedGLTF(false);
+  fs.writeFileSync(`${OUT}/painted.glb`, emb.glb);
+  fs.writeFileSync(`${OUT}/painted.gltf`, sep.gltf);
+  fs.writeFileSync(`${OUT}/scene.bin`, sep.bin);
+  fs.writeFileSync(`${OUT}/paint.png`, sep.png);
+
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/painted.glb`);
+  await g.page.waitForTimeout(1800);
+  console.log('GLB embedded ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 90));
+
+  // the glTF with its .bin and .png picked alongside it
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', [`${OUT}/painted.gltf`, `${OUT}/scene.bin`, `${OUT}/paint.png`]);
+  await g.page.waitForTimeout(2000);
+  console.log('glTF + sidecars ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 90));
+  console.log('rows now:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()).slice(-2)));
+  await g.page.click('[data-view="pers"]'); await g.page.waitForTimeout(1000);
+  await g.page.screenshot({ path: `${OUT}/textures.png` });
+
+  // reopening the page must rebuild both models from IndexedDB, sidecars included
+  await g.page.reload();
+  await g.page.waitForTimeout(2500);
+  await g.page.click('[data-tab="add"]');
+  await g.page.click('#items .itemrow:last-child > button:first-child');
+  await g.page.waitForTimeout(400);
+  console.log('after reload ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 60));
+
+  // geometry embedded but the image left outside: the model appears, so the only
+  // way the user learns why it is grey is us naming the file
+  const inline = JSON.parse(sep.gltf.toString('utf8'));
+  inline.buffers = [{ uri: 'data:application/octet-stream;base64,' + sep.bin.toString('base64'), byteLength: sep.bin.length }];
+  fs.writeFileSync(`${OUT}/inline-buffer.gltf`, JSON.stringify(inline));
+  await g.page.click('[data-view="plan"]');
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/inline-buffer.gltf`);
+  await g.page.waitForTimeout(2000);
+  console.log('missing image named ->', await g.page.textContent('#toast'));
+  console.log('panel says ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 70));
+
+  // dropping files (no folder entries, as a synthetic DataTransfer gives) still imports
+  await g.page.click('[data-view="plan"]');
+  const before = await g.page.$$eval('#items .itemrow', b => b.length);
+  await g.page.evaluate(async b64 => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bytes], 'dropped.glb', { type: 'model/gltf-binary' }));
+    document.getElementById('view').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, emb.glb.toString('base64'));
+  await g.page.waitForTimeout(2000);
+  console.log('dropped file imported:', (await g.page.$$eval('#items .itemrow', b => b.length)) - before === 1);
+
+  // the same glTF on its own must say what is missing rather than fail silently
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/painted.gltf`);
+  await g.page.waitForTimeout(1500);
+  console.log('glTF alone ->', await g.page.textContent('#toast'));
+  console.log('texture errors:', g.errors.filter(e => !e.includes('404') && !e.includes("Couldn't load texture")));
   await g.ctx.close();
 }
 
