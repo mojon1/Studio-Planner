@@ -283,6 +283,24 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// a link written when the switches lived on the studio must hand them to the owners
+{
+  const legacy = {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}},
+    dims:{studio:false, wall:false, subject:true, size:true}, activeCam:'c1', items:[
+      {id:'p1',type:'person',x:0,z:-0.5,rot:0,height:1.7,pose:'stand'},
+      {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const enc = 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(legacy))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const g = await run('legacy-dims', { width: 1200, height: 820 }, false, '#s=' + enc);
+  const text = await g.page.textContent('#labels');
+  console.log('old switches carried over — studio off:', !text.includes('幅 8 m'),
+              '/ wall off:', !text.includes('壁まで'), '/ subject on:', /\d\.\d\d m/.test(text));
+  await g.page.click('[data-tab="list"]');
+  await rowName(g.page, 'camera').click(); await g.page.waitForTimeout(300);
+  console.log('camera switches restored:', await g.page.$$eval('[data-dim]', b => b.map(x => `${x.dataset.dim}=${x.classList.contains('on')}`)));
+  console.log('legacy-dims errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
 // object presets and 3D model import
 {
   const g = await run('presets', { width: 1400, height: 900 }, false);
@@ -566,34 +584,37 @@ await r.ctx.close();
 {
   const g = await run('dims', { width: 1200, height: 820 }, false);
   const labels = () => g.page.textContent('#labels');
-  await g.page.click('[data-tab="list"]');
-  await rowName(g.page, 'studio').click();
-  await g.page.waitForTimeout(400);
+  const openStudio = async () => { await g.page.click('[data-tab="list"]'); await rowName(g.page, 'studio').click(); await g.page.waitForTimeout(400); };
+  const openCam = async () => { await g.page.click('[data-tab="list"]'); await rowName(g.page, 'camera').click(); await g.page.waitForTimeout(400); };
+  await openStudio();
   await g.page.screenshot({ path: `${OUT}/dims-panel.png` });
   const on = await labels();
   console.log('studio size shown:', on.includes('幅 8 m'), '/ wall distance:', on.includes('壁まで'),
               '/ subject distance:', /\d\.\d\d m/.test(on));
 
-  await g.page.click('[data-dim="wall"]'); await g.page.waitForTimeout(400);
-  console.log('wall off:', !(await labels()).includes('壁まで'));
+  // the studio switch only owns the room
   await g.page.click('[data-dim="studio"]'); await g.page.waitForTimeout(400);
-  console.log('studio off:', !(await labels()).includes('幅 8 m'));
-  await g.page.click('[data-dim="wall"]'); await g.page.click('[data-dim="studio"]');
-  await g.page.waitForTimeout(400);
-  console.log('both back:', (await labels()).includes('壁まで') && (await labels()).includes('幅 8 m'));
+  console.log('studio off leaves the rest:', !(await labels()).includes('幅 8 m'), (await labels()).includes('壁まで'));
+  await g.page.click('[data-dim="studio"]'); await g.page.waitForTimeout(400);
 
-  // a backdrop writes its width, a box its footprint
+  // the distances belong to the camera
+  await openCam();
+  await g.page.click('[data-dim="dimWall"]'); await g.page.waitForTimeout(400);
+  console.log('wall off from the camera:', !(await labels()).includes('壁まで'));
+  await g.page.click('[data-dim="dimWall"]'); await g.page.waitForTimeout(400);
+  console.log('wall back:', (await labels()).includes('壁まで'));
+
+  // sizes belong to each object
   await g.page.click('#addfab'); await g.page.click('[data-add="chroma"]');
   await g.page.waitForTimeout(500);
   await g.page.click('#addfab'); await g.page.click('[data-add="table"]');
   await g.page.waitForTimeout(600);
   const withSizes = await labels();
   console.log('backdrop width:', /幅 3 m/.test(withSizes), '/ table footprint:', /1\.8 × 0\.9 m/.test(withSizes));
-  await g.page.click('[data-tab="list"]');
-  await rowName(g.page, 'studio').click(); await g.page.waitForTimeout(300);
-  await g.page.click('[data-dim="size"]'); await g.page.waitForTimeout(400);
-  console.log('sizes off:', !/1\.8 × 0\.9 m/.test(await labels()));
-  await g.page.click('[data-dim="size"]'); await g.page.waitForTimeout(400);
+  await g.page.click('[data-dim="own"]'); await g.page.waitForTimeout(400);   // the table is the selected one
+  const oneOff = await labels();
+  console.log('only that object goes quiet:', !/1\.8 × 0\.9 m/.test(oneOff), '/ backdrop still there:', /幅 3 m/.test(oneOff));
+  await g.page.click('[data-dim="own"]'); await g.page.waitForTimeout(400);
   await g.page.screenshot({ path: `${OUT}/dims-plan.png` });
 
   // the export must be bigger than the screen and must contain the numbers
