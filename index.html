@@ -1318,8 +1318,22 @@ function inspectModel(obj, json){
       for (const k in m) if (m[k] && m[k].isTexture) maps.add(m[k].uuid);
     }
   });
-  return {meshes, textures:maps.size, kinds:[...kinds],
+  return {meshes, textures:maps.size, kinds:[...kinds], ...gltfFacts(json),
           images: json?.images?.length || 0, exts: json?.extensionsUsed || []};
+}
+// what the file itself claims, so "the exporter never linked them" can be told
+// apart from "the link is there but the image would not load"
+function gltfFacts(json){
+  if (!json) return {};
+  const imgs = json.images || [], mats = json.materials || [];
+  let prims = 0, noMat = 0;
+  for (const m of json.meshes || []) for (const p of m.primitives || []){ prims++; if (p.material === undefined) noMat++; }
+  let refs = 0;
+  const walk = o => { for (const k in o){ const v = o[k];
+    if (v && typeof v === 'object'){ if (/[Tt]exture$/.test(k) && v.index !== undefined) refs++; else walk(v); } } };
+  for (const m of mats) walk(m);
+  return {defs:(json.textures || []).length, mats:mats.length, prims, noMat, refs,
+          mimes:[...new Set(imgs.map(i => i.mimeType || (i.uri ? `外部 ${baseOf(i.uri)}` : '種類不明')))]};
 }
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
@@ -1381,14 +1395,18 @@ function textureNote(key){
   if (info.missing?.length) return `${info.missing.slice(0,3).join('・')} が見つかりません。一緒に選ぶかフォルダごとドラッグしてください`;
   if (!info.meshes || info.textures) return null;
   if (info.exts?.includes(SPEC_GLOSS)) return '古い形式（スペキュラ／グロス）のマテリアルなので three.js が読めません。メタリック／ラフネスで書き出し直してください';
-  if (info.images) return `画像は ${info.images} 枚入っていますが、マテリアルに結び付いていません`;
+  if (info.noMat) return `${info.noMat} 個の面にマテリアルが割り当たっていません。書き出しの前にマテリアルを付け直してください`;
+  if (info.images && !info.refs) return `画像は ${info.images} 枚ありますが、マテリアルから参照されていません。書き出し設定でテクスチャがマテリアルに結び付いていない状態です`;
+  if (info.images) return `画像 ${info.images} 枚を読み込めませんでした（${(info.mimes||[]).join('・')}）`;
   return 'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください';
 }
 // the raw facts, for when the note above is not enough to explain a file
 function textureDetail(key){
   const i = modelInfo.get(key); if (!i) return '';
   const bits = [`メッシュ ${i.meshes}`, `テクスチャ ${i.textures}`];
-  if (i.images) bits.push(`ファイル内の画像 ${i.images}`);
+  if (i.prims != null) bits.push(`面 ${i.prims}（材質未指定 ${i.noMat}）`);
+  if (i.images) bits.push(`画像 ${i.images}`, `テクスチャ定義 ${i.defs}`, `マテリアル ${i.mats}`, `参照 ${i.refs}`);
+  if (i.mimes?.length) bits.push(i.mimes.join('・'));
   if (i.kinds?.length) bits.push(i.kinds.join('・'));
   if (i.exts?.length) bits.push(i.exts.join(' / '));
   return bits.join('　');

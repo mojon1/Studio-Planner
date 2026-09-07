@@ -57,7 +57,9 @@ function makePNG(N = 16){
 }
 // embed:true puts the PNG in the binary chunk (GLB); false points at paint.png (glTF Separate).
 // variant: 'specgloss' writes the pre-r155 material three.js no longer reads,
-// 'clearcoat' hangs the only texture off an extension, outside the usual map names.
+// 'clearcoat' hangs the only texture off an extension, outside the usual map names,
+// 'nomat' leaves the face without a material index, 'unlinked' embeds images the
+// material never points at — the two ways a file arrives untextured with no error.
 function texturedGLTF(embed, variant){
   const png = makePNG();
   const verts = [], uvs = [], norms = [], idx = [];
@@ -87,11 +89,14 @@ function texturedGLTF(embed, variant){
       v === 'specgloss' ? {name:'Painted', extensions:{KHR_materials_pbrSpecularGlossiness:{diffuseTexture:{index:0}}}}
     : v === 'clearcoat' ? {name:'Painted', pbrMetallicRoughness:{metallicFactor:0, roughnessFactor:0.8},
                            extensions:{KHR_materials_clearcoat:{clearcoatFactor:1, clearcoatTexture:{index:0}}}}
+    : v === 'unlinked' ? {name:'Painted', pbrMetallicRoughness:{metallicFactor:0, roughnessFactor:0.8}}
     : {name:'Painted', pbrMetallicRoughness:{baseColorTexture:{index:0}, metallicFactor:0, roughnessFactor:0.8}};
   const exts = variant === 'specgloss' ? ['KHR_materials_pbrSpecularGlossiness']
     : variant === 'clearcoat' ? ['KHR_materials_clearcoat'] : null;
   const json = { asset:{version:'2.0'}, scene:0, scenes:[{nodes:[0]}], nodes:[{mesh:0, name:'Box'}],
-    meshes:[{primitives:[{attributes:{POSITION:0, NORMAL:1, TEXCOORD_0:2}, indices:3, material:0}]}],
+    meshes:[{primitives:[variant === 'nomat'
+      ? {attributes:{POSITION:0, NORMAL:1, TEXCOORD_0:2}, indices:3}
+      : {attributes:{POSITION:0, NORMAL:1, TEXCOORD_0:2}, indices:3, material:0}]}],
     materials:[material(variant)],
     textures:[{source:0, sampler:0}], samplers:[{magFilter:9729, minFilter:9987, wrapS:10497, wrapT:10497}],
     images:[embed ? {bufferView:4, mimeType:'image/png'} : {uri:'paint.png'}],
@@ -362,6 +367,21 @@ await r.ctx.close();
   await g.page.waitForTimeout(1800);
   console.log('spec/gloss ->', await g.page.textContent('#toast'));
   console.log('spec/gloss detail ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 130));
+
+  // images the material never references: say that, not "no texture in the file"
+  fs.writeFileSync(`${OUT}/unlinked.glb`, texturedGLTF(true, 'unlinked').glb);
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/unlinked.glb`);
+  await g.page.waitForTimeout(1800);
+  console.log('unlinked ->', await g.page.textContent('#toast'));
+  console.log('unlinked detail ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(20, 170));
+
+  // a face with no material index at all
+  fs.writeFileSync(`${OUT}/nomat.glb`, texturedGLTF(true, 'nomat').glb);
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/nomat.glb`);
+  await g.page.waitForTimeout(1800);
+  console.log('no material index ->', await g.page.textContent('#toast'));
 
   // dropping files (no folder entries, as a synthetic DataTransfer gives) still imports
   await g.page.click('[data-view="plan"]');
