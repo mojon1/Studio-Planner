@@ -40,7 +40,7 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #tabs #fold{flex:0 0 44px;font-size:1.2rem;color:var(--ink2)}
 body.folded #tabs #fold{transform:rotate(180deg)}
 body.folded #sheet{display:none}
-#unfold{display:none;position:absolute;left:10px;bottom:12px;z-index:3;height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.8);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
+#unfold{display:none;position:absolute;left:80px;bottom:20px;z-index:3;height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.8);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
 @media (min-width:761px){
   body.folded:not(.viewer) #panel{display:none}
   body.folded:not(.viewer) #app{grid-template-columns:1fr}
@@ -96,6 +96,16 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace}
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
+#addfab{position:absolute;left:12px;bottom:12px;z-index:4;width:56px;height:56px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.9rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
+#addfab:active{transform:translateY(1px)}
+#addfab:focus-visible{outline:3px solid #fff;outline-offset:2px}
+body.viewer #addfab{display:none}
+#addpop{position:fixed;inset:0;background:rgba(10,12,16,.55);z-index:22;display:none;align-items:center;justify-content:center;padding:16px}
+#addpop.on{display:flex}
+#addpop .pop{background:var(--panel);border-radius:14px;width:min(460px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+#addpop .pophead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--rule)}
+#addpop .pophead button{width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font:inherit;font-size:1.1rem;cursor:pointer}
+#addpop .popbody{padding:14px 16px 20px;overflow-y:auto}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 #shot{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
@@ -109,6 +119,9 @@ body.viewer #panel{display:none}
 body.viewer #app{grid-template-columns:1fr}
 body.viewer #viewerbar{display:block}
 @media (max-width:760px){
+  #addpop{align-items:flex-end;padding:0}
+  #addpop .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
+  #addfab{width:52px;height:52px;font-size:1.7rem}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
   #view{order:1}
@@ -124,7 +137,7 @@ body.viewer #viewerbar{display:block}
   <div id="panel">
     <div id="tabs">
       <button data-tab="studio" class="on">スタジオ</button>
-      <button data-tab="add">配置</button>
+      <button data-tab="list">リスト</button>
       <button data-tab="sel">選択中</button>
       <button data-tab="share">共有</button>
       <button id="fold" title="設定を閉じる" aria-label="設定を閉じる">▾</button>
@@ -144,35 +157,12 @@ body.viewer #viewerbar{display:block}
         <h2>見かた</h2>
         <p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。カメラの絵は右下の小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>
       </div>
-      <div class="sec" data-sec="add">
-        <h2>人</h2>
-        <div class="row">
-          <button class="btn" data-add="person" data-person="0">男性</button>
-          <button class="btn" data-add="person" data-person="1">女性</button>
-          <button class="btn" data-add="person" data-person="2">男の子</button>
-          <button class="btn" data-add="person" data-person="3">女の子</button>
-        </div>
-        <h2>小道具</h2>
-        <div class="row">
-          <button class="btn" data-add="car">車</button>
-          <button class="btn" data-add="chair">椅子</button>
-          <button class="btn" data-add="table">テーブル</button>
-          <button class="btn" data-add="box">箱</button>
-        </div>
-        <h2>撮影機材と背景</h2>
-        <div class="row">
-          <button class="btn" data-add="camera">カメラ</button>
-          <button class="btn" data-add="light">ライト</button>
-          <button class="btn" data-add="mirror">反射面</button>
-          <button class="btn" data-add="chroma">背景布</button>
-        </div>
-        <h2>3D モデルを取り込む</h2>
-        <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
-        <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
-        <p class="hint">GLB・glTF・FBX が読めます。テクスチャが別ファイルの glTF は、<b>.bin と画像も一緒に選ぶ</b>か、書き出しフォルダごと画面にドラッグしてください。GLB に埋め込んで書き出すのが一番確実です。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
-        <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。</p>
+      <div class="sec" data-sec="list">
         <h2>置いてあるもの</h2>
+        <div class="row"><button class="btn primary" data-openadd>＋ 置くものを追加</button></div>
         <div class="list" id="items"></div>
+        <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。目のマークで一時的に隠せます。</p>
+        <p class="hint">カメラは何台でも置けます。選んだカメラの絵が小窓に出ます。</p>
       </div>
       <div class="sec" data-sec="sel"><div id="selbody"><p class="hint">図面のものをタップすると、ここで細かく変えられます。</p></div></div>
       <div class="sec" data-sec="share">
@@ -197,12 +187,44 @@ body.viewer #viewerbar{display:block}
     </div>
     <div id="labels"></div>
     <div id="info"></div>
-    <div id="pip"><div class="bar"><span>カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
+    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
+    <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
     <button id="unfold" title="設定を開く">設定を開く</button>
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
 </div>
+<div id="addpop"><div class="pop">
+  <div class="pophead"><strong>置くものを選ぶ</strong><button id="addclose" aria-label="閉じる">✕</button></div>
+  <div class="popbody">
+    <h2>人</h2>
+    <div class="row">
+      <button class="btn" data-add="person" data-person="0">男性</button>
+      <button class="btn" data-add="person" data-person="1">女性</button>
+      <button class="btn" data-add="person" data-person="2">男の子</button>
+      <button class="btn" data-add="person" data-person="3">女の子</button>
+    </div>
+    <h2>小道具</h2>
+    <div class="row">
+      <button class="btn" data-add="car">車</button>
+      <button class="btn" data-add="chair">椅子</button>
+      <button class="btn" data-add="table">テーブル</button>
+      <button class="btn" data-add="box">箱</button>
+    </div>
+    <h2>撮影機材と背景</h2>
+    <div class="row">
+      <button class="btn" data-add="camera">カメラ</button>
+      <button class="btn" data-add="light">ライト</button>
+      <button class="btn" data-add="mirror">反射面</button>
+      <button class="btn" data-add="chroma">背景布</button>
+    </div>
+    <p class="hint">カメラは何台でも置けます。増やした分は「リスト」に並び、選んだカメラの絵が小窓に出ます。</p>
+    <h2>3D モデルを取り込む</h2>
+    <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
+    <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
+    <p class="hint">GLB・glTF・FBX が読めます。テクスチャが別ファイルの glTF は、<b>.bin と画像も一緒に選ぶ</b>か、書き出しフォルダごと画面にドラッグしてください。GLB に埋め込んで書き出すのが一番確実です。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
+  </div>
+</div></div>
 <div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><a class="btn" id="shotdl" download="studio.png">保存</a><button class="btn" id="shotclose">閉じる</button></div></div>
 
 <script type="module">
@@ -252,7 +274,7 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[
+  return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'3:2'},
   ]};
@@ -268,8 +290,11 @@ function migrate(st){
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
     if (it.type === 'person' && !it.body) it.body = 'm';
   }
+  // links made when there could only be one camera carry no active camera
+  if (!st.items.some(i => i.id === st.activeCam && i.type === 'camera')) st.activeCam = firstCamId(st);
   return st;
 }
+const firstCamId = st => st.items.find(i => i.type === 'camera')?.id || null;
 
 // ---------- three setup ----------
 const viewEl = document.getElementById('view');
@@ -808,7 +833,17 @@ function updateSelectionVisuals(){
   gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(r);
 }
 const sel = () => state.items.find(i => i.id === selectedId) || null;
-const camItem = () => state.items.find(i => i.type === 'camera') || null;
+// several cameras can stand in the room; one of them is the one being looked through
+const camItem = () => state.items.find(i => i.id === state.activeCam && i.type === 'camera')
+                   || state.items.find(i => i.type === 'camera') || null;
+const cams = () => state.items.filter(i => i.type === 'camera');
+const camName = ci => { const n = cams(); return n.length > 1 ? `カメラ ${n.indexOf(ci) + 1}` : 'カメラ'; };
+function setActiveCam(id){
+  if (state.activeCam === id) return;
+  state.activeCam = id;
+  const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
+  layoutPip(); needRender = true; saveHash();
+}
 
 // ---------- viewports ----------
 let W = 1, H = 1;
@@ -909,8 +944,12 @@ function frame(){
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
-  if (ci){ const eq = equiv(ci); t += `\n${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`; }
+  if (ci){
+    const eq = equiv(ci), many = cams().length > 1;          // the name only earns its place with more than one
+    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`;
+  }
   el.textContent = t;
+  document.getElementById('pipname').textContent = ci ? camName(ci) : 'カメラ';
   document.getElementById('pipinfo').textContent = ci ? `${ci.focal}mm ${ci.aspect}` : 'カメラ無し';
 }
 function equiv(ci){ const w = sensorW(ci); return Math.abs(w-36) < 0.01 ? null : Math.round(ci.focal*36/w); }
@@ -1039,15 +1078,23 @@ function renderStudio(){
   const p = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && x.cove && same(x.cove, s.cove)); presetEl.value = p ? p.id : 'custom';
 }
 
-// add
+// add: the choices live in a popup, so the panel can stay a list of what is placed
+const addpop = document.getElementById('addpop');
+function openAdd(){ if (!viewerMode) addpop.classList.add('on'); }
+function closeAdd(){ addpop.classList.remove('on'); }
+document.querySelectorAll('[data-openadd]').forEach(b => b.addEventListener('click', openAdd));
+document.getElementById('addclose').addEventListener('click', closeAdd);
+addpop.addEventListener('click', e => { if (e.target === addpop) closeAdd(); });   // tap outside
+addEventListener('keydown', e => { if (e.key === 'Escape') closeAdd(); });
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+  closeAdd();
   const p = b.dataset.person; addItem(b.dataset.add, p ? {body:PEOPLE[+p][1], height:PEOPLE[+p][2]} : null);
 }));
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
   if (type === 'person') it = {id, type, x:0, z:0, rot:0, body:opt?.body || 'm', height:opt?.height || 1.72, pose:'stand'};
-  else if (type === 'camera'){ if (camItem()){ toast('カメラは 1 台です'); select(camItem().id); return; } it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'}; }
+  else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
   else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
@@ -1064,7 +1111,9 @@ function addItem(type, opt){
     if (it.x > w/2 - 0.3){ it.x = -w/2 + 0.5; it.z += 0.8; if (it.z > d/2 - 0.3) break; }
   }
   setPos(it, it.x, it.z);
-  state.items.push(it); rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+  state.items.push(it);
+  if (type === 'camera') state.activeCam = id;                 // show what the new one sees
+  rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
 function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
 const personLabel = it => it.height < 1.40 ? (it.body === 'f' ? '女の子' : '男の子') : (it.body === 'f' ? '女性' : '男性');
@@ -1078,10 +1127,10 @@ function renderList(){
     const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : '');
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
-    const label = it.type==='camera' ? 'カメラ' : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
+    const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
     const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
     const sub = it.type==='person' ? `${fmt(it.height)} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
-      : it.type==='camera' ? `${it.focal}mm ${it.aspect}`
+      : it.type==='camera' ? `${it.focal}mm ${it.aspect}${it.id === state.activeCam ? '・表示中' : ''}`
       : it.type==='light' ? `高さ ${it.y} m`
       : it.type==='chroma' ? dims('w','h')
       : it.type==='car' ? `${{sedan:'セダン',wagon:'ワゴン',van:'バン',kei:'軽'}[it.kind]} ${dims('d','w')}`
@@ -1101,14 +1150,20 @@ function renderList(){
 
 // select
 // selecting on the canvas switches to the 選択中 tab but never unfolds the panel (that would shift the view mid-drag)
-function select(id, open=false){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); if (id && !viewerMode) showTab('sel', open); needRender = true; }
+function select(id, open=false){
+  const it = state.items.find(i => i.id === id);
+  if (it?.type === 'camera') setActiveCam(id);
+  selectedId = id; updateSelectionVisuals(); renderSel(); renderList();
+  if (id && !viewerMode) showTab('sel', open);
+  needRender = true;
+}
 function renderSel(){
   const it = sel(); const el = document.getElementById('selbody');
   if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
   const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
-  let h = `<h2>${NAMES[it.type]}</h2>`;
+  let h = `<h2>${it.type === 'camera' ? camName(it) : NAMES[it.type]}</h2>`;
   if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
   if (it.type === 'person'){
     h += `<h2>体型</h2>` + btns('body', Object.entries(BODIES), it.body || 'm');
@@ -1197,7 +1252,8 @@ function renderSel(){
   el.querySelector('[data-del]').addEventListener('click', () => {
     state.items = state.items.filter(i => i !== it);
     if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
-    select(null); rebuildItems(); saveHash();
+    if (it.id === state.activeCam) state.activeCam = firstCamId(state);
+    select(null); rebuildItems(); layoutPip(); saveHash();
   });
 }
 function setProp(it, k, v, live=false){
@@ -1488,7 +1544,7 @@ async function filesFromDrop(dt){
   return out;
 }
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
-document.getElementById('file').addEventListener('change', e => { if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
+document.getElementById('file').addEventListener('change', e => { closeAdd(); if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
 for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
 for (const ev of ['dragleave','drop']) viewEl.addEventListener(ev, e => { e.preventDefault(); viewEl.classList.remove('drop'); });
 viewEl.addEventListener('drop', e => {

@@ -155,7 +155,7 @@ async function run(name, viewport, mobile, hash = '', init = null) {
 let r = await run('desktop-plan', { width: 1280, height: 800 }, false);
 console.log('desktop errors:', r.errors);
 // switch to camera view, add mirror
-await r.page.click('[data-tab="add"]');
+await r.page.click('#addfab');
 await r.page.click('[data-add="mirror"]');
 await r.page.waitForTimeout(300);
 await r.page.click('[data-view="cam"]');
@@ -164,7 +164,7 @@ await r.page.screenshot({ path: `${OUT}/desktop-cam.png` });
 await r.page.click('[data-view="side"]');
 await r.page.waitForTimeout(500);
 await r.page.screenshot({ path: `${OUT}/desktop-side.png` });
-await r.page.click('[data-tab="add"]');
+await r.page.click('#addfab');
 await r.page.click('[data-add="chroma"]');
 await r.page.waitForTimeout(300);
 await r.page.click('[data-view="pers"]');
@@ -182,7 +182,7 @@ await r.page.mouse.move(700, 150); await r.page.mouse.down(); await r.page.mouse
 await r.page.waitForTimeout(400);
 await r.page.screenshot({ path: `${OUT}/desktop-pers-fade.png` });
 // hide the mirror via the eye button
-await r.page.click('[data-tab="add"]');
+await r.page.click('[data-tab="list"]');
 await r.page.click('#items .itemrow:nth-child(3) .eye'); await r.page.waitForTimeout(300);
 console.log('hidden rows:', await r.page.$$eval('#items .itemrow.hidden-item', b => b.length));
 await r.page.click('[data-view="side"]'); await r.page.waitForTimeout(400);
@@ -197,7 +197,7 @@ await r.page.waitForTimeout(400);
 console.log('pip rect:', await r.page.$eval('#pip', e => e.style.cssText));
 await r.page.screenshot({ path: `${OUT}/desktop-pip.png` });
 // select camera via list, choose custom sensor
-await r.page.click('[data-tab="studio"]'); await r.page.click('[data-tab="add"]');
+await r.page.click('[data-tab="studio"]'); await r.page.click('[data-tab="list"]');
 await r.page.click('#items .itemrow:nth-child(2) > button:first-child');
 await r.page.waitForTimeout(200);
 console.log('sel tab open:', await r.page.$eval('[data-tab="sel"]', b => b.classList.contains('on')));
@@ -225,7 +225,7 @@ await r.page.waitForTimeout(600);
 await r.page.screenshot({ path: `${OUT}/desktop-cam2.png` });
 console.log('info:', await r.page.textContent('#info'));
 await r.page.click('[data-view="plan"]');
-await r.page.click('[data-tab="add"]');
+await r.page.click('[data-tab="list"]');
 await r.page.click('#items .itemrow:nth-child(1) > button:first-child');
 await r.page.waitForTimeout(400);
 await r.page.screenshot({ path: `${OUT}/desktop-plan2.png` });
@@ -280,10 +280,10 @@ await r.ctx.close();
 // object presets and 3D model import
 {
   const g = await run('presets', { width: 1400, height: 900 }, false);
-  for (const p of ['0','1','2','3']){ await g.page.click('[data-tab="add"]'); await g.page.click(`[data-person="${p}"]`); }
-  for (const t of ['car','chair','table','box']){ await g.page.click('[data-tab="add"]'); await g.page.click(`[data-add="${t}"]`); }
+  for (const p of ['0','1','2','3']){ await g.page.click('#addfab'); await g.page.click(`[data-person="${p}"]`); }
+  for (const t of ['car','chair','table','box']){ await g.page.click('#addfab'); await g.page.click(`[data-add="${t}"]`); }
   await g.page.waitForTimeout(600);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('[data-tab="list"]');
   console.log('preset rows:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim())));
   const glb = `${OUT}/test-box.glb`; fs.writeFileSync(glb, makeGLB());
   await g.page.setInputFiles('#file', glb);
@@ -322,13 +322,13 @@ await r.ctx.close();
   fs.writeFileSync(`${OUT}/scene.bin`, sep.bin);
   fs.writeFileSync(`${OUT}/paint.png`, sep.png);
 
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/painted.glb`);
   await g.page.waitForTimeout(1800);
   console.log('GLB embedded ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 90));
 
   // the glTF with its .bin and .png picked alongside it
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', [`${OUT}/painted.gltf`, `${OUT}/scene.bin`, `${OUT}/paint.png`]);
   await g.page.waitForTimeout(2000);
   console.log('glTF + sidecars ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 90));
@@ -339,7 +339,7 @@ await r.ctx.close();
   // reopening the page must rebuild both models from IndexedDB, sidecars included
   await g.page.reload();
   await g.page.waitForTimeout(2500);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('[data-tab="list"]');
   await g.page.click('#items .itemrow:last-child > button:first-child');
   await g.page.waitForTimeout(400);
   console.log('after reload ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 60));
@@ -350,7 +350,7 @@ await r.ctx.close();
   inline.buffers = [{ uri: 'data:application/octet-stream;base64,' + sep.bin.toString('base64'), byteLength: sep.bin.length }];
   fs.writeFileSync(`${OUT}/inline-buffer.gltf`, JSON.stringify(inline));
   await g.page.click('[data-view="plan"]');
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/inline-buffer.gltf`);
   await g.page.waitForTimeout(2000);
   console.log('missing image named ->', await g.page.textContent('#toast'));
@@ -358,14 +358,14 @@ await r.ctx.close();
 
   // a texture that only hangs off an extension still counts as a texture
   fs.writeFileSync(`${OUT}/clearcoat.glb`, texturedGLTF(true, 'clearcoat').glb);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/clearcoat.glb`);
   await g.page.waitForTimeout(1800);
   console.log('extension-only texture ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 60));
 
   // a spec/gloss material must name that as the reason, not "no texture in the file"
   fs.writeFileSync(`${OUT}/specgloss.glb`, texturedGLTF(true, 'specgloss').glb);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/specgloss.glb`);
   await g.page.waitForTimeout(1800);
   console.log('spec/gloss ->', await g.page.textContent('#toast'));
@@ -373,7 +373,7 @@ await r.ctx.close();
 
   // images the material never references: say that, not "no texture in the file"
   fs.writeFileSync(`${OUT}/unlinked.glb`, texturedGLTF(true, 'unlinked').glb);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/unlinked.glb`);
   await g.page.waitForTimeout(1800);
   console.log('unlinked ->', await g.page.textContent('#toast'));
@@ -381,14 +381,14 @@ await r.ctx.close();
 
   // a face with no material index at all
   fs.writeFileSync(`${OUT}/nomat.glb`, texturedGLTF(true, 'nomat').glb);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/nomat.glb`);
   await g.page.waitForTimeout(1800);
   console.log('no material index ->', await g.page.textContent('#toast'));
 
   // links intact, image undecodable: the note must say so and probe the browser
   fs.writeFileSync(`${OUT}/badimage.glb`, texturedGLTF(true, 'badimage').glb);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/badimage.glb`);
   await g.page.waitForTimeout(2500);
   console.log('undecodable ->', await g.page.textContent('#toast'));
@@ -407,7 +407,7 @@ await r.ctx.close();
   console.log('dropped file imported:', (await g.page.$$eval('#items .itemrow', b => b.length)) - before === 1);
 
   // the same glTF on its own must say what is missing rather than fail silently
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/painted.gltf`);
   await g.page.waitForTimeout(1500);
   console.log('glTF alone ->', await g.page.textContent('#toast'));
@@ -423,7 +423,7 @@ await r.ctx.close();
     window.fetch = (u, o) => (String(u?.url || u).startsWith('blob:')
       ? Promise.reject(new TypeError('blocked by test')) : real(u, o));
   });
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('#addfab');
   await g.page.setInputFiles('#file', `${OUT}/painted.glb`);
   await g.page.waitForTimeout(2500);
   console.log('fetch(blob) blocked ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 80));
@@ -438,7 +438,7 @@ await r.ctx.close();
 // camera hidden by hand, which has to be pixel for pixel the same picture
 {
   const g = await run('selfshot', { width: 1000, height: 700 }, false);
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('[data-tab="list"]');
   await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
   await g.page.waitForTimeout(300);
   const slide = async (name, v) => g.page.$eval(`[data-range="${name}"]`, (el, val) => {
@@ -451,7 +451,7 @@ await r.ctx.close();
   await g.page.click('[data-view="cam"]');
   await g.page.waitForTimeout(2600);                       // let any toast fade out
   const shown = await g.page.locator('#view').screenshot({ path: `${OUT}/selfshot.png` });
-  await g.page.click('[data-tab="add"]');
+  await g.page.click('[data-tab="list"]');
   await g.page.click('#items .itemrow:nth-child(2) .eye');  // hide the camera by hand
   await g.page.waitForTimeout(800);
   const hidden = await g.page.locator('#view').screenshot();
@@ -469,6 +469,44 @@ await r.ctx.close();
   await g.page.waitForTimeout(300);
   console.log('camera still selectable:', (await g.page.textContent('#selbody')).includes('センサー'));
   console.log('selfshot errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
+// several cameras: the list names them, the selected one is the one being shown,
+// and deleting the shown one hands the window to another
+{
+  const g = await run('cameras', { width: 1100, height: 780 }, false);
+  await g.page.click('#addfab');
+  await g.page.waitForTimeout(200);
+  await g.page.screenshot({ path: `${OUT}/addpop.png` });
+  await g.page.click('[data-add="camera"]');
+  await g.page.waitForTimeout(600);
+  console.log('popup closed after adding:', !(await g.page.$eval('#addpop', e => e.classList.contains('on'))));
+  await g.page.click('[data-tab="list"]');
+  await g.page.waitForTimeout(200);
+  const rows = () => g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()));
+  console.log('two cameras listed:', await rows());
+  console.log('window shows the new one:', await g.page.textContent('#pipname'));
+  // pick the first camera: the window follows the selection
+  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await g.page.waitForTimeout(400);
+  console.log('window follows selection:', await g.page.textContent('#pipname'), (await rows())[1]);
+  // the share link carries which camera is being shown
+  await g.page.click('[data-tab="share"]');
+  await g.page.waitForTimeout(600);
+  const camLink = await g.page.inputValue('#linkbox');
+  const back = await run('cameras-link', { width: 1100, height: 780 }, false, camLink.slice(camLink.indexOf('#')));
+  console.log('restored shown camera:', await back.page.textContent('#pipname'));
+  console.log('restored errors:', back.errors.filter(e => !e.includes('GL Driver')));
+  await back.ctx.close();
+  // delete the shown camera; the other one takes over
+  await g.page.click('[data-tab="list"]');
+  await g.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await g.page.waitForTimeout(300);
+  await g.page.click('[data-del]');
+  await g.page.waitForTimeout(500);
+  console.log('after deleting the shown camera:', await rows(), await g.page.textContent('#pipname'));
+  console.log('cameras errors:', g.errors.filter(e => !e.includes('GL Driver')));
   await g.ctx.close();
 }
 
