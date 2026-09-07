@@ -84,6 +84,8 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3}
 #viewbtns button{height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
 #viewbtns button.on{background:var(--accent)}
+#viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
+#viewbtns button.icon:not(.on){color:#b9bec9}
 #info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 #labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -91,7 +93,9 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #labels span.dist{color:#fff;background:rgba(194,113,31,.85)}
 #pip{position:absolute;z-index:4;border:2px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;touch-action:none;box-shadow:0 4px 18px rgba(0,0,0,.4);overflow:hidden}
 #pip .bar{height:24px;background:rgba(20,22,26,.85);color:#fff;font-size:.72rem;font-weight:700;padding:3px 8px;cursor:move;display:flex;justify-content:space-between;align-items:center;user-select:none}
-#pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace}
+#pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace;margin-left:auto}
+#pip .bar button{margin-left:8px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
+#pip .bar button:hover{background:rgba(255,255,255,.18)}
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
 #addfab{position:absolute;left:12px;bottom:12px;z-index:4;width:56px;height:56px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.9rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
@@ -140,7 +144,6 @@ body.viewer #viewerbar{display:block}
     </div>
     <div id="sheet">
       <div class="sec on" data-sec="list">
-        <div class="row"><button class="btn primary" data-openadd>＋ 置くものを追加</button></div>
         <div class="list" id="items"></div>
         <div id="selbody"></div>
       </div>
@@ -163,10 +166,16 @@ body.viewer #viewerbar{display:block}
       <button data-view="side">側面</button>
       <button data-view="pers">パース</button>
       <button data-view="cam">ファインダー</button>
+      <button id="pipbtn" class="icon on" title="カメラの小窓" aria-label="カメラの小窓">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5h4l1.6-2h6.8L17 7.5h4v11H3z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+      </button>
+      <button id="ruler" class="icon on" title="寸法を出す" aria-label="寸法を出す">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 9h20v6H2z"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/></svg>
+      </button>
     </div>
     <div id="labels"></div>
     <div id="info"></div>
-    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
+    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
     <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
     <button id="gear" title="設定の開閉" aria-label="設定の開閉">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
@@ -228,7 +237,8 @@ let savedSensors = [];
 try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
 function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
+// video work comes first, so 16:9 leads and is what a new camera gets
+const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
 const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
 const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布',
@@ -258,7 +268,7 @@ let uid = 1;
 function defaultState(){
   return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
-    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'3:2'},
+    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
 }
 function migrate(st){
@@ -427,6 +437,11 @@ function updateDist(){
 const labelsEl = document.getElementById('labels');
 function itemLabels(view){
   const out = [];
+  const s = sel();
+  if (view === 'plan' && s && !s.hidden && s.w > 0 && s.d > 0){
+    out.push({p:new THREE.Vector3(s.x, 0.02, s.z + s.d/2 + 0.32),
+              text:`${fmt(+s.w.toFixed(2))} × ${fmt(+s.d.toFixed(2))} m`, cls:'dim', views:['plan']});
+  }
   if (view !== 'side') return out;
   for (const it of state.items){
     if (it.hidden) continue;
@@ -444,14 +459,14 @@ function itemLabels(view){
   return out;
 }
 function drawLabels(view, cam, rect){
-  if (view === 'cam'){ labelsEl.innerHTML = ''; return; }
+  if (view === 'cam' || !showDims){ labelsEl.innerHTML = ''; return; }
   const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
   let html = ''; const placed = [];
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
-    if (x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
     if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                   // drop labels that would sit on top of each other
     placed.push({x, y});
     html += `<span class="${L.cls}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${L.text}</span>`;
@@ -831,8 +846,10 @@ function setActiveCam(id){
 // ---------- viewports ----------
 let W = 1, H = 1;
 const pipEl = document.getElementById('pip');
-let pip = {x:-1, y:-1, w:280, h:210};
-try { const s = JSON.parse(localStorage.getItem('studio3d.pip')||'null'); if (s && s.w > 60) pip = s; } catch {}
+let pip = {x:-1, y:-1, w:280, h:210, open:true};
+try { const s = JSON.parse(localStorage.getItem('studio3d.pip')||'null'); if (s && s.w > 60) pip = {open:true, ...s}; } catch {}
+let showDims = true;
+try { showDims = localStorage.getItem('studio3d.dims') !== '0'; } catch {}
 function resize(){
   const r = viewEl.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
   renderer.setSize(W, H, false); canvas.style.width = W+'px'; canvas.style.height = H+'px';
@@ -846,7 +863,9 @@ function layoutPip(){
   if (pip.w > maxW || pip.h > maxH || (small && pip.w > W*0.55 && !pip.user)){ const k = small ? 0.42 : 0.3; pip.w = Math.round(clamp(W*k, 120, 420)); pip.h = Math.round(pip.w*0.66+24); }
   if (pip.x < 0 || pip.y < 0 || pip.x + pip.w > W || pip.y + pip.h > H){ pip.x = W - pip.w - 10; pip.y = H - pip.h - 10; }
   pip.x = clamp(pip.x, 0, Math.max(0, W - pip.w)); pip.y = clamp(pip.y, 0, Math.max(0, H - pip.h));
-  Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: mainView === 'cam' ? 'none' : 'block'});
+  const shown = pip.open && mainView !== 'cam';
+  Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: shown ? 'block' : 'none'});
+  document.getElementById('pipbtn').classList.toggle('on', pip.open);
   persCam.aspect = W/H; persCam.updateProjectionMatrix();
 }
 function savePip(){ try { localStorage.setItem('studio3d.pip', JSON.stringify(pip)); } catch {} }
@@ -870,11 +889,11 @@ function renderView(view, rect, isMain){
   });
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
-  dimGroup.traverse(n => { if (n.userData.views) n.visible = isMain && n.userData.views.includes(view); });
+  dimGroup.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
   frustumGroup.visible = view !== 'cam' && !frustumGroup.userData.hidden;
   const showSel = isMain && view !== 'cam';
   const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !viewerMode;
-  distLine.visible = showSel && !!distLabel && (view === 'plan' || view === 'pers');
+  distLine.visible = showDims && showSel && !!distLabel && (view === 'plan' || view === 'pers');
   renderer.setScissorTest(true);
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
@@ -920,7 +939,7 @@ function frame(){
   if (!needRender) return; needRender = false;
   fitOrtho();
   renderView(mainView, mainRect(), true);
-  if (mainView !== 'cam') renderView('cam', pipRect(), false);
+  if (mainView !== 'cam' && pip.open) renderView('cam', pipRect(), false);
   renderer.setScissorTest(false);
   updateInfo();
 }
@@ -1033,7 +1052,20 @@ function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildC
 // ---------- view switching ----------
 function setMain(v){ if (v === mainView) return; mainView = v; planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); planCam.zoom = sideCam.zoom = 1; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); resetOrbit(); syncViewBtns(); layoutPip(); needRender = true; }
 function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
-document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
+document.querySelectorAll('#viewbtns button[data-view]').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
+const pipCloseBtn = document.getElementById('pipclose'), pipBtn = document.getElementById('pipbtn');
+function setPipOpen(v){ pip.open = v; savePip(); layoutPip(); needRender = true; }
+pipCloseBtn.addEventListener('click', e => { e.stopPropagation(); setPipOpen(false); });
+pipCloseBtn.addEventListener('pointerdown', e => e.stopPropagation());   // the bar drags the window
+pipBtn.addEventListener('click', () => setPipOpen(!pip.open));
+const rulerBtn = document.getElementById('ruler');
+function setDims(v){
+  showDims = v; rulerBtn.classList.toggle('on', v);
+  try { localStorage.setItem('studio3d.dims', v ? '1' : '0'); } catch {}
+  needRender = true;
+}
+rulerBtn.addEventListener('click', () => setDims(!showDims));
+setDims(showDims);
 
 // ---------- UI: tabs ----------
 const tabs = document.querySelectorAll('#tabs button[data-tab]');
@@ -1102,7 +1134,7 @@ function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
   if (type === 'person') it = {id, type, x:0, z:0, rot:0, body:opt?.body || 'm', height:opt?.height || 1.72, pose:'stand'};
-  else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'};
+  else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
   else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
@@ -1276,13 +1308,23 @@ function renderSel(){
     r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
   });
-  el.querySelector('[data-del]').addEventListener('click', () => {
-    state.items = state.items.filter(i => i !== it);
-    if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
-    if (it.id === state.activeCam) state.activeCam = firstCamId(state);
-    select(null); rebuildItems(); layoutPip(); saveHash();
-  });
+  el.querySelector('[data-del]').addEventListener('click', () => deleteItem(it));
 }
+function deleteItem(it){
+  if (!it || viewerMode) return;
+  state.items = state.items.filter(i => i !== it);
+  if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
+  if (it.id === state.activeCam) state.activeCam = firstCamId(state);
+  select(null); rebuildItems(); layoutPip(); saveHash();
+}
+// Delete / Backspace removes what is selected, unless a field has the keyboard
+addEventListener('keydown', e => {
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  const t = e.target;
+  if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  const it = sel(); if (!it) return;
+  e.preventDefault(); deleteItem(it);
+});
 function setProp(it, k, v, live=false){
   if (['height','y','w','d','h','rot','pitch','focal','drape','sensorW','seatH','targetH'].includes(k)) v = parseFloat(v);
   if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;

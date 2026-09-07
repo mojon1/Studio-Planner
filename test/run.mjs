@@ -517,6 +517,51 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// the keyboard deletes, the camera window closes, the ruler hides the dimensions
+{
+  const g = await run('tools', { width: 1100, height: 780 }, false);
+  const count = () => g.page.$$eval('#items .itemrow', b => b.length);
+  console.log('new camera is 16:9:', (await g.page.textContent('#info')).includes('16:9'));
+
+  await g.page.click('#addfab');
+  await g.page.click('[data-add="box"]');
+  await g.page.waitForTimeout(500);
+  const withBox = await count();
+  // a field with the keyboard must swallow the key instead of deleting the box
+  await g.page.click('[data-tab="share"]');
+  await g.page.waitForTimeout(400);
+  await g.page.focus('#linkbox');
+  await g.page.keyboard.press('Backspace');
+  await g.page.waitForTimeout(300);
+  console.log('typing does not delete:', (await count()) === withBox);
+  await g.page.click('[data-tab="list"]');
+  await g.page.locator('#view').click({ position: { x: 30, y: 300 } });   // focus away from any field
+  await g.page.locator('#items .itemrow[data-kind="box"] button').first().click();
+  await g.page.waitForTimeout(300);
+  await g.page.keyboard.press('Delete');
+  await g.page.waitForTimeout(400);
+  console.log('Delete removes the selected object:', (await count()) === withBox - 1);
+
+  // the camera window closes from its own cross and comes back from the row
+  const pipShown = () => g.page.$eval('#pip', e => getComputedStyle(e).display !== 'none');
+  await g.page.click('#pipclose'); await g.page.waitForTimeout(300);
+  console.log('window closed:', !(await pipShown()));
+  await g.page.screenshot({ path: `${OUT}/tools-nopip.png` });
+  await g.page.click('#pipbtn'); await g.page.waitForTimeout(300);
+  console.log('window back:', await pipShown());
+
+  // the ruler takes every dimension off the drawing
+  const labels = () => g.page.$eval('#labels', e => e.children.length);
+  console.log('dimensions on:', (await labels()) > 0);
+  await g.page.click('#ruler'); await g.page.waitForTimeout(400);
+  console.log('ruler off clears them:', (await labels()) === 0);
+  await g.page.screenshot({ path: `${OUT}/tools-nodims.png` });
+  await g.page.click('#ruler'); await g.page.waitForTimeout(400);
+  console.log('ruler on brings them back:', (await labels()) > 0);
+  console.log('tools errors:', g.errors.filter(e => !e.includes('GL Driver')));
+  await g.ctx.close();
+}
+
 // viewer mode
 r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
 console.log('viewer errors:', r.errors);
