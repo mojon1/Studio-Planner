@@ -36,6 +36,15 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 #tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+#tabs #fold{flex:0 0 44px;font-size:1.2rem;color:var(--ink2)}
+body.folded #tabs #fold{transform:rotate(180deg)}
+body.folded #sheet{display:none}
+#unfold{display:none;position:absolute;left:10px;bottom:12px;z-index:3;height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.8);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
+@media (min-width:761px){
+  body.folded:not(.viewer) #panel{display:none}
+  body.folded:not(.viewer) #app{grid-template-columns:1fr}
+  body.folded:not(.viewer) #unfold{display:block}
+}
 #sheet{overflow-y:auto;padding:14px 16px 24px;flex:1;min-height:0}
 .sec{display:none}.sec.on{display:block}
 h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:700}
@@ -107,6 +116,7 @@ body.viewer #viewerbar{display:block}
       <button data-tab="add">配置</button>
       <button data-tab="sel">選択中</button>
       <button data-tab="share">共有</button>
+      <button id="fold" title="設定を閉じる" aria-label="設定を閉じる">▾</button>
     </div>
     <div id="sheet">
       <div class="sec on" data-sec="studio">
@@ -160,6 +170,7 @@ body.viewer #viewerbar{display:block}
     <div id="labels"></div>
     <div id="info"></div>
     <div id="pip"><div class="bar"><span>カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
+    <button id="unfold" title="設定を開く">設定を開く</button>
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
@@ -252,7 +263,7 @@ let labels = [];
 const gizmo = new THREE.Group(); scene.add(gizmo); gizmo.visible = false;
 const gizRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 10, 72), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
 gizRing.rotation.x = Math.PI/2; gizRing.renderOrder = 8; gizmo.add(gizRing);
-const gizHit = new THREE.Mesh(new THREE.RingGeometry(0.72, 1.3, 48), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
+const gizHit = new THREE.Mesh(new THREE.RingGeometry(0.62, 1.55, 48), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
 gizHit.rotation.x = -Math.PI/2; gizHit.userData.gizmo = true; gizmo.add(gizHit);
 const gizKnob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false}));
 gizKnob.renderOrder = 9; gizKnob.position.set(0,0,1); gizmo.add(gizKnob);
@@ -530,7 +541,7 @@ function updateItemTransform(it){
   if (it.type === 'camera') buildFrustum(it);
   updateSelectionVisuals();
 }
-function handleRadius(it){ return it.type==='camera'?0.8: it.type==='mirror'? Math.max(0.7, it.h*0.5+0.3) : it.type==='chroma' ? Math.max(0.9, (it.drape||0)+0.4) : 0.7; }
+function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.8, it.h*0.5+0.3) : it.type==='chroma' ? Math.max(1.0, (it.drape||0)+0.4) : 0.8; }
 function updateSelectionVisuals(){
   const it = sel();
   gizmo.visible = !!it && !viewerMode;
@@ -638,7 +649,7 @@ function floorHit(x,y){
 function pick(x,y){
   if (mainView === 'cam') return null;
   ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
-  if (gizmo.visible){ const h = ray.intersectObject(gizHit); if (h.length) return {gizmo:true}; }
+  if (sel() && !viewerMode){ gizmo.updateMatrixWorld(true); const h = ray.intersectObject(gizHit); if (h.length) return {gizmo:true}; }
   const hits = ray.intersectObjects(itemsGroup.children, true);
   for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
   if (mainView === 'side') return null;
@@ -726,9 +737,15 @@ function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b
 document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
 
 // ---------- UI: tabs ----------
-const tabs = document.querySelectorAll('#tabs button');
-function showTab(name){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); }
-tabs.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+const tabs = document.querySelectorAll('#tabs button[data-tab]');
+let folded = false;
+try { const f = localStorage.getItem('studio3d.folded'); folded = f === null ? (innerWidth <= 760) : f === '1'; } catch { folded = innerWidth <= 760; }
+function setFolded(v){ folded = v; document.body.classList.toggle('folded', v); try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {} }
+function showTab(name, open){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); if (open) setFolded(false); }
+tabs.forEach(b => b.addEventListener('click', () => { if (b.classList.contains('on') && !folded) setFolded(true); else showTab(b.dataset.tab, true); }));
+document.getElementById('fold').addEventListener('click', () => setFolded(!folded));
+document.getElementById('unfold').addEventListener('click', () => setFolded(false));
+setFolded(folded);
 
 // studio
 const presetEl = document.getElementById('preset');
@@ -757,7 +774,7 @@ function addItem(type){
   else it = {id, type, x:0, z:0.5, rot:0, kind:'water', w:3, h:2};
   let tries = 0; while (tries++ < 20 && state.items.some(o => Math.hypot(o.x-it.x, o.z-it.z) < 0.5)) it.x += 0.6;
   setPos(it, it.x, it.z);
-  state.items.push(it); rebuildItems(); select(id); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+  state.items.push(it); rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
 function itemColor(it){ return it.type === 'chroma' ? (it.color || '#1fb24a') : '#' + COLORS[it.type].toString(16).padStart(6,'0'); }
 function renderList(){
@@ -770,13 +787,14 @@ function renderList(){
     const label = it.type==='camera' ? 'カメラ' : `${NAMES[it.type]} ${counts[it.type]}`;
     const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: it.type==='chroma'?`${it.w}×${it.h} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
     b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
-    b.addEventListener('click', () => { select(it.id); }); el.appendChild(b);
+    b.addEventListener('click', () => { select(it.id, true); }); el.appendChild(b);
   }
   if (!state.items.length) el.innerHTML = '<p class="hint">まだ何も置いていません。</p>';
 }
 
 // select
-function select(id){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); if (id && !viewerMode) showTab('sel'); needRender = true; }
+// selecting on the canvas switches to the 選択中 tab but never unfolds the panel (that would shift the view mid-drag)
+function select(id, open=false){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); if (id && !viewerMode) showTab('sel', open); needRender = true; }
 function renderSel(){
   const it = sel(); const el = document.getElementById('selbody');
   if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
