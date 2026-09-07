@@ -31,6 +31,7 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #app{position:fixed;inset:0;display:grid;grid-template-columns:340px 1fr;grid-template-rows:1fr}
 #view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
 #view canvas{display:block;width:100%;height:100%}
+#view.drop::after{content:"ここに落とすと取り込みます";position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,22,26,.55);font-weight:700;z-index:6;pointer-events:none}
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
 #tabs{display:flex;border-bottom:1px solid var(--rule);flex:none}
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
@@ -144,14 +145,31 @@ body.viewer #viewerbar{display:block}
         <p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。カメラの絵は右下の小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>
       </div>
       <div class="sec" data-sec="add">
-        <h2>置くもの</h2>
+        <h2>人</h2>
         <div class="row">
-          <button class="btn" data-add="person">人</button>
+          <button class="btn" data-add="person" data-person="0">男性</button>
+          <button class="btn" data-add="person" data-person="1">女性</button>
+          <button class="btn" data-add="person" data-person="2">男の子</button>
+          <button class="btn" data-add="person" data-person="3">女の子</button>
+        </div>
+        <h2>小道具</h2>
+        <div class="row">
+          <button class="btn" data-add="car">車</button>
+          <button class="btn" data-add="chair">椅子</button>
+          <button class="btn" data-add="table">テーブル</button>
+          <button class="btn" data-add="box">箱</button>
+        </div>
+        <h2>撮影機材と背景</h2>
+        <div class="row">
           <button class="btn" data-add="camera">カメラ</button>
           <button class="btn" data-add="light">ライト</button>
           <button class="btn" data-add="mirror">反射面</button>
           <button class="btn" data-add="chroma">背景布</button>
         </div>
+        <h2>3D モデルを取り込む</h2>
+        <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
+        <input type="file" id="file" accept=".glb,.gltf,.fbx" multiple hidden>
+        <p class="hint">GLB と FBX が読めます。画面にドラッグしても入ります。FBX はテクスチャを埋め込んで書き出してください。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
         <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。</p>
         <h2>置いてあるもの</h2>
         <div class="list" id="items"></div>
@@ -208,9 +226,15 @@ try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (
 function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布'};
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a,
+                car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布',
+               car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
+const BODIES = {m:'男性', f:'女性'};
+// the four person buttons differ only in body type and starting height
+const PEOPLE = [['男性','m',1.72], ['女性','f',1.58], ['男の子','m',1.20], ['女の子','f',1.18]];
 const SWATCHES = [['#1fb24a','グリーン'],['#1f5fd0','ブルー'],['#f4f4f2','白'],['#8a8a8a','グレー'],['#1a1a1a','黒'],['#c9b79c','ベージュ']];
+const PROP_SWATCHES = [['#e8e6e2','白'],['#a9b0bd','グレー'],['#c8a882','木'],['#2b2f36','黒'],['#b5423a','赤'],['#3a63b5','青']];
 const sensorW = it => it.sensor === 'custom' ? clamp(+it.sensorW || 36, 4, 80) : SENSORS[it.sensor]?.w || 36;
 function sensorName(it){
   if (it.sensor !== 'custom') return SENSORS[it.sensor]?.name || 'フルサイズ';
@@ -242,6 +266,7 @@ function migrate(st){
       if (!SENSORS[it.sensor]) it.sensor = 'ff';
     }
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
+    if (it.type === 'person' && !it.body) it.body = 'm';
   }
   return st;
 }
@@ -397,22 +422,30 @@ function itemLabels(view){
   if (view !== 'side') return out;
   for (const it of state.items){
     if (it.hidden) continue;
-    const tall = it.type==='chroma' || (it.type==='mirror' && it.kind==='wall');
-    const top = it.type==='person' ? (it.pose==='lie' ? 0.35 : it.pose==='sit' ? 0.45 + it.height*0.5 : it.height) : tall ? it.h : (it.y ?? 0);
-    const txt = it.type==='person' ? `身長 ${fmt(it.height)} m` : (it.type==='camera'||it.type==='light') ? `高さ ${fmt(it.y)} m` : tall ? `高さ ${fmt(it.h)} m` : null;
-    if (txt) out.push({p:new THREE.Vector3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
+    let top, txt;
+    if (it.type === 'person'){
+      const R = personRig(it);
+      top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
+      txt = `身長 ${fmt(it.height)} m`;
+    } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
+    else if (it.type === 'mirror' && it.kind !== 'wall') continue;
+    else if (it.h != null){ top = it.h; txt = `高さ ${fmt(+it.h.toFixed(2))} m`; }
+    else continue;
+    out.push({p:new THREE.Vector3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
   }
   return out;
 }
 function drawLabels(view, cam, rect){
   if (view === 'cam'){ labelsEl.innerHTML = ''; return; }
   const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
-  let html = '';
+  let html = ''; const placed = [];
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
     if (x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                   // drop labels that would sit on top of each other
+    placed.push({x, y});
     html += `<span class="${L.cls}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${L.text}</span>`;
   }
   labelsEl.innerHTML = html;
@@ -420,6 +453,9 @@ function drawLabels(view, cam, rect){
 
 // ---------- item meshes ----------
 const itemObjs = new Map();
+const modelCache = new Map();   // key -> parsed Object3D for models this device holds
+const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma,
+                  mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox, model:buildModel};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
 function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
 function footDisc(r, color){
@@ -431,36 +467,182 @@ function wedge(halfAngle, len, color, opacity=0.25){
   const m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({color, transparent:true, opacity, depthWrite:false}));
   m.rotation.x = -Math.PI/2; m.scale.y = -1; m.position.y = 0.005; m.userData.plan = true; return m;
 }
+// --- artist mannequin ------------------------------------------------------
+// head-to-body ratio falls with height, so one slider turns an adult into a child
+function personRig(it){
+  const H = it.height, fem = it.body === 'f';
+  const heads = clamp(7.5 + (H - 1.75) * 3.27, 4.2, 8.0);
+  const hh = H / heads, t = clamp((1.75 - H) / 0.55, 0, 1);
+  return { H, hh, fem, t,
+    shW: H * (fem ? 0.215 : 0.245) * (1 - t * 0.05),
+    chestW: H * (fem ? 0.190 : 0.212),
+    waistW: H * (fem ? 0.140 : 0.162) + t * H * 0.022,
+    hipW: H * (fem ? 0.200 : 0.186),
+    yShoulder: H * 0.815, yChest: H * 0.735, yWaist: H * 0.635, yHip: H * 0.535,
+    yCrotch: H * (0.47 + t * 0.045), yKnee: H * (0.28 + t * 0.015), yAnkle: H * 0.04,
+    yChin: H - hh };
+}
+function limb(a, b, r0, r1, m){
+  const dir = new THREE.Vector3().subVectors(b, a), len = dir.length();
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 12), m);
+  mesh.position.copy(a).addScaledVector(dir, 0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  return shadowed(mesh);
+}
+function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m)); s.position.set(x,y,z); return s; }
 function buildPerson(it){
-  const g = new THREE.Group(); const H = it.height; const c = mat(COLORS.person);
-  const headR = H*0.065, legH = H*0.47, torsoH = H*0.33, shoulderW = H*0.23;
-  const body = new THREE.Group();
-  const legL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.045, legH-H*0.09, 4, 8), c));
-  const legR = legL.clone();
-  const torso = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(shoulderW/2, torsoH - shoulderW/2, 4, 12), c));
-  const head = shadowed(new THREE.Mesh(new THREE.SphereGeometry(headR, 16, 12), c));
-  const armL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.035, torsoH*0.85, 4, 8), c)); const armR = armL.clone();
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(headR*0.35, headR*0.6, 8), c); nose.rotation.x = Math.PI/2;
-  body.add(legL, legR, torso, head, armL, armR, nose);
-  if (it.pose === 'sit'){
-    const seat = 0.45;
-    legL.rotation.x = Math.PI/2; legR.rotation.x = Math.PI/2; legL.scale.y = 0.55; legR.scale.y = 0.55;
-    legL.position.set(-H*0.06, seat - H*0.02, legH*0.28); legR.position.set(H*0.06, seat - H*0.02, legH*0.28);
-    const shinL = shadowed(new THREE.Mesh(new THREE.CapsuleGeometry(H*0.04, seat-H*0.1, 4, 8), c)); const shinR = shinL.clone();
-    shinL.position.set(-H*0.06, seat/2, legH*0.5); shinR.position.set(H*0.06, seat/2, legH*0.5); body.add(shinL, shinR);
-    torso.position.set(0, seat + torsoH/2, 0); head.position.set(0, seat + torsoH + headR*1.1, 0);
-    armL.position.set(-shoulderW/2-H*0.03, seat + torsoH*0.45, H*0.05); armR.position.set(shoulderW/2+H*0.03, seat + torsoH*0.45, H*0.05);
-    nose.position.set(0, seat + torsoH + headR*1.1, headR);
-    const stool = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), mat(0x777))); stool.position.set(0, seat - 0.03, 0); body.add(stool);
-    const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,seat-0.05,8), mat(0x777))); post.position.set(0,(seat-0.05)/2,0); body.add(post);
-  } else {
-    legL.position.set(-H*0.06, legH/2, 0); legR.position.set(H*0.06, legH/2, 0);
-    torso.position.set(0, legH + torsoH/2, 0); head.position.set(0, legH + torsoH + headR*1.1, 0);
-    armL.position.set(-shoulderW/2-H*0.03, legH + torsoH*0.45, 0); armR.position.set(shoulderW/2+H*0.03, legH + torsoH*0.45, 0);
-    nose.position.set(0, legH + torsoH + headR*1.1, headR);
-    if (it.pose === 'lie'){ body.rotation.x = Math.PI/2; body.position.y = shoulderW/2 + 0.01; }
+  const g = new THREE.Group(), R = personRig(it), c = mat(COLORS.person, {roughness:0.85});
+  const H = R.H, hh = R.hh, sit = it.pose === 'sit';
+  const upper = new THREE.Group();
+  // torso is a lathe squashed in depth, so the cross-section reads as an ellipse
+  const prof = [[R.hipW*0.30, R.yCrotch], [R.hipW*0.50, R.yHip], [R.waistW*0.50, R.yWaist],
+    [R.chestW*0.50, R.yChest], [R.shW*0.46, R.yShoulder], [R.shW*0.28, R.yShoulder + H*0.03],
+    [hh*0.19, R.yChin - hh*0.16]];
+  const torso = shadowed(new THREE.Mesh(new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 22), c));
+  torso.scale.z = 0.66; upper.add(torso);
+  const head = shadowed(new THREE.Mesh(new THREE.SphereGeometry(hh*0.37, 18, 14), c));
+  head.scale.set(0.95, 1.30, 1.02); head.position.y = H - hh*0.5; upper.add(head);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(hh*0.10, hh*0.18, 10), c);
+  nose.rotation.x = Math.PI/2; nose.position.set(0, H - hh*0.55, hh*0.36); upper.add(nose);
+  for (const s of [-1, 1]){
+    const sh = new THREE.Vector3(s*R.shW*0.50, R.yShoulder, 0);
+    const el = new THREE.Vector3(s*R.shW*0.54, R.yWaist, sit ? H*0.02 : 0);
+    const wr = new THREE.Vector3(s*R.shW*0.58, R.yCrotch + H*0.02, sit ? H*0.10 : 0);
+    upper.add(ball(sh.x, sh.y, sh.z, H*0.048, c), limb(sh, el, H*0.045, H*0.036, c),
+              ball(el.x, el.y, el.z, H*0.036, c), limb(el, wr, H*0.034, H*0.026, c),
+              ball(wr.x, wr.y, wr.z, H*0.026, c));
+    const hand = shadowed(new THREE.Mesh(new THREE.BoxGeometry(H*0.030, H*0.075, H*0.018), c));
+    hand.position.set(wr.x, wr.y - H*0.045, wr.z); upper.add(hand);
   }
-  g.add(body); g.add(footDisc(0.35, COLORS.person));
+  const legs = new THREE.Group();
+  const legX = R.hipW*0.26, seat = clamp(H*0.26, 0.28, 0.48);
+  for (const s of [-1, 1]){
+    const hip = new THREE.Vector3(s*legX, sit ? seat : R.yCrotch, 0);
+    const knee = sit ? new THREE.Vector3(s*legX, seat - H*0.015, R.yCrotch - R.yKnee) : new THREE.Vector3(s*legX, R.yKnee, 0);
+    const ank = sit ? new THREE.Vector3(s*legX, R.yAnkle, knee.z) : new THREE.Vector3(s*legX*0.92, R.yAnkle, 0);
+    legs.add(ball(hip.x, hip.y, hip.z, H*0.062, c), limb(hip, knee, H*0.072, H*0.050, c),
+             ball(knee.x, knee.y, knee.z, H*0.050, c), limb(knee, ank, H*0.042, H*0.030, c),
+             ball(ank.x, ank.y, ank.z, H*0.030, c));
+    const foot = shadowed(new THREE.Mesh(new THREE.BoxGeometry(H*0.055, H*0.035, H*0.14), c));
+    foot.position.set(ank.x, H*0.022, ank.z + H*0.045); legs.add(foot);
+  }
+  if (sit){
+    upper.position.y = seat - R.yCrotch;
+    const top = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(R.hipW*0.62, R.hipW*0.62, 0.04, 16), mat(0x6f7480)));
+    top.position.y = seat - 0.02; legs.add(top);
+    const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, seat-0.04, 10), mat(0x6f7480)));
+    post.position.y = (seat-0.04)/2; legs.add(post);
+  }
+  const body = new THREE.Group(); body.add(upper, legs);
+  if (it.pose === 'lie'){ body.rotation.x = -Math.PI/2; body.position.y = R.chestW*0.33; }
+  g.add(body);
+  if (it.pose === 'lie'){
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(R.shW*1.15, H), new THREE.MeshBasicMaterial({color:COLORS.person, transparent:true, opacity:0.55}));
+    m.rotation.x = -Math.PI/2; m.position.set(0, 0.006, -H*0.5 + R.yCrotch); m.userData.plan = true; g.add(m);
+  } else g.add(footDisc(Math.max(0.28, R.shW*0.7), COLORS.person));
+  return g;
+}
+
+// --- props -----------------------------------------------------------------
+// side profiles run front to rear, normalised 0..1 in length and height
+const CAR_BODY = {
+  sedan: [[0,.24],[.02,.50],[.14,.58],[.32,.62],[.86,.62],[.97,.56],[1,.42],[1,.24]],
+  wagon: [[0,.24],[.02,.50],[.14,.58],[.32,.62],[.92,.62],[1,.56],[1,.24]],
+  van:   [[0,.20],[.02,.46],[.10,.54],[.92,.56],[1,.50],[1,.20]],
+  kei:   [[0,.22],[.03,.48],[.16,.54],[.88,.56],[1,.48],[1,.22]],
+};
+const CAR_CABIN = {
+  sedan: [[.30,.60],[.42,.95],[.64,1],[.80,.66],[.84,.60]],
+  wagon: [[.30,.60],[.42,.95],[.88,.99],[.93,.62]],
+  van:   [[.08,.52],[.16,.95],[.93,.99],[.96,.56]],
+  kei:   [[.16,.52],[.26,.94],[.86,.97],[.90,.56]],
+};
+const CAR_SIZES = {sedan:[4.7,1.80,1.45], wagon:[4.8,1.80,1.55], van:[5.0,1.90,2.15], kei:[3.4,1.48,1.70]};
+function extrudeProfile(pts, L, Hh, width, m, closeBottom){
+  const s = new THREE.Shape();
+  pts.forEach(([u,v], i) => i ? s.lineTo(u*L - L/2, v*Hh) : s.moveTo(u*L - L/2, v*Hh));
+  if (closeBottom) s.lineTo(pts[0][0]*L - L/2, pts[0][1]*Hh);
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, {depth:width, bevelEnabled:true, bevelSize:0.02, bevelThickness:0.02, bevelSegments:2});
+  geo.translate(0, 0, -width/2);
+  return shadowed(new THREE.Mesh(geo, m));
+}
+function buildCar(it){
+  const g = new THREE.Group(), car = new THREE.Group();
+  const L = it.d, W = it.w, Hh = it.h;              // built nose-along-+X, then turned to face +Z
+  const paint = mat(it.color || '#b9c0cc', {roughness:0.45, metalness:0.15});
+  const glass = mat(0x30363f, {roughness:0.25, metalness:0.35});
+  car.add(extrudeProfile(CAR_BODY[it.kind] || CAR_BODY.sedan, L, Hh, W*0.96, paint, true));
+  car.add(extrudeProfile(CAR_CABIN[it.kind] || CAR_CABIN.sedan, L, Hh, W*0.84, glass, true));
+  const wr = Hh * 0.22;
+  for (const x of [L*0.32, -L*0.30]) for (const s of [-1, 1]){
+    const t = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, W*0.10, 16), mat(0x22262c)));
+    t.rotation.x = Math.PI/2; t.position.set(x, wr, s*W*0.44); car.add(t);
+  }
+  car.rotation.y = -Math.PI/2; g.add(car);
+  g.add(planeMarker(it.w, it.d, COLORS.car));
+  return g;
+}
+function legged(topW, topD, topH, h, legR, m, legM){
+  const g = new THREE.Group();
+  const top = shadowed(new THREE.Mesh(new THREE.BoxGeometry(topW, topH, topD), m));
+  top.position.y = h - topH/2; g.add(top);
+  const ix = topW/2 - legR*2, iz = topD/2 - legR*2;
+  for (const sx of [-1,1]) for (const sz of [-1,1]){
+    const leg = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(legR, legR*0.9, h - topH, 10), legM));
+    leg.position.set(sx*ix, (h - topH)/2, sz*iz); g.add(leg);
+  }
+  return g;
+}
+function buildTable(it){
+  const g = new THREE.Group();
+  g.add(legged(it.w, it.d, 0.04, it.h, 0.025, mat(it.color || '#c8a882', {roughness:0.7}), mat(0x50555e)));
+  g.add(planeMarker(it.w, it.d, COLORS.table));
+  return g;
+}
+function buildChair(it){
+  const g = new THREE.Group();
+  const seatH = it.seatH, body = mat(it.color || '#a58256', {roughness:0.75}), frame = mat(0x50555e);
+  g.add(legged(it.w, it.d, 0.045, seatH, 0.021, body, frame));
+  if (it.h > seatH + 0.05){                       // back rest
+    const back = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w*0.92, it.h - seatH, 0.035), body));
+    back.position.set(0, seatH + (it.h - seatH)/2, -it.d/2 + 0.045); g.add(back);
+  }
+  g.add(planeMarker(it.w, it.d, COLORS.chair));
+  return g;
+}
+function planeMarker(w, d, color, opacity=0.45){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({color, transparent:true, opacity}));
+  m.rotation.x = -Math.PI/2; m.position.y = 0.008; m.userData.plan = true; return m;
+}
+function buildBox(it){
+  const g = new THREE.Group();
+  const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, it.d), mat(it.color || '#a9b0bd', {roughness:0.8})));
+  b.position.y = it.h/2; g.add(b);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, it.d)), new THREE.LineBasicMaterial({color:0x2b2f36, transparent:true, opacity:0.5}));
+  e.position.y = it.h/2; g.add(e);
+  g.add(planeMarker(it.w, it.d, COLORS.box));
+  return g;
+}
+// imported model: the real mesh when this device has the file, a labelled box otherwise
+function buildModel(it){
+  const g = new THREE.Group(), src = modelCache.get(it.key);
+  if (src){
+    const inst = src.clone(true);
+    inst.scale.setScalar(it.scale);
+    if (it.upFix) inst.rotation.x = -Math.PI/2;
+    inst.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(inst), ctr = bb.getCenter(new THREE.Vector3());
+    inst.position.set(-ctr.x, -bb.min.y, -ctr.z);
+    inst.traverse(n => { if (n.isMesh){ n.castShadow = true; n.receiveShadow = true; } });
+    g.add(inst);
+  } else {
+    const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, it.d), mat(COLORS.model, {roughness:0.9, transparent:true, opacity:0.7})));
+    b.position.y = it.h/2; g.add(b);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, it.d)), new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.45}));
+    e.position.y = it.h/2; g.add(e);
+  }
+  g.add(planeMarker(it.w, it.d, COLORS.model, 0.35));
   return g;
 }
 function buildCamera(it){
@@ -553,14 +735,23 @@ function buildChroma(it){
 }
 function rebuildItems(){
   itemsGroup.clear();
-  for (const o of itemObjs.values()) o.group.traverse(n => { if (n.userData.reflector) n.dispose?.(); });
+  for (const o of itemObjs.values()) disposeGroup(o.group);
   itemObjs.clear();
   for (const it of state.items){
-    const g = it.type==='person'?buildPerson(it):it.type==='camera'?buildCamera(it):it.type==='light'?buildLight(it):it.type==='chroma'?buildChroma(it):buildMirror(it);
+    const g = (BUILDERS[it.type] || buildBox)(it);
     g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
     itemsGroup.add(g); itemObjs.set(it.id, {group:g});
   }
   const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
+  updateSelectionVisuals();
+}
+function disposeGroup(g){ g.traverse(n => { if (n.userData.reflector) n.dispose?.(); }); }
+// rebuild one item instead of the whole scene, so slider drags stay smooth with heavy models
+function rebuildItem(it){
+  const o = itemObjs.get(it.id); if (!o) return rebuildItems();
+  const g = (BUILDERS[it.type] || buildBox)(it);
+  g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
+  itemsGroup.remove(o.group); disposeGroup(o.group); itemsGroup.add(g); o.group = g;
   updateSelectionVisuals();
 }
 function updateItemTransform(it){
@@ -569,7 +760,14 @@ function updateItemTransform(it){
   if (it.type === 'camera') buildFrustum(it);
   updateSelectionVisuals();
 }
-function handleRadius(it){ return it.type==='camera'?0.9: it.type==='mirror'? Math.max(0.8, it.h*0.5+0.3) : it.type==='chroma' ? Math.max(1.0, (it.drape||0)+0.4) : 0.8; }
+function handleRadius(it){
+  if (it.type === 'camera') return 0.9;
+  if (it.type === 'mirror') return Math.max(0.8, it.h*0.5 + 0.3);
+  if (it.type === 'chroma') return Math.max(1.0, (it.drape||0) + 0.4);
+  if (it.w && it.d) return Math.max(0.8, Math.hypot(it.w, it.d)*0.5 + 0.35);
+  if (it.type === 'person' && it.pose === 'lie') return Math.max(0.9, it.height*0.5 + 0.3);
+  return 0.8;
+}
 function updateSelectionVisuals(){
   const it = sel();
   gizmo.visible = !!it && !it.hidden && !viewerMode;
@@ -805,20 +1003,34 @@ function renderStudio(){
 }
 
 // add
-document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
-function addItem(type){
+document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+  const p = b.dataset.person; addItem(b.dataset.add, p ? {body:PEOPLE[+p][1], height:PEOPLE[+p][2]} : null);
+}));
+function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
-  if (type === 'person') it = {id, type, x:0, z:0, rot:0, height:1.7, pose:'stand'};
+  if (type === 'person') it = {id, type, x:0, z:0, rot:0, body:opt?.body || 'm', height:opt?.height || 1.72, pose:'stand'};
   else if (type === 'camera'){ if (camItem()){ toast('カメラは 1 台です'); select(camItem().id); return; } it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'}; }
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
+  else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
+  else if (type === 'chair') it = {id, type, x:0, z:0, rot:0, w:0.45, d:0.48, h:0.85, seatH:0.42, color:'#a58256'};
+  else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
+  else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
+  else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   else it = {id, type, x:0, z:0.5, rot:0, kind:'water', w:3, h:2};
-  let tries = 0; while (tries++ < 20 && state.items.some(o => Math.hypot(o.x-it.x, o.z-it.z) < 0.5)) it.x += 0.6;
+  // drop it next to what is already there rather than on top of it
+  const foot = o => Math.max(o.w || 0.4, o.d || 0.4, 0.4) * 0.5;
+  let tries = 0;
+  while (tries++ < 60 && state.items.some(o => Math.hypot(o.x - it.x, o.z - it.z) < foot(o) + foot(it) + 0.2)){
+    it.x += 0.5;
+    if (it.x > w/2 - 0.3){ it.x = -w/2 + 0.5; it.z += 0.8; if (it.z > d/2 - 0.3) break; }
+  }
   setPos(it, it.x, it.z);
   state.items.push(it); rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
-function itemColor(it){ return it.type === 'chroma' ? (it.color || '#1fb24a') : '#' + COLORS[it.type].toString(16).padStart(6,'0'); }
+function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
+const personLabel = it => it.height < 1.40 ? (it.body === 'f' ? '女の子' : '男の子') : (it.body === 'f' ? '女性' : '男性');
 const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderList(){
@@ -829,8 +1041,17 @@ function renderList(){
     const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : '');
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
-    const label = it.type==='camera' ? 'カメラ' : `${NAMES[it.type]} ${counts[it.type]}`;
-    const sub = it.type==='person'?`${it.height} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`: it.type==='camera'?`${it.focal}mm ${it.aspect}`: it.type==='light'?`高さ ${it.y} m`: it.type==='chroma'?`${it.w}×${it.h} m`: {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
+    const label = it.type==='camera' ? 'カメラ' : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
+    const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
+    const sub = it.type==='person' ? `${fmt(it.height)} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
+      : it.type==='camera' ? `${it.focal}mm ${it.aspect}`
+      : it.type==='light' ? `高さ ${it.y} m`
+      : it.type==='chroma' ? dims('w','h')
+      : it.type==='car' ? `${{sedan:'セダン',wagon:'ワゴン',van:'バン',kei:'軽'}[it.kind]} ${dims('d','w')}`
+      : it.type==='chair' ? `座面 ${fmt(it.seatH)} m`
+      : it.type==='table' || it.type==='box' ? dims('w','d','h')
+      : it.type==='model' ? (modelCache.has(it.key) ? dims('w','d','h') : `箱 ${dims('w','d','h')}`)
+      : {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
     b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
     b.addEventListener('click', () => { select(it.id, true); });
     const eye = document.createElement('button'); eye.className = 'eye'; eye.title = it.hidden ? '表示する' : '隠す'; eye.setAttribute('aria-label', eye.title);
@@ -849,11 +1070,36 @@ function renderSel(){
   if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
+  const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
   let h = `<h2>${NAMES[it.type]}</h2>`;
   if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
   if (it.type === 'person'){
-    h += range('height','身長',1.0,2.1,0.01,it.height,'m');
+    h += `<h2>体型</h2>` + btns('body', Object.entries(BODIES), it.body || 'm');
+    h += range('height','身長',0.70,2.10,0.01,it.height,'m');
+    h += `<p class="hint">頭身は身長から自動で決まります。低くすると子どもの体型になります。</p>`;
     h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+  } else if (it.type === 'car'){
+    h += `<h2>形</h2>` + btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
+    h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
+    h += colors(PROP_SWATCHES, it.color || '#b9c0cc');
+  } else if (it.type === 'chair'){
+    h += range('seatH','座面高',0.20,0.90,0.01,it.seatH,'m') + range('h','背もたれ上端',0.25,1.40,0.01,it.h,'m');
+    h += range('w','幅',0.30,1.20,0.01,it.w,'m') + range('d','奥行',0.30,1.20,0.01,it.d,'m');
+    h += `<p class="hint">背もたれ上端を座面高まで下げるとスツールになります。</p>`;
+    h += colors(PROP_SWATCHES, it.color || '#a58256');
+  } else if (it.type === 'table'){
+    h += range('w','幅',0.40,4.00,0.05,it.w,'m') + range('d','奥行',0.30,2.00,0.05,it.d,'m') + range('h','高さ',0.20,1.20,0.01,it.h,'m');
+    h += colors(PROP_SWATCHES, it.color || '#c8a882');
+  } else if (it.type === 'box'){
+    h += range('w','幅',0.10,8.00,0.05,it.w,'m') + range('d','奥行',0.10,8.00,0.05,it.d,'m') + range('h','高さ',0.05,4.00,0.05,it.h,'m');
+    h += colors(PROP_SWATCHES, it.color || '#a9b0bd');
+  } else if (it.type === 'model'){
+    const here = modelCache.has(it.key);
+    h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
+    if (!here) h += `<p class="hint">このモデルの実体はこの端末にありません。実寸の箱で表示しています。</p>`;
+    h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
+    h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} m ・ 奥行 ${fmt(+it.d.toFixed(2))} m。高さを入れると全体が合わせて拡大縮小します。</p>`;
+    if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
   } else if (it.type === 'camera'){
     h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
     if (it.sensor === 'custom'){
@@ -874,8 +1120,7 @@ function renderSel(){
     h += range('y','高さ',0.3,5,0.05,it.y,'m');
     h += `<p class="hint">ライトは位置と向きの目安だけで、明るさは計算しません。</p>`;
   } else if (it.type === 'chroma'){
-    const cur = (it.color||'#1fb24a').toLowerCase();
-    h += `<h2>色</h2><div class="swatches">${SWATCHES.map(([c,n]) => `<button class="${c===cur?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
+    h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
     h += `<p class="hint">「床に垂らす」を 0 にすると背景だけの布になります。</p>`;
   } else {
@@ -904,19 +1149,89 @@ function renderSel(){
     r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
   });
-  el.querySelector('[data-del]').addEventListener('click', () => { state.items = state.items.filter(i => i !== it); select(null); rebuildItems(); saveHash(); });
+  el.querySelector('[data-del]').addEventListener('click', () => {
+    state.items = state.items.filter(i => i !== it);
+    if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); idbDel(it.key); }
+    select(null); rebuildItems(); saveHash();
+  });
 }
 function setProp(it, k, v, live=false){
-  if (['height','y','w','h','rot','pitch','focal','drape','sensorW'].includes(k)) v = parseFloat(v);
-  if (k === 'sensorW' && !(v > 0)) return;
-  if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
+  if (['height','y','w','d','h','rot','pitch','focal','drape','sensorW','seatH','targetH'].includes(k)) v = parseFloat(v);
+  if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
+  if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
+  else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
+  else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
-  if (it.type === 'camera'){ refreshCam(it); }
-  else if (live && k === 'rot') updateItemTransform(it);
-  else rebuildItems();
+  if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
+  if (k === 'rot') updateItemTransform(it);
+  else if (it.type === 'camera') refreshCam(it);
+  else rebuildItem(it);
   if (!live){ renderSel(); renderList(); saveHash(); }
   needRender = true;
 }
+
+// ---------- import 3D models ----------
+// files live in this browser only; the share link carries name, size and position
+const IDB_NAME = 'studio3d', IDB_STORE = 'models';
+function idb(){ return new Promise((res, rej) => {
+  const r = indexedDB.open(IDB_NAME, 1);
+  r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); };
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+}); }
+async function idbPut(key, val){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(val, key); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function idbGet(key){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
+
+// loaders are pulled in only when someone actually imports something
+async function parseModel(buf, ext){
+  if (ext === 'glb' || ext === 'gltf'){
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    return new Promise((res, rej) => new GLTFLoader().parse(buf, '', r => res(r.scene), rej));
+  }
+  const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+  return new FBXLoader().parse(buf, '');
+}
+const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+async function importFiles(files){
+  for (const f of files){
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (!['glb','gltf','fbx'].includes(ext)){ toast(`${f.name} は GLB か FBX ではありません`); continue; }
+    if (f.size > 60*1024*1024){ toast(`${f.name} は大きすぎます（60MB まで）`); continue; }
+    toast(`${f.name} を読み込み中`);
+    try {
+      const buf = await f.arrayBuffer();
+      const obj = await parseModel(buf.slice(0), ext);
+      const raw = sizeOf(obj), max = Math.max(raw.x, raw.y, raw.z);
+      if (!(max > 0)){ toast(`${f.name} に形がありません`); continue; }
+      let scale = 1;                                  // glTF is metres by spec; FBX units vary
+      if (ext === 'fbx'){ if (max > 5000) scale = 0.001; else if (max > 100) scale = 0.01; }
+      const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      modelCache.set(key, obj);
+      await idbPut(key, {buf, ext, name:f.name}).catch(() => toast('この端末に保存できませんでした'));
+      addItem('model', {key, name:f.name, scale, upFix:false,
+        w:+(raw.x*scale).toFixed(3), d:+(raw.z*scale).toFixed(3), h:+(raw.y*scale).toFixed(3)});
+      if (f.size > 15*1024*1024) toast(`${f.name} は重いのでスマホでは動きが鈍くなります`);
+      else if (max*scale > 60 || max*scale < 0.02) toast('大きさが怪しいので「高さ」で直してください');
+    } catch(e){ console.warn('import failed', e); toast(`${f.name} を読めませんでした`); }
+  }
+}
+async function restoreModels(){
+  const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
+  let any = false;
+  for (const key of keys){
+    if (modelCache.has(key)) continue;
+    try {
+      const rec = await idbGet(key); if (!rec) continue;
+      modelCache.set(key, await parseModel(rec.buf.slice(0), rec.ext)); any = true;
+    } catch(e){ console.warn('model restore failed', e); }
+  }
+  if (any){ rebuildItems(); renderList(); renderSel(); needRender = true; }
+}
+document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
+document.getElementById('file').addEventListener('change', e => { if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
+for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
+for (const ev of ['dragleave','drop']) viewEl.addEventListener(ev, e => { e.preventDefault(); viewEl.classList.remove('drop'); });
+viewEl.addEventListener('drop', e => { if (!viewerMode && e.dataTransfer?.files?.length) importFiles([...e.dataTransfer.files]); });
 
 // ---------- share ----------
 function b64u(bytes){ let s=''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
@@ -977,5 +1292,6 @@ let toastT; function toast(msg){ const t = document.getElementById('toast'); t.t
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;
   frame();
+  restoreModels();
 })();
 </script>
