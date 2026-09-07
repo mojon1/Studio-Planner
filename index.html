@@ -1131,8 +1131,10 @@ function renderSel(){
     else {
       const info = modelInfo.get(it.key);
       const note = textureNote(it.key);
-      if (note) h += `<p class="hint" style="color:var(--accent-ink)">${esc(note)}</p>`;
-      else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚を読み込みました。</p>`;
+      if (note){
+        h += `<p class="hint" style="color:var(--accent-ink)">${esc(note)}</p>`;
+        h += `<p class="hint" style="font-size:.74rem">${esc(textureDetail(it.key))}</p>`;
+      } else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚を読み込みました。</p>`;
     }
     h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
     h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} m ・ 奥行 ${fmt(+it.d.toFixed(2))} m。高さを入れると全体が合わせて拡大縮小します。</p>`;
@@ -1285,12 +1287,12 @@ async function attachDecoders(loader, used){
 async function parseModel(buf, ext, assets){
   const {manager, missing, used, revoke} = assetURLs(assets);
   try {
-    let obj;
+    let obj, json = null;
     if (ext === 'glb' || ext === 'gltf'){
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       const loader = new GLTFLoader(manager);
-      const used = new Set(gltfJSON(buf, ext)?.extensionsUsed || []);
-      try { await attachDecoders(loader, used); }
+      json = gltfJSON(buf, ext);
+      try { await attachDecoders(loader, new Set(json?.extensionsUsed || [])); }
       catch(e){ console.warn('decoder setup failed', e); throw new Error('compressed'); }
       obj = await new Promise((res, rej) => loader.parse(buf, '', r => res(r.scene), rej));
     } else {
@@ -1298,21 +1300,26 @@ async function parseModel(buf, ext, assets){
       obj = new FBXLoader(manager).parse(buf, '');
     }
     await new Promise(r => setTimeout(r, 0));       // let queued texture loads settle
-    return {obj, missing:[...missing], used:[...used]};
+    return {obj, json, missing:[...missing], used:[...used]};
   } finally { setTimeout(revoke, 20000); }          // textures decode asynchronously
 }
-// how much of the model actually arrived, so the panel can say so plainly
-function inspectModel(obj){
-  let meshes = 0; const maps = new Set();
+// how much of the model actually arrived, so the panel can say so plainly.
+// any texture-valued property counts: a fixed list of map names misses the rest.
+// the glTF side is counted too, so "no texture" and "the texture never reached
+// the material" can be told apart.
+function inspectModel(obj, json){
+  let meshes = 0; const maps = new Set(), kinds = new Set();
   obj.traverse(n => {
     if (!n.isMesh) return;
     meshes++;
     for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
       if (!m) continue;
-      for (const k of ['map','emissiveMap','normalMap','roughnessMap','metalnessMap','aoMap']) if (m[k]) maps.add(m[k].uuid);
+      kinds.add(m.type);
+      for (const k in m) if (m[k] && m[k].isTexture) maps.add(m[k].uuid);
     }
   });
-  return {meshes, textures:maps.size};
+  return {meshes, textures:maps.size, kinds:[...kinds],
+          images: json?.images?.length || 0, exts: json?.extensionsUsed || []};
 }
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
@@ -1341,14 +1348,14 @@ async function importFiles(files){
     toast(`${f.name} を読み込み中`);
     try {
       const buf = await f.arrayBuffer();
-      const {obj, missing, used} = await parseModel(buf.slice(0), ext, sliceAll());
+      const {obj, json, missing, used} = await parseModel(buf.slice(0), ext, sliceAll());
       const raw = sizeOf(obj), max = Math.max(raw.x, raw.y, raw.z);
       if (!(max > 0)){ toast(`${f.name} に形がありません`); continue; }
       let scale = 1;                                  // glTF is metres by spec; FBX units vary
       if (ext === 'fbx'){ if (max > 5000) scale = 0.001; else if (max > 100) scale = 0.01; }
       const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       modelCache.set(key, obj);
-      modelInfo.set(key, {...inspectModel(obj), missing});
+      modelInfo.set(key, {...inspectModel(obj, json), missing});
       // keep only the files this model actually asked for, not the whole dropped folder
       const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
       await idbPut(key, {buf, ext, name:f.name, assets:keep}).catch(() => toast('この端末に保存できませんでした'));
@@ -1366,12 +1373,25 @@ async function importFiles(files){
     }
   }
 }
+// three.js dropped spec/gloss in r155; files written that way arrive untextured
+const SPEC_GLOSS = 'KHR_materials_pbrSpecularGlossiness';
 // one line for the panel and the toast; null when the model came in whole
 function textureNote(key){
   const info = modelInfo.get(key); if (!info) return null;
   if (info.missing?.length) return `${info.missing.slice(0,3).join('・')} が見つかりません。一緒に選ぶかフォルダごとドラッグしてください`;
-  if (info.meshes && !info.textures) return 'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください';
-  return null;
+  if (!info.meshes || info.textures) return null;
+  if (info.exts?.includes(SPEC_GLOSS)) return '古い形式（スペキュラ／グロス）のマテリアルなので three.js が読めません。メタリック／ラフネスで書き出し直してください';
+  if (info.images) return `画像は ${info.images} 枚入っていますが、マテリアルに結び付いていません`;
+  return 'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください';
+}
+// the raw facts, for when the note above is not enough to explain a file
+function textureDetail(key){
+  const i = modelInfo.get(key); if (!i) return '';
+  const bits = [`メッシュ ${i.meshes}`, `テクスチャ ${i.textures}`];
+  if (i.images) bits.push(`ファイル内の画像 ${i.images}`);
+  if (i.kinds?.length) bits.push(i.kinds.join('・'));
+  if (i.exts?.length) bits.push(i.exts.join(' / '));
+  return bits.join('　');
 }
 async function restoreModels(){
   const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
@@ -1381,8 +1401,8 @@ async function restoreModels(){
     try {
       const rec = await idbGet(key); if (!rec) continue;
       const assets = Object.fromEntries(Object.entries(rec.assets || {}).map(([k,v]) => [k, v.slice(0)]));
-      const {obj, missing} = await parseModel(rec.buf.slice(0), rec.ext, assets);
-      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj), missing}); any = true;
+      const {obj, json, missing} = await parseModel(rec.buf.slice(0), rec.ext, assets);
+      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj, json), missing}); any = true;
     } catch(e){ console.warn('model restore failed', e); }
   }
   if (any){ rebuildItems(); renderList(); renderSel(); needRender = true; }

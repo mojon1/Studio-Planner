@@ -55,8 +55,10 @@ function makePNG(N = 16){
   return Buffer.concat([Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]),
     pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(Buffer.from(raw))), pngChunk('IEND', Buffer.alloc(0))]);
 }
-// embed:true puts the PNG in the binary chunk (GLB); false points at paint.png (glTF Separate)
-function texturedGLTF(embed){
+// embed:true puts the PNG in the binary chunk (GLB); false points at paint.png (glTF Separate).
+// variant: 'specgloss' writes the pre-r155 material three.js no longer reads,
+// 'clearcoat' hangs the only texture off an extension, outside the usual map names.
+function texturedGLTF(embed, variant){
   const png = makePNG();
   const verts = [], uvs = [], norms = [], idx = [];
   const hx = 1, hy = 1.5, hz = 0.5;
@@ -81,9 +83,16 @@ function texturedGLTF(embed){
   let off = 0; const bv = [];
   for (const p of [vb, nb, tb, ib]){ bv.push({buffer:0, byteOffset:off, byteLength:p.length}); off += p.length; }
   if (embed) bv.push({buffer:0, byteOffset:off, byteLength:png.length});
+  const material = v =>
+      v === 'specgloss' ? {name:'Painted', extensions:{KHR_materials_pbrSpecularGlossiness:{diffuseTexture:{index:0}}}}
+    : v === 'clearcoat' ? {name:'Painted', pbrMetallicRoughness:{metallicFactor:0, roughnessFactor:0.8},
+                           extensions:{KHR_materials_clearcoat:{clearcoatFactor:1, clearcoatTexture:{index:0}}}}
+    : {name:'Painted', pbrMetallicRoughness:{baseColorTexture:{index:0}, metallicFactor:0, roughnessFactor:0.8}};
+  const exts = variant === 'specgloss' ? ['KHR_materials_pbrSpecularGlossiness']
+    : variant === 'clearcoat' ? ['KHR_materials_clearcoat'] : null;
   const json = { asset:{version:'2.0'}, scene:0, scenes:[{nodes:[0]}], nodes:[{mesh:0, name:'Box'}],
     meshes:[{primitives:[{attributes:{POSITION:0, NORMAL:1, TEXCOORD_0:2}, indices:3, material:0}]}],
-    materials:[{name:'Painted', pbrMetallicRoughness:{baseColorTexture:{index:0}, metallicFactor:0, roughnessFactor:0.8}}],
+    materials:[material(variant)],
     textures:[{source:0, sampler:0}], samplers:[{magFilter:9729, minFilter:9987, wrapS:10497, wrapT:10497}],
     images:[embed ? {bufferView:4, mimeType:'image/png'} : {uri:'paint.png'}],
     buffers:[embed ? {byteLength:bin.length} : {uri:'scene.bin', byteLength:bin.length}],
@@ -93,6 +102,7 @@ function texturedGLTF(embed){
       {bufferView:1, componentType:5126, count:norms.length/3, type:'VEC3'},
       {bufferView:2, componentType:5126, count:uvs.length/2, type:'VEC2'},
       {bufferView:3, componentType:5123, count:idx.length, type:'SCALAR'}] };
+  if (exts) json.extensionsUsed = exts;
   if (!embed) return { gltf: Buffer.from(JSON.stringify(json), 'utf8'), bin, png };
   let js = Buffer.from(JSON.stringify(json), 'utf8');
   while (js.length % 4) js = Buffer.concat([js, Buffer.from(' ')]);
@@ -337,6 +347,21 @@ await r.ctx.close();
   await g.page.waitForTimeout(2000);
   console.log('missing image named ->', await g.page.textContent('#toast'));
   console.log('panel says ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 70));
+
+  // a texture that only hangs off an extension still counts as a texture
+  fs.writeFileSync(`${OUT}/clearcoat.glb`, texturedGLTF(true, 'clearcoat').glb);
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/clearcoat.glb`);
+  await g.page.waitForTimeout(1800);
+  console.log('extension-only texture ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 60));
+
+  // a spec/gloss material must name that as the reason, not "no texture in the file"
+  fs.writeFileSync(`${OUT}/specgloss.glb`, texturedGLTF(true, 'specgloss').glb);
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/specgloss.glb`);
+  await g.page.waitForTimeout(1800);
+  console.log('spec/gloss ->', await g.page.textContent('#toast'));
+  console.log('spec/gloss detail ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(0, 130));
 
   // dropping files (no folder entries, as a synthetic DataTransfer gives) still imports
   await g.page.click('[data-view="plan"]');
