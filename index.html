@@ -1232,11 +1232,12 @@ const baseOf = name => String(name).split(/[\\/]/).pop().toLowerCase();
 // we do not have is recorded, so the user can be told which file is missing
 // instead of watching an untextured model appear.
 function assetURLs(assets){
-  const urls = new Map(), made = [], missing = new Set(), used = new Set();
+  const urls = new Map(), made = [], missing = new Set(), used = new Set(), failed = new Set();
   for (const [name, buf] of Object.entries(assets || {})){
     const u = URL.createObjectURL(new Blob([buf])); made.push(u); urls.set(baseOf(name), u);
   }
   const manager = new THREE.LoadingManager();
+  manager.onError = url => failed.add(/^([a-z]+):/i.test(url) ? url.split(':')[0] : 'その他');
   manager.setURLModifier(url => {
     if (/^(data|blob|https?):/i.test(url)) return url;
     const name = baseOf(decodeURIComponent(url.split(/[?#]/)[0]));
@@ -1245,7 +1246,7 @@ function assetURLs(assets){
     missing.add(name);
     return url;                                   // let it 404; the name is already recorded
   });
-  return {manager, missing, used, revoke: () => made.forEach(URL.revokeObjectURL)};
+  return {manager, missing, used, failed, revoke: () => made.forEach(URL.revokeObjectURL)};
 }
 
 // the glTF JSON, so we only fetch a decoder when the file actually needs one
@@ -1285,7 +1286,7 @@ async function attachDecoders(loader, used){
 }
 // loaders are pulled in only when someone actually imports something
 async function parseModel(buf, ext, assets){
-  const {manager, missing, used, revoke} = assetURLs(assets);
+  const {manager, missing, used, failed, revoke} = assetURLs(assets);
   try {
     let obj, json = null;
     if (ext === 'glb' || ext === 'gltf'){
@@ -1300,7 +1301,7 @@ async function parseModel(buf, ext, assets){
       obj = new FBXLoader(manager).parse(buf, '');
     }
     await new Promise(r => setTimeout(r, 0));       // let queued texture loads settle
-    return {obj, json, missing:[...missing], used:[...used]};
+    return {obj, json, missing:[...missing], used:[...used], failed:[...failed]};
   } finally { setTimeout(revoke, 20000); }          // textures decode asynchronously
 }
 // how much of the model actually arrived, so the panel can say so plainly.
@@ -1335,6 +1336,27 @@ function gltfFacts(json){
   return {defs:(json.textures || []).length, mats:mats.length, prims, noMat, refs,
           mimes:[...new Set(imgs.map(i => i.mimeType || (i.uri ? `外部 ${baseOf(i.uri)}` : '種類不明')))]};
 }
+// glTF hands embedded textures to three as blob: URLs, and a sandboxed page does
+// not always allow that. When textures fail, measure which door is shut rather
+// than guessing: a 1x1 PNG offered four ways.
+const PROBE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+let probed = null;
+async function imageProbe(){
+  if (probed) return probed;
+  try {
+    const bytes = Uint8Array.from(atob(PROBE_PNG), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], {type:'image/png'});
+    const burl = URL.createObjectURL(blob);
+    const img = src => new Promise(r => { const i = new Image(); i.onload = () => r('可'); i.onerror = () => r('不可'); i.src = src; });
+    const ok = p => p.then(() => '可', () => '不可');
+    const out = [`data ${await img('data:image/png;base64,' + PROBE_PNG)}`,
+                 `blob ${await img(burl)}`,
+                 `fetch ${await ok(fetch(burl))}`,
+                 `bitmap ${await ok(createImageBitmap(blob))}`];
+    URL.revokeObjectURL(burl);
+    return probed = out.join('・');
+  } catch(e){ return probed = '判定できず'; }
+}
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
   const mains = [], sides = [];
@@ -1362,14 +1384,16 @@ async function importFiles(files){
     toast(`${f.name} を読み込み中`);
     try {
       const buf = await f.arrayBuffer();
-      const {obj, json, missing, used} = await parseModel(buf.slice(0), ext, sliceAll());
+      const {obj, json, missing, used, failed} = await parseModel(buf.slice(0), ext, sliceAll());
       const raw = sizeOf(obj), max = Math.max(raw.x, raw.y, raw.z);
       if (!(max > 0)){ toast(`${f.name} に形がありません`); continue; }
       let scale = 1;                                  // glTF is metres by spec; FBX units vary
       if (ext === 'fbx'){ if (max > 5000) scale = 0.001; else if (max > 100) scale = 0.01; }
       const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       modelCache.set(key, obj);
-      modelInfo.set(key, {...inspectModel(obj, json), missing});
+      const info = {...inspectModel(obj, json), missing, failed};
+      if (info.meshes && !info.textures && info.refs) info.probe = await imageProbe();
+      modelInfo.set(key, info);
       // keep only the files this model actually asked for, not the whole dropped folder
       const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
       await idbPut(key, {buf, ext, name:f.name, assets:keep}).catch(() => toast('この端末に保存できませんでした'));
@@ -1407,6 +1431,8 @@ function textureDetail(key){
   if (i.prims != null) bits.push(`面 ${i.prims}（材質未指定 ${i.noMat}）`);
   if (i.images) bits.push(`画像 ${i.images}`, `テクスチャ定義 ${i.defs}`, `マテリアル ${i.mats}`, `参照 ${i.refs}`);
   if (i.mimes?.length) bits.push(i.mimes.join('・'));
+  if (i.failed?.length) bits.push(`失敗 ${i.failed.join('・')}`);
+  if (i.probe) bits.push(i.probe);
   if (i.kinds?.length) bits.push(i.kinds.join('・'));
   if (i.exts?.length) bits.push(i.exts.join(' / '));
   return bits.join('　');
@@ -1419,8 +1445,8 @@ async function restoreModels(){
     try {
       const rec = await idbGet(key); if (!rec) continue;
       const assets = Object.fromEntries(Object.entries(rec.assets || {}).map(([k,v]) => [k, v.slice(0)]));
-      const {obj, json, missing} = await parseModel(rec.buf.slice(0), rec.ext, assets);
-      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj, json), missing}); any = true;
+      const {obj, json, missing, failed} = await parseModel(rec.buf.slice(0), rec.ext, assets);
+      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj, json), missing, failed}); any = true;
     } catch(e){ console.warn('model restore failed', e); }
   }
   if (any){ rebuildItems(); renderList(); renderSel(); needRender = true; }

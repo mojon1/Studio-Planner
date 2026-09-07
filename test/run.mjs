@@ -61,7 +61,9 @@ function makePNG(N = 16){
 // 'nomat' leaves the face without a material index, 'unlinked' embeds images the
 // material never points at — the two ways a file arrives untextured with no error.
 function texturedGLTF(embed, variant){
-  const png = makePNG();
+  // 'badimage' keeps every link intact but embeds bytes no decoder will take,
+  // which is how a texture fails when the file itself is well formed
+  const png = variant === 'badimage' ? Buffer.from('not a png at all', 'utf8') : makePNG();
   const verts = [], uvs = [], norms = [], idx = [];
   const hx = 1, hy = 1.5, hz = 0.5;
   const faces = [
@@ -382,6 +384,14 @@ await r.ctx.close();
   await g.page.setInputFiles('#file', `${OUT}/nomat.glb`);
   await g.page.waitForTimeout(1800);
   console.log('no material index ->', await g.page.textContent('#toast'));
+
+  // links intact, image undecodable: the note must say so and probe the browser
+  fs.writeFileSync(`${OUT}/badimage.glb`, texturedGLTF(true, 'badimage').glb);
+  await g.page.click('[data-tab="add"]');
+  await g.page.setInputFiles('#file', `${OUT}/badimage.glb`);
+  await g.page.waitForTimeout(2500);
+  console.log('undecodable ->', await g.page.textContent('#toast'));
+  console.log('undecodable detail ->', (await g.page.textContent('#selbody')).replace(/\s+/g, ' ').trim().slice(20, 200));
 
   // dropping files (no folder entries, as a synthetic DataTransfer gives) still imports
   await g.page.click('[data-view="plan"]');
