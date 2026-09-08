@@ -5,3 +5,4 @@ test/*.glb
 *.log
 .DS_Store
 Thumbs.db
+_site/

@@ -4,7 +4,6 @@
 スマホとタブレットでも操作できる。インストールもログインも不要。
 
 - 公開中のプレビュー: https://claude.ai/code/artifact/85c9a190-9e05-4b34-b66b-d4692507d6f9
-- ローカルの作業フォルダ: `D:\05_Claude\Studio-Planner`
 
 ## できること
 
@@ -50,7 +49,6 @@
 必ず HTTP で配信すること。
 
 ```
-cd D:\05_Claude\Studio-Planner
 python -m http.server 8000
 ```
 
