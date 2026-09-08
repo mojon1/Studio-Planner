@@ -1,5 +1,17 @@
-<title>スタジオプランナー</title>
+<meta charset="utf-8">
+<title>Studio Planner — スタジオ撮影の下見と打合せ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="スタジオの広さ、演者の立ち位置、カメラの画角、反射面の映り込みをブラウザで確かめて、A4 の図面と共有リンクにする。登録もインストールも不要。">
+<meta name="theme-color" content="#1d2027">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Studio Planner">
+<meta property="og:description" content="スタジオ撮影の下見と打合せを、ブラウザだけで。">
+<meta property="og:image" content="https://mojon1.github.io/Studio-Planner/ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2027'/%3E%3Cpath d='M5 21h22M8 21V11h16v10' stroke='%23e29a44' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%23e29a44'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
@@ -2300,6 +2312,7 @@ document.getElementById('doprint').addEventListener('click', () => {
 addEventListener('resize', () => { if (paperModal.classList.contains('show')) fitPaper(); });
 
 // ---------- boot ----------
+document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
 window.__sp = {THREE, state: () => state, group: id => itemObjs.get(id)?.group || null};

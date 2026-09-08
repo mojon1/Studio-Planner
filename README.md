@@ -58,8 +58,33 @@ python -m http.server 8000
 
 ## 公開の仕方
 
-`index.html` 一枚だけの静的サイトなので、GitHub Pages / Netlify / Cloudflare Pages の
-いずれでも無料で置ける。ビルド作業はない。
+`main` に push すると GitHub Actions が GitHub Pages へ出す。ビルドは無い。
+
+```
+https://mojon1.github.io/Studio-Planner/
+```
+
+`.github/workflows/pages.yml` が `enablement: true` で Pages 自体も有効にするので、
+リポジトリの設定を手で触る必要は無い。最初の 1 回だけ、Actions タブで
+「Deploy to GitHub Pages」が緑になるのを確認すること。
+
+出すのは `index.html` / `models/` / `ogp.png` / `README.md` だけ。
+`test/` `tools/` `docs/` `CLAUDE.md` は除いてある。
+
+帯域が足りなくなったり独自ドメインを付けたくなったら Cloudflare Pages に
+移せる（このリポジトリを繋ぐだけ。無料枠は帯域無制限、1 ファイル 25 MiB まで）。
+
+### OGP 画像
+
+リンクを貼ったときのサムネイルは `ogp.png`。アプリ自身をヘッドレスで撮っている。
+
+```
+cd test && npm install
+PW_CHROME=<chromium> node ../tools/make-ogp.mjs
+```
+
+UI を変えたら撮り直す。`index.html` の `og:image` は絶対 URL なので、
+独自ドメインに移すときはそこも直す。
 
 ## テスト
 

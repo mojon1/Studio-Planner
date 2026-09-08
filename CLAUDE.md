@@ -68,6 +68,10 @@ CG スタッフではなく、**PC に不慣れなプロダクションマネー
 
 ## 置き場所とバージョンの注意
 
+公開先は **https://mojon1.github.io/Studio-Planner/**。`main` に push すれば出る。
+人物モデルが本当に出るかはここでしか確認できない（Artifact のプレビュー枠は
+外部ファイルを取りに行けない）。
+
 正典は **GitHub の `mojon1/Studio-Planner`（main）** と **公開中の Artifact** の 2 つ。
 この 2 つは簡単にずれる。過去に、別セッションが Artifact 側だけを大きく更新していて、
 リポジトリ側が UI ごと古いまま、という状態が起きた。
@@ -79,11 +83,15 @@ Artifact への publish は、公開版より古いものを出そうとする�
 ## ファイル構成
 
 ```
-index.html          アプリ本体
-models/*.glb        人物モデル。人物に切り替えたときだけ取りに行く
+index.html            アプリ本体
+models/*.glb          人物モデル。人物に切り替えたときだけ取りに行く
+ogp.png               リンクを貼ったときのサムネイル。アプリ自身を撮ったもの
+.nojekyll             GitHub Pages に Jekyll を通させない
+.github/workflows/pages.yml   main への push で Pages に出る
 tools/shrink-glb.mjs  GLB のテクスチャを縮めて GLB を組み直す
-README.md           使い方と公開方法
-test/run.mjs        ヘッドレスブラウザでの確認スクリプト
+tools/make-ogp.mjs    ogp.png を撮り直す
+README.md             使い方と公開方法
+test/run.mjs          ヘッドレスブラウザでの確認スクリプト
 ```
 
 ### 人物モデルの入れ方
