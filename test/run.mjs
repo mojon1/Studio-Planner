@@ -110,6 +110,28 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('ring drag turns the item', (await t.page.inputValue('[data-range="rot"]')) !== before, `${before} -> ${await t.page.inputValue('[data-range="rot"]')}`);
   await t.page.click('#pipbtn');
 
+  // typing an exact number into a slider readout
+  await t.page.click('#items .itemrow[data-kind="table"] > button:first-child');
+  await t.page.waitForTimeout(250);
+  await t.page.click('[data-edit="w"]');
+  await t.page.fill('input.vedit', '2.4');
+  await t.page.press('input.vedit', 'Enter');
+  await t.page.waitForTimeout(300);
+  ok('typed number reaches the slider', (await t.page.inputValue('[data-range="w"]')) === '2.4', await t.page.inputValue('[data-range="w"]'));
+
+  // the drawing names a reflector by its long and short side, a backdrop by w x d
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(600);
+  const drawn = await t.page.$$eval('#labels span', n => n.map(x => x.textContent));
+  ok('reflector labelled long/short side', drawn.some(x => x.includes('長辺') && x.includes('短辺')), drawn.join(' | '));
+  ok('backdrop labelled width and depth', drawn.some(x => x.includes('幅') && x.includes('奥行')), drawn.filter(x => x.includes('幅')).join(' | '));
+  const boxes = await t.page.$$eval('#labels span', n => n.map(e => { const r = e.getBoundingClientRect(); return {l:r.left, r:r.right, t:r.top, b:r.bottom}; }));
+  let overlap = 0;
+  for (let i = 0; i < boxes.length; i++) for (let j = i+1; j < boxes.length; j++){
+    const a = boxes[i], b = boxes[j];
+    if (a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b) overlap++;
+  }
+  ok('no two dimension labels overlap', overlap === 0, `${overlap} overlapping pairs of ${boxes.length}`);
+
   // views and the wall rules
   for (const v of ['side','pers','cam','plan']){ await t.page.click(`[data-view="${v}"]`); await t.page.waitForTimeout(450); }
   await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(500);

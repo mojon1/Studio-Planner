@@ -57,7 +57,11 @@ h2:first-child{margin-top:0}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn:active{transform:translateY(1px)}
 label.f{display:grid;grid-template-columns:5.5em 1fr auto;align-items:center;gap:10px;margin:8px 0;font-size:.9rem}
-label.f .v{font-family:"IBM Plex Mono",monospace;font-size:.85rem;min-width:5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+label.f .v{font-family:"IBM Plex Mono",monospace;font-size:.85rem;min-width:5.6em;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+label.f button.v{border:1px solid transparent;border-radius:6px;background:transparent;padding:4px 6px;cursor:text;font-weight:500}
+label.f button.v:hover{border-color:var(--rule);background:var(--btn)}
+label.f button.v:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+label.f input.vedit{height:32px;padding:0 6px;text-align:right;width:5.6em;min-width:5.6em;flex:0 0 auto}
 input[type=range]{width:100%;accent-color:var(--accent);height:32px}
 input[type=number],select,input[type=text]{height:40px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;padding:0 10px;width:100%}
 input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-radius:8px;background:var(--btn);padding:2px}
@@ -577,17 +581,23 @@ function buildMeasures(){
 const labelsEl = document.getElementById('labels');
 const num = v => fmt(+(+v).toFixed(2));
 const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind === 'wall');
+// a reflector is read as a panel, so its two edges are named by which is longer
+const sides = (a, b) => `長辺 ${num(Math.max(a,b))} × 短辺 ${num(Math.min(a,b))} m`;
 function itemLabels(view){
   const out = [];
   for (const it of state.items){
     if (it.hidden || !dimOn(it)) continue;
     if (view === 'plan'){
-      // a backdrop or a standing mirror has no depth worth writing, only a width
-      const off = (upright(it) ? 0.45 : (it.d || 0)/2 + 0.35);
+      // a backdrop lies against the floor for its drape; a reflector is a flat panel
+      const depth = it.type === 'chroma' ? (it.drape || 0) : it.type === 'mirror' ? (it.kind === 'wall' ? 0 : it.h) : (it.d || 0);
+      const off = depth/2 + 0.4;
       const r = THREE.MathUtils.degToRad(it.rot || 0);
       const p = new V3(it.x + Math.sin(r)*off, 0.02, it.z + Math.cos(r)*off);
-      if (upright(it)) out.push({p, text:`幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
-      else if (it.w > 0 && it.d > 0) out.push({p, text:`${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
+      let txt = null;
+      if (it.type === 'chroma') txt = depth > 0 ? `幅 ${num(it.w)} × 奥行 ${num(depth)} m` : `幅 ${num(it.w)} m`;
+      else if (it.type === 'mirror') txt = it.kind === 'wall' ? `幅 ${num(it.w)} m` : sides(it.w, it.h);
+      else if (it.w > 0 && it.d > 0) txt = `${num(it.w)} × ${num(it.d)} m`;
+      if (txt) out.push({p, text:txt, cls:'dim', views:['plan']});
       continue;
     }
     if (view !== 'side') continue;
@@ -597,25 +607,37 @@ function itemLabels(view){
       top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (upright(it)){ top = it.h; txt = `${num(it.w)} × 高 ${num(it.h)} m`; }
-    else if (it.type === 'mirror') continue;
+    else if (it.type === 'chroma'){ top = it.h; txt = `高さ ${num(it.h)} m`; }
+    else if (it.type === 'mirror'){ if (it.kind !== 'wall') continue; top = it.h; txt = sides(it.w, it.h); }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
     out.push({p:new V3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
   }
   return out;
 }
-function labelPositions(view, cam, rect, avoidPip = true){
+// em and lh are the size of one label character and one label line, in the pixels of
+// `rect`. The printed sheet shrinks a big render into a small panel, so the same
+// label is far larger relative to the image there and needs its own numbers.
+function labelPositions(view, cam, rect, avoidPip = true, em = 7, lh = 19){
   const out = [];
   if (view === 'cam' || !showDims) return out;
   const all = labels.concat(measLabels, itemLabels(view));
+  const hits = (x, y, w, h) => out.some(p => Math.abs(p.x - x) < (p.w + w)/2 + em*0.5 && Math.abs(p.y - y) < (p.h + h)/2 + lh*0.15);
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
-    const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
+    const x0 = rect.x + (v.x+1)/2*rect.w, y0 = rect.y + (1-v.y)/2*rect.h;
+    const w = L.text.length*em + em*2, h = lh;
+    // step away from the anchor rather than dropping the number outright
+    let x = x0, y = y0, placed = !hits(x, y, w, h);
+    for (const [dx, dy] of [[0,-1],[0,1],[0,-2],[0,2],[1,-1],[-1,-1],[1,1],[-1,1],[0,-3],[0,3]]){
+      if (placed) break;
+      x = x0 + dx*w*0.62; y = y0 + dy*lh; placed = !hits(x, y, w, h);
+    }
+    if (!placed) continue;
+    if (x < rect.x + w/2 || x > rect.x + rect.w - w/2 || y < rect.y + h/2 || y > rect.y + rect.h - h/2) continue;
     if (avoidPip && pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
-    if (out.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                       // drop labels that would sit on top of each other
-    out.push({x, y, text:L.text, cls:L.cls});
+    out.push({x, y, w, h, text:L.text, cls:L.cls});
   }
   return out;
 }
@@ -851,7 +873,16 @@ function buildModel(it){
 }
 function buildCamera(it){
   const g = new THREE.Group(); const c = mat(COLORS.camera);
-  const tripod = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,it.y,8), c)); tripod.position.y = it.y/2; g.add(tripod);
+  const y = it.y, spread = Math.max(0.14, y*0.34), top = Math.max(0.10, y - 0.12);
+  for (let i = 0; i < 3; i++){                       // three splayed legs
+    const a = i/3 * Math.PI*2 + Math.PI;             // one leg to the rear, two forward
+    g.add(limb(new THREE.Vector3(Math.sin(a)*spread, 0, Math.cos(a)*spread),
+               new THREE.Vector3(0, top, 0), 0.011, 0.019, c));
+  }
+  const col = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.026, y - top + 0.03, 10), c));
+  col.position.y = (top + y)/2; g.add(col);
+  const head = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.038, 0.035, 12), c));
+  head.position.y = y - 0.065; g.add(head);
   const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.16,0.11,0.09), c)); body.position.y = it.y; g.add(body);
   const lens = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.04,0.09,12), mat(0x222)));
   lens.rotation.x = Math.PI/2; lens.position.set(0,it.y,0.09); g.add(lens);
@@ -1377,7 +1408,9 @@ function renderSel(){
     return;
   }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
-  const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
+  const range = (name, label, min, max, step, val, unit) =>
+    `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}">` +
+    `<button type="button" class="v" data-edit="${name}" data-min="${min}" data-max="${max}" data-step="${step}" data-unit="${unit}" title="タップで数値を入力">${fmt(val)} ${unit}</button></label>`;
   const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
   let h = `<h2>${it.type === 'camera' ? camName(it) : NAMES[it.type]}</h2>`;
   if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
@@ -1472,9 +1505,32 @@ function renderSel(){
   });
   el.querySelectorAll('[data-color]').forEach(n => { n.addEventListener('input', () => setProp(it, 'color', n.value, true)); n.addEventListener('change', () => setProp(it, 'color', n.value)); });
   el.querySelectorAll('[data-range]').forEach(r => {
-    r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
+    r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.dataset.unit}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
   });
+  // the readout doubles as the way in for an exact number
+  el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', e => {
+    // the wrapping <label> would otherwise hand the click on to the slider, and the
+    // focus jump that follows blurs the field away before it can be typed into
+    e.preventDefault(); e.stopPropagation();
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.className = 'v vedit'; inp.inputMode = 'decimal';
+    inp.min = b.dataset.min; inp.max = b.dataset.max; inp.step = b.dataset.step;
+    inp.value = parseFloat(b.textContent);
+    b.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const commit = () => {
+      if (done) return; done = true;
+      const v = parseFloat(inp.value);
+      if (isFinite(v)) setProp(it, b.dataset.edit, clamp(v, +b.dataset.min, +b.dataset.max));
+      else renderSel();
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); commit(); }
+      else if (e.key === 'Escape'){ done = true; renderSel(); }
+    });
+    inp.addEventListener('blur', commit);
+  }));
   el.querySelector('[data-del]').addEventListener('click', () => deleteItem(it));
 }
 function deleteItem(it){
@@ -1898,7 +1954,7 @@ function captureView(view, cw, ch){
   renderer.setScissorTest(false);
   const url = canvas.toDataURL('image/png');
   const cam = view==='plan' ? planCam : view==='side' ? sideCam : view==='pers' ? persCam : shotCam;
-  const labs = labelPositions(view, cam, rect, false).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
+  const labs = labelPositions(view, cam, rect, false, 15, 34).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
   capturing = false; scene.background = oBg; mainView = oMain; W = oW; H = oH;
   renderer.setSize(oW, oH, false); layoutPip(); fitOrtho(); needRender = true;
   return {url, labels:labs};
