@@ -47,9 +47,12 @@ const server = http.createServer((req, res) => {
 const browser = await chromium.launch({
   ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  // without a UTF-8 locale Chromium throws away non-ASCII download names and calls
+  // every file "download", which looks exactly like a bug in the app
+  env: { ...process.env, LANG: process.env.LANG || 'C.UTF-8' },
 });
 async function open(name, viewport, mobile = false, hash = ''){
-  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -256,6 +259,17 @@ async function open(name, viewport, mobile = false, hash = ''){
       await t.page.click('#framereset'); await t.page.waitForTimeout(200);
       const back = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
       ok('reset puts every panel back', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(back), back);
+
+      // the finder must stay exactly what the camera sees, so it takes no reframing
+      const fb = await (await t.page.$('#paper .pv[data-pane="cam"]')).boundingBox();
+      await t.page.mouse.move(fb.x + fb.width/2, fb.y + fb.height/2);
+      await t.page.mouse.down();
+      await t.page.mouse.move(fb.x + fb.width/2 + 45, fb.y + fb.height/2 + 30, {steps:6});
+      await t.page.mouse.up();
+      await t.page.mouse.wheel(0, -200);
+      await t.page.waitForTimeout(200);
+      const fin = await t.page.$eval('#paper .pv[data-pane="cam"] .pvin', e => e.style.transform);
+      ok('the finder cannot be reframed', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(fin), fin);
     }
     await t.page.click('#paperclose');
   }
@@ -273,6 +287,46 @@ async function open(name, viewport, mobile = false, hash = ''){
   const t = await open('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
   ok('viewer hides the editing panel', await t.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
   ok('viewer run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 7. the project file round trip ----------------------------------------------------
+{
+  const t = await open('projfile', { width: 1280, height: 800 });
+  await t.add('[data-add="chroma"]');
+  await t.add('[data-add="mirror"]');
+  await t.tab('share');
+  await t.page.fill('#m-project', '青山スタジオ 下見');
+  await t.page.fill('#m-cut', 'C-3');
+  await t.page.waitForTimeout(200);
+  const before = await t.page.$$eval('#items .itemrow', n => n.length);
+
+  const dl = await Promise.all([t.page.waitForEvent('download'), t.page.click('#savefile')]).then(r => r[0]);
+  const name = dl.suggestedFilename();
+  const file = path.join(OUT, 'project.studio.json');
+  await dl.saveAs(file);
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  ok('save names the file from the project and cut',
+     name.includes('青山スタジオ') && name.includes('C-3') && /\d{4}-\d{2}-\d{2}/.test(name) && name.endsWith('.studio.json'), name);
+  ok('the file holds the whole scene', saved.items.length === before - 1 && saved.meta.cut === 'C-3', `${saved.items.length} items`);
+
+  // wipe it, then read the file back
+  t.page.once('dialog', d => d.accept());
+  await t.page.click('#reset');
+  await t.page.waitForTimeout(300);
+  ok('reset empties the list', await t.page.$$eval('#items .itemrow', n => n.length) === 1);
+
+  await t.page.setInputFiles('#projfile', file);
+  await t.page.waitForTimeout(600);
+  const after = await t.page.$$eval('#items .itemrow', n => n.length);
+  ok('load brings every object back', after === before, `${after} rows, was ${before}`);
+  ok('load brings the meta back', await t.page.inputValue('#m-cut') === 'C-3');
+
+  await t.page.setInputFiles('#projfile', path.join(HERE, 'package.json'));
+  await t.page.waitForTimeout(400);
+  ok('a file that is not a scene is refused, not applied',
+     (await t.page.textContent('#toast')).includes('読めません') && await t.page.$$eval('#items .itemrow', n => n.length) === after);
+  ok('project file run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

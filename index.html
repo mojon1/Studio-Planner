@@ -152,6 +152,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 #paper.landscape .pviews{flex:0 0 186mm}
 #paper.portrait .pviews{flex:0 0 146mm}
 .pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden;cursor:move;touch-action:none}
+.pv[data-pane="cam"]{cursor:default}
 .pvin{position:absolute;inset:0;transform-origin:center center}
 .pv img{width:100%;height:100%;object-fit:cover;display:block;user-select:none;-webkit-user-drag:none}
 .pv .cap{position:absolute;left:0;top:0;background:#15171b;color:#fff;font-size:7pt;font-weight:700;padding:.6mm 2mm;letter-spacing:.06em}
@@ -213,6 +214,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>リンクで共有</h2>
         <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
         <input type="text" id="linkbox" readonly>
+        <h2>プロジェクト</h2>
+        <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
+        <input type="file" id="projfile" accept=".json,application/json" hidden>
+        <p class="hint">取り込んだ 3D モデルの実体はこの端末に残ります。別の PC で開くと実寸の箱になります。</p>
         <h2>PDF にする</h2>
         <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
         <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
@@ -287,7 +292,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <button class="btn primary" id="doprint">PDF にする</button>
     <button class="btn" id="paperclose">閉じる</button>
     <button class="btn" id="framereset">図の位置を戻す</button>
-    <span class="pmhint">各図はドラッグで移動、ホイールで拡大縮小、ダブルクリックで戻す。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
+    <span class="pmhint">上面・側面・パースはドラッグで移動、ホイールで拡大縮小。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
   </div>
   <div class="pmscroll"><div id="paper"></div></div>
 </div>
@@ -1295,7 +1300,7 @@ function studioPanel(){
   h += `<h2>ホリゾント（R 壁）を付ける辺</h2><div class="row">` +
     [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
   h += `<p class="hint">上が奥の壁。1 マス 1 m。</p>`;
-  h += `<h2>寸法を出す</h2><div class="row">${dimBtn('studio', '幅・奥行・高さ', dimOn(state.studio))}</div>`;
+  h += `<h2>寸法表示</h2><div class="row">${dimBtn('studio', '幅・奥行・高さ', dimOn(state.studio))}</div>`;
 
 
   return h;
@@ -1490,12 +1495,12 @@ function renderSel(){
 
   }
   const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
-  h += `<h2>寸法を出す</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
+  h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
     + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', dimOn(it, 'dimWall'))
                             : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
   h += range('rot','向き',-180,180,1,rotShown(it),'°');
   if (it.type === 'camera') h += `<p class="hint">0° で奥向き。</p>`;
-  h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
+  h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>削除</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
@@ -1898,6 +1903,36 @@ async function copyLink(viewOnly){
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
 document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; select(null); buildStudio(); rebuildItems(); renderList(); saveHash(); } });
+// ---------- project file ----------
+// The link covers a quick hand-off; a job that comes back next month wants a file
+// on the desktop. Same JSON as the link, uncompressed so it stays readable.
+function projectName(){
+  const m = state.meta;
+  return [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_') || 'StudioPlanner';
+}
+document.getElementById('savefile').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = projectName() + '.studio.json';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  toast('保存しました');
+});
+document.getElementById('loadfile').addEventListener('click', () => document.getElementById('projfile').click());
+document.getElementById('projfile').addEventListener('change', async e => {
+  const f = e.target.files?.[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const st = JSON.parse(await f.text());
+    if (!st?.studio || !Array.isArray(st.items)) throw new Error('not a Studio Planner file');
+    state = migrate(st);
+    select(null);
+    buildStudio(); rebuildItems(); renderList(); renderSel(); renderMeta(); layoutPip(); saveHash(); needRender = true;
+    restoreModels();                                  // models already in this browser come back
+    toast('読み込みました');
+  } catch(err){ console.warn('project load failed', err); toast('このファイルは読めません'); }
+});
+
 document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); if (mainView === 'cam') setMain('plan'); resize(); saveHash(); });
 
 // png
@@ -2052,8 +2087,11 @@ function applyFrame(v){
 let paperScale = 1;
 {
   let drag = null;
+  // The finder is left alone on purpose. Panning or zooming it would show a frame
+  // the camera does not actually take, which is the one error this sheet must not make.
+  const pane0 = e => { const p = e.target.closest?.('.pv[data-pane]'); return p && p.dataset.pane !== 'cam' ? p : null; };
   paperEl.addEventListener('pointerdown', e => {
-    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    const pane = pane0(e); if (!pane) return;
     const v = pane.dataset.pane, box = pane.getBoundingClientRect();
     pane.setPointerCapture(e.pointerId);
     drag = {v, box, x:e.clientX, y:e.clientY, f:{...frameOf(v)}};
@@ -2072,21 +2110,21 @@ let paperScale = 1;
   paperEl.addEventListener('pointerup', stop);
   paperEl.addEventListener('pointercancel', stop);
   paperEl.addEventListener('wheel', e => {
-    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    const pane = pane0(e); if (!pane) return;
     e.preventDefault();
     const f = frameOf(pane.dataset.pane);
     f.s = clamp(f.s * (e.deltaY < 0 ? 1.12 : 0.893), 0.4, 6);
     applyFrame(pane.dataset.pane); saveHash();
   }, {passive:false});
   paperEl.addEventListener('dblclick', e => {
-    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    const pane = pane0(e); if (!pane) return;
     state.meta.frames[pane.dataset.pane] = {s:1, x:0, y:0};
     applyFrame(pane.dataset.pane); saveHash();
   });
 }
 document.getElementById('framereset').addEventListener('click', () => {
   state.meta.frames = {};
-  for (const v of ['plan','side','pers','cam']) applyFrame(v);
+  for (const v of ['plan','side','pers']) applyFrame(v);
   saveHash();
 });
 function fitPaper(){
