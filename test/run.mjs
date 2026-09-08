@@ -39,7 +39,8 @@ const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(s
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
   if (!fs.existsSync(p)) { res.writeHead(404); res.end(); return; }
-  res.writeHead(200, {'content-type': p.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript'});
+  const type = p.endsWith('.html') ? 'text/html; charset=utf-8' : p.endsWith('.glb') ? 'model/gltf-binary' : 'text/javascript';
+  res.writeHead(200, {'content-type': type});
   res.end(fs.readFileSync(p));
 }).listen(8765);
 
@@ -371,6 +372,46 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#shotclose');
 
   ok('project file run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 8. the built-in person model -------------------------------------------------------
+{
+  const t = await open('person', { width: 1280, height: 800 });
+  await t.page.click('#items .itemrow > button:first-child >> nth=1');   // the default 男性
+  await t.page.waitForTimeout(300);
+  ok('an adult male offers the real model', await t.page.$$eval('[data-set="look"]', b => b.length) === 2);
+
+  const before = await t.page.evaluate(() => document.querySelector('canvas').toDataURL().length);
+  await t.page.click('[data-set="look"][data-val="real"]');
+  await t.page.waitForTimeout(3000);
+  const look = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').look);
+  ok('the switch is remembered on the item', look === 'real', String(look));
+  const after = await t.page.evaluate(() => document.querySelector('canvas').toDataURL().length);
+  ok('the drawing changes once the model is in', after !== before, `${before} -> ${after}`);
+  await t.page.screenshot({ path: `${OUT}/person-real.png` });
+
+  // the scan is 1 m tall in the file; the height slider still has to rule
+  const measure = () => t.page.evaluate(() => {
+    const sp = window.__sp, g = sp.group(sp.state().items.find(i => i.type === 'person').id);
+    const b = new sp.THREE.Box3().setFromObject(g);
+    return {h: +(b.max.y - b.min.y).toFixed(3), minY: +b.min.y.toFixed(3)};
+  });
+  const box = await measure();
+  ok('the model is scaled to the height that is set', Math.abs(box.h - 1.7) < 0.02, `${box.h} m tall, feet at ${box.minY}`);
+
+  await t.page.click('[data-set="pose"][data-val="sit"]');
+  await t.page.waitForTimeout(400);
+  const sit = await measure();
+  ok('sitting falls back to the mannequin', sit.h < 1.4, `${sit.h} m`);
+  ok('and says so', (await t.page.textContent('#selbody')).includes('立ちポーズのみ'));
+
+  await t.page.click('[data-set="pose"][data-val="stand"]');
+  await t.page.waitForTimeout(600);
+  // a share link carries the choice, because the file ships with the app
+  const link = await t.page.evaluate(() => location.hash);
+  ok('the choice rides in the share link', link.length > 10);
+  ok('person run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

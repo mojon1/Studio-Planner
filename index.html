@@ -310,6 +310,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 <script type="module">
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';   // a skinned mesh cannot be plain-cloned
 
 // ---------- data ----------
 const PRESETS = [
@@ -732,7 +733,57 @@ function limb(a, b, r0, r1, m){
   return shadowed(mesh);
 }
 function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m)); s.position.set(x,y,z); return s; }
+// --- real people -----------------------------------------------------------------
+// These live next to index.html rather than inside it. Inlined, four of them would put
+// megabytes into every page load, including for everyone who never asks for one. The
+// cost is that they need a real server: the claude.ai preview frame cannot fetch them
+// and quietly stays on the mannequin, and so does file://.
+const PERSON_MODELS = [
+  {file:'models/asia-adult-male.glb', body:'m', adult:true},
+];
+const personModel = it => PERSON_MODELS.find(m => m.body === (it.body || 'm') && m.adult === (it.height >= 1.40)) || null;
+const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
+async function loadPerson(file){
+  if (realPeople.has(file)) return;
+  realPeople.set(file, 'loading');
+  try {
+    const r = await fetch(file);
+    if (!r.ok) throw new Error(r.status + ' ' + file);
+    const {obj} = await parseModel(await r.arrayBuffer(), 'glb', {});
+    realPeople.set(file, obj);
+  } catch(e){ console.warn('person model failed', e); realPeople.set(file, 'fail'); }
+  for (const it of state.items) if (it.type === 'person' && it.look === 'real') rebuildItem(it);
+  renderSel(); needRender = true;
+}
+// the file is modelled 1 m tall, so one number turns it into whatever height is set
+function buildRealPerson(it, src){
+  const g = new THREE.Group();
+  const inst = skeletonClone(src);
+  inst.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(inst);
+  const k = bb.max.y - bb.min.y > 1e-4 ? it.height / (bb.max.y - bb.min.y) : 1;
+  inst.scale.setScalar(k);
+  inst.position.set(-(bb.min.x + bb.max.x)/2*k, -bb.min.y*k, -(bb.min.z + bb.max.z)/2*k);
+  inst.traverse(n => {
+    if (!n.isMesh && !n.isSkinnedMesh) return;
+    n.castShadow = true; n.receiveShadow = true; n.frustumCulled = false;
+    for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+      if (!m?.isMeshStandardMaterial || m.envMap) continue;
+      m.envMap = modelEnv(); m.envMapIntensity = 1; m.needsUpdate = true;
+    }
+  });
+  g.add(inst);
+  g.add(footDisc(Math.max(0.28, (bb.max.x - bb.min.x)*k*0.7), COLORS.person));
+  return g;
+}
 function buildPerson(it){
+  // only the standing pose exists as a scan; sitting and lying stay with the mannequin
+  const pm = it.look === 'real' && it.pose === 'stand' ? personModel(it) : null;
+  if (pm){
+    const src = realPeople.get(pm.file);
+    if (src && src !== 'loading' && src !== 'fail') return buildRealPerson(it, src);
+    if (!realPeople.has(pm.file)) loadPerson(pm.file);
+  }
   const g = new THREE.Group(), R = personRig(it), c = mat(COLORS.person, {roughness:0.85});
   const H = R.H, hh = R.hh, sit = it.pose === 'sit';
   const upper = new THREE.Group();
@@ -1454,8 +1505,17 @@ function renderSel(){
   if (it.type === 'person'){
     h += btns('body', Object.entries(BODIES), it.body || 'm');
     h += range('height','身長',0.70,2.10,0.01,it.height,'m');
-
     h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+    const pm = personModel(it);
+    if (pm){
+      h += `<h2>見た目</h2>` + btns('look', [['doll','マネキン'],['real','人物']], it.look || 'doll');
+      const st = realPeople.get(pm.file);
+      if (it.look === 'real'){
+        if (st === 'fail') h += `<p class="hint">人物モデルを読めませんでした。マネキンで表示しています。</p>`;
+        else if (st === 'loading') h += `<p class="hint">読み込み中…</p>`;
+        else if (it.pose !== 'stand') h += `<p class="hint">人物モデルは立ちポーズのみ。</p>`;
+      }
+    }
   } else if (it.type === 'car'){
     h += btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
@@ -2240,6 +2300,9 @@ document.getElementById('doprint').addEventListener('click', () => {
 addEventListener('resize', () => { if (paperModal.classList.contains('show')) fitPaper(); });
 
 // ---------- boot ----------
+// a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
+// right size. Nothing in the app reads it.
+window.__sp = {THREE, state: () => state, group: id => itemObjs.get(id)?.group || null};
 (async () => {
   findDownloads();
   await loadHash();
