@@ -1,9 +1,11 @@
+// Headless check for Studio Planner. Serves the app, drives it, and asserts the
+// things that have actually broken before: JS errors, share-link round trips,
+// imported model dimensions, sensor conversions, and the printed sheet.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import zlib from 'node:zlib';
-
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -11,8 +13,10 @@ const ROOT = path.join(HERE, '..');                 // the app itself
 const NM = path.join(HERE, 'node_modules');         // three.js, served in place of the CDN
 const OUT = path.join(HERE, 'out');                 // screenshots land here
 fs.mkdirSync(OUT, { recursive: true });
+let failures = 0;
+const ok = (label, cond, detail = '') => { if (!cond) failures++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${detail ? '  ' + detail : ''}`); };
 
-
+// a 2 x 1 x 3 m box, hand-built so the importer has something with known dimensions
 function makeGLB(){
   const verts = new Float32Array([-1,0,-0.5, 1,0,-0.5, 1,3,-0.5, -1,3,-0.5, -1,0,0.5, 1,0,0.5, 1,3,0.5, -1,3,0.5]);
   const idx = new Uint32Array([0,1,2, 0,2,3, 4,6,5, 4,7,6, 0,3,7, 0,7,4, 1,5,6, 1,6,2, 3,2,6, 3,6,7, 0,4,5, 0,5,1]);
@@ -29,6 +33,8 @@ function makeGLB(){
   const bc = Buffer.alloc(8); bc.writeUInt32LE(bin.length, 0); bc.writeUInt32LE(0x004E4942, 4);
   return Buffer.concat([header, jc, js, bc, bin]);
 }
+const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(st)))
+  .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
@@ -42,12 +48,12 @@ const browser = await chromium.launch({
   ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-async function run(name, viewport, mobile, hash = '') {
+async function open(name, viewport, mobile = false, hash = ''){
   const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   const errors = [];
-  page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
   await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', route => {
     const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.170.0/', '');
     const f = path.join(NM, 'three', rel);
@@ -56,218 +62,167 @@ async function run(name, viewport, mobile, hash = '') {
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
   await page.goto('http://localhost:8765/' + hash);
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${OUT}/${name}.png` });
-  return { page, ctx, errors };
+  const add = async sel => { await page.click('#addfab'); await page.click(sel); await page.waitForTimeout(350); };
+  const tab = async n => { await page.click(`[data-tab="${n}"]`); await page.waitForTimeout(150); };
+  return { name, ctx, page, errors, add, tab };
 }
 
-// desktop plan view
-let r = await run('desktop-plan', { width: 1280, height: 800 }, false);
-console.log('desktop errors:', r.errors);
-// switch to camera view, add mirror
-await r.page.click('[data-tab="add"]');
-await r.page.click('[data-add="mirror"]');
-await r.page.waitForTimeout(300);
-await r.page.click('[data-view="cam"]');
-await r.page.waitForTimeout(800);
-await r.page.screenshot({ path: `${OUT}/desktop-cam.png` });
-await r.page.click('[data-view="side"]');
-await r.page.waitForTimeout(500);
-await r.page.screenshot({ path: `${OUT}/desktop-side.png` });
-await r.page.click('[data-tab="add"]');
-await r.page.click('[data-add="chroma"]');
-await r.page.waitForTimeout(300);
-await r.page.click('[data-view="pers"]');
-await r.page.waitForTimeout(500);
-// orbit drag on empty space
-await r.page.mouse.move(700, 150); await r.page.mouse.down(); await r.page.mouse.move(600, 200, {steps: 8}); await r.page.mouse.up();
-await r.page.waitForTimeout(500);
-await r.page.screenshot({ path: `${OUT}/desktop-pers.png` });
-await r.page.click('[data-tab="studio"]');
-await r.page.click('[data-cove="left"]'); await r.page.click('[data-cove="right"]');
-await r.page.waitForTimeout(500);
-await r.page.screenshot({ path: `${OUT}/desktop-pers-cove.png` });
-// orbit so the eye is outside the right wall, walls there should fade
-await r.page.mouse.move(700, 150); await r.page.mouse.down(); await r.page.mouse.move(400, 160, {steps: 8}); await r.page.mouse.up();
-await r.page.waitForTimeout(400);
-await r.page.screenshot({ path: `${OUT}/desktop-pers-fade.png` });
-// hide the mirror via the eye button
-await r.page.click('[data-tab="add"]');
-await r.page.click('#items .itemrow:nth-child(3) .eye'); await r.page.waitForTimeout(300);
-console.log('hidden rows:', await r.page.$$eval('#items .itemrow.hidden-item', b => b.length));
-await r.page.click('[data-view="side"]'); await r.page.waitForTimeout(400);
-await r.page.screenshot({ path: `${OUT}/desktop-side2.png` });
-await r.page.click('[data-view="pers"]'); await r.page.waitForTimeout(300);
-// drag pip bar to top-left, then resize
-const pb = await r.page.$eval('#pip .bar', e => { const r = e.getBoundingClientRect(); return {x:r.x+40, y:r.y+12}; });
-await r.page.mouse.move(pb.x, pb.y); await r.page.mouse.down(); await r.page.mouse.move(pb.x-500, pb.y-300, {steps:10}); await r.page.mouse.up();
-const pg = await r.page.$eval('#pip .grip', e => { const r = e.getBoundingClientRect(); return {x:r.x+18, y:r.y+18}; });
-await r.page.mouse.move(pg.x, pg.y); await r.page.mouse.down(); await r.page.mouse.move(pg.x+120, pg.y+80, {steps:10}); await r.page.mouse.up();
-await r.page.waitForTimeout(400);
-console.log('pip rect:', await r.page.$eval('#pip', e => e.style.cssText));
-await r.page.screenshot({ path: `${OUT}/desktop-pip.png` });
-// select camera via list, choose custom sensor
-await r.page.click('[data-tab="studio"]'); await r.page.click('[data-tab="add"]');
-await r.page.click('#items .itemrow:nth-child(2) > button:first-child');
-await r.page.waitForTimeout(200);
-console.log('sel tab open:', await r.page.$eval('[data-tab="sel"]', b => b.classList.contains('on')));
-await r.page.click('[data-set="sensor"][data-val="custom"]');
-await r.page.fill('[data-num="sensorW"]', '24.9');
-await r.page.press('[data-num="sensorW"]', 'Enter');
-await r.page.waitForTimeout(300);
-// name the custom width and save it
-await r.page.fill('[data-sensorname]', 'うちのV-RAPTOR');
-await r.page.click('[data-sensorsave]');
-await r.page.waitForTimeout(300);
-console.log('saved presets:', await r.page.$$eval('[data-sensorpreset]', b => b.map(x => x.textContent)));
-console.log('info uses saved name:', (await r.page.textContent('#info')).split('\n')[1]);
-// switch to the スーパー35 format button
-await r.page.click('[data-set="sensor"][data-val="s35"]');
-await r.page.waitForTimeout(300);
-console.log('s35 info:', (await r.page.textContent('#info')).split('\n')[1]);
-console.log('s35 lenses:', await r.page.$$eval('[data-set="focal"]', b => b.map(x => x.textContent).join(' ')));
-await r.page.click('[data-set="sensor"][data-val="custom"]');
-await r.page.waitForTimeout(300);
-console.log('preset recalled after round trip:', await r.page.$$eval('[data-sensorpreset].on', b => b.length));
-await r.page.screenshot({ path: `${OUT}/desktop-sensor.png` });
-await r.page.click('[data-view="cam"]');
-await r.page.waitForTimeout(600);
-await r.page.screenshot({ path: `${OUT}/desktop-cam2.png` });
-console.log('info:', await r.page.textContent('#info'));
-await r.page.click('[data-view="plan"]');
-await r.page.click('[data-tab="add"]');
-await r.page.click('#items .itemrow:nth-child(1) > button:first-child');
-await r.page.waitForTimeout(400);
-await r.page.screenshot({ path: `${OUT}/desktop-plan2.png` });
-// rotate ring drag: person at world (0,-0.5); plan scale ~86.7 px/m, centre (810,400)
-{ const b = await r.page.$eval('#pip .bar', e => { const r = e.getBoundingClientRect(); return {x:r.x+40, y:r.y+12}; });
-  await r.page.mouse.move(b.x, b.y); await r.page.mouse.down(); await r.page.mouse.move(b.x+700, b.y+500, {steps:8}); await r.page.mouse.up(); await r.page.waitForTimeout(200); }
-const rotBefore = await r.page.inputValue('[data-range="rot"]');
-await r.page.mouse.move(810+69, 357); await r.page.mouse.down(); await r.page.mouse.move(810+40, 357-50, {steps:6}); await r.page.mouse.move(810, 357-69, {steps:6}); await r.page.mouse.up();
-await r.page.waitForTimeout(300);
-console.log('rot before/after ring drag:', rotBefore, await r.page.inputValue('[data-range="rot"]'));
-// fold / unfold
-await r.page.click('#fold'); await r.page.waitForTimeout(300);
-console.log('folded panel hidden:', await r.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
-await r.page.screenshot({ path: `${OUT}/desktop-folded.png` });
-await r.page.click('#unfold'); await r.page.waitForTimeout(200);
-// share link
-await r.page.click('[data-tab="share"]');
-await r.page.waitForTimeout(500);
-const link = await r.page.inputValue('#linkbox');
-console.log('link length', link.length, link.slice(0, 80));
-console.log('after interactions errors:', r.errors);
-await r.ctx.close();
-
-// mobile, loading the shared link
-const hash = link.slice(link.indexOf('#'));
-r = await run('mobile-plan', { width: 390, height: 844 }, true, hash);
-console.log('mobile errors:', r.errors);
-const items = await r.page.$$eval('#items .itemrow', b => b.length);
-console.log('mobile items restored:', items);
-// touch drag person in plan view
-const box = await r.page.$eval('#view', e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
-const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
-await r.page.touchscreen.tap(cx, cy);
-await r.page.waitForTimeout(300);
-await r.page.screenshot({ path: `${OUT}/mobile-selected.png` });
-await r.page.screenshot({ path: `${OUT}/mobile-folded.png` });
-await r.page.tap('[data-tab="sel"]'); await r.page.waitForTimeout(300);
-await r.page.screenshot({ path: `${OUT}/mobile-open.png` });
-console.log('mobile errors end:', r.errors);
-await r.ctx.close();
-
-// an old link that still says sensor:'apsc' must migrate to a 23.5 mm manual width
+// --- 1. desktop: place things, drive the manipulator, check the sensor panel ----------
 {
-  const legacy = {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[{id:'c1',type:'camera',x:0,z:2,y:1.4,rot:180,pitch:0,sensor:'apsc',focal:35,aspect:'3:2'}]};
-  const enc = 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(legacy))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  const g = await run('legacy', { width: 1280, height: 800 }, false, '#s=' + enc);
-  console.log('legacy apsc link ->', (await g.page.textContent('#info')).split('\n')[1]);
-  console.log('legacy errors:', g.errors);
-  await g.ctx.close();
+  const t = await open('desktop', { width: 1500, height: 950 });
+  for (const p of ['0','1','2','3']) await t.add(`[data-person="${p}"]`);
+  for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
+  const rows = await t.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()));
+  ok('all presets placed', rows.length === 13, `${rows.length} rows`);
+  ok('人 labelled by body and age', rows.some(r => r.startsWith('男の子')) && rows.some(r => r.startsWith('女性')));
+
+  // a second camera becomes the active one
+  await t.add('[data-add="camera"]');
+  const camRows = await t.page.$$eval('#items .itemrow[data-kind="camera"] small', n => n.map(x => x.textContent));
+  ok('two cameras, one marked active', camRows.length === 2 && camRows.filter(x => x.includes('表示中')).length === 1, camRows.join(' | '));
+
+  // sensor: pick 手動, type a width, save it under a name
+  await t.page.click('[data-set="sensor"][data-val="custom"]');
+  await t.page.fill('[data-num="sensorW"]', '24.9');
+  await t.page.press('[data-num="sensorW"]', 'Enter');
+  await t.page.waitForTimeout(250);
+  await t.page.fill('[data-sensorname]', 'うちのV-RAPTOR');
+  await t.page.click('[data-sensorsave]');
+  await t.page.waitForTimeout(250);
+  const info = await t.page.textContent('#info');
+  ok('saved sensor name shows in the readout', info.includes('うちのV-RAPTOR'), info.split('\n')[1]);
+  await t.page.click('[data-set="sensor"][data-val="s35"]');
+  await t.page.waitForTimeout(250);
+  const lenses = await t.page.$$eval('[data-set="focal"]', b => b.map(x => x.textContent).join(' '));
+  ok('スーパー35 offers cine primes', lenses.includes('18mm') && lenses.includes('32mm'), lenses);
+  ok('35mm equivalent computed', (await t.page.textContent('#info')).includes('換算'), (await t.page.textContent('#info')).split('\n')[1]);
+
+  // rotate ring: grab a person and drag the ring half a turn
+  await t.page.click('[data-view="plan"]');
+  await t.page.click('#pipbtn');                                   // the window would sit over the ring
+  await t.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await t.page.waitForTimeout(300);
+  const before = await t.page.inputValue('[data-range="rot"]');
+  const c = await t.page.$eval('#view', e => { const r = e.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; });
+  await t.page.mouse.move(c.x + 62, c.y); await t.page.mouse.down();
+  await t.page.mouse.move(c.x + 40, c.y - 45, {steps:6}); await t.page.mouse.move(c.x, c.y - 62, {steps:6}); await t.page.mouse.up();
+  await t.page.waitForTimeout(250);
+  ok('ring drag turns the item', (await t.page.inputValue('[data-range="rot"]')) !== before, `${before} -> ${await t.page.inputValue('[data-range="rot"]')}`);
+  await t.page.click('#pipbtn');
+
+  // views and the wall rules
+  for (const v of ['side','pers','cam','plan']){ await t.page.click(`[data-view="${v}"]`); await t.page.waitForTimeout(450); }
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(500);
+  await t.page.screenshot({ path: `${OUT}/desktop-pers.png` });
+  await t.page.click('[data-view="side"]'); await t.page.waitForTimeout(400);
+  await t.page.screenshot({ path: `${OUT}/desktop-side.png` });
+
+  await t.tab('share');
+  const link = await t.page.inputValue('#linkbox');
+  ok('share link built', link.includes('#s='), `${link.length} chars`);
+  ok('desktop run clean', t.errors.length === 0, t.errors.join(' | '));
+  global.__link = link;
+  await t.ctx.close();
 }
 
-// object presets and 3D model import
+// --- 2. mobile: the shared link restores, and touch selects ---------------------------
 {
-  const g = await run('presets', { width: 1400, height: 900 }, false);
-  for (const p of ['0','1','2','3']){ await g.page.click('[data-tab="add"]'); await g.page.click(`[data-person="${p}"]`); }
-  for (const t of ['car','chair','table','box']){ await g.page.click('[data-tab="add"]'); await g.page.click(`[data-add="${t}"]`); }
-  await g.page.waitForTimeout(600);
-  await g.page.click('[data-tab="add"]');
-  console.log('preset rows:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim())));
+  const hash = global.__link.slice(global.__link.indexOf('#'));
+  const t = await open('mobile', { width: 390, height: 844 }, true, hash);
+  const n = await t.page.$$eval('#items .itemrow', b => b.length);
+  ok('link restores every row on mobile', n === 14, `${n} rows`);   // 1 studio row + 13 items
+  const box = await t.page.$eval('#view', e => { const r = e.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; });
+  await t.page.touchscreen.tap(box.x, box.y);
+  await t.page.waitForTimeout(400);
+  await t.page.screenshot({ path: `${OUT}/mobile.png` });
+  ok('mobile run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 3. model import, and the box fallback for someone without the file ---------------
+{
+  const t = await open('import', { width: 1400, height: 900 });
   const glb = `${OUT}/test-box.glb`; fs.writeFileSync(glb, makeGLB());
-  await g.page.setInputFiles('#file', glb);
-  await g.page.waitForTimeout(2000);
-  console.log('imported row:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()).slice(-1)[0]));
-  console.log('model height field:', await g.page.inputValue('[data-num="targetH"]').catch(() => 'n/a'));
-  console.log('fbx module resolves:', await g.page.evaluate(() => import('three/addons/loaders/FBXLoader.js').then(m => typeof m.FBXLoader).catch(e => 'ERR ' + e.message)));
-  await g.page.click('[data-view="pers"]'); await g.page.waitForTimeout(900);
-  await g.page.screenshot({ path: `${OUT}/presets.png` });
-  await g.page.click('[data-view="side"]'); await g.page.waitForTimeout(600);
-  await g.page.screenshot({ path: `${OUT}/presets-side.png` });
-  await g.page.click('[data-tab="share"]'); await g.page.waitForTimeout(500);
-  console.log('presets link length:', (await g.page.inputValue('#linkbox')).length);
-  console.log('presets errors:', g.errors);
-  await g.ctx.close();
-}
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', glb);
+  await t.page.waitForTimeout(2500);
+  const sub = await t.page.$$eval('#items .itemrow[data-kind="model"] small', n => n.map(x => x.textContent));
+  ok('GLB imported at its true size', sub[0] === '2×1×3 m', sub.join(' | '));
+  ok('height field matches', (await t.page.inputValue('[data-num="targetH"]')) === '3.00');
+  ok('FBX loader resolves through the importmap',
+     (await t.page.evaluate(() => import('three/addons/loaders/FBXLoader.js').then(m => typeof m.FBXLoader).catch(e => 'ERR ' + e.message))) === 'function');
+  ok('import run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
 
-// a shared link whose model file is not on this device must fall back to a box
-{
-  const shared = {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[
-    {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,sensor:'ff',focal:35,aspect:'3:2'},
+  const shared = {meta:{project:'',cut:'',memo:''}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
+    {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,sensor:'ff',focal:35,aspect:'16:9'},
     {id:'m1',type:'model',x:0,z:0,rot:0,key:'missing',name:'set.glb',scale:1,upFix:false,w:2,d:1,h:3}]};
-  const enc = 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(shared))).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  const g = await run('shared-model', { width: 1280, height: 800 }, false, '#s=' + enc);
-  console.log('placeholder row:', await g.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim())));
-  console.log('shared-model errors:', g.errors);
+  const g = await open('shared', { width: 1280, height: 800 }, false, '#s=' + encodeState(shared));
+  const row = await g.page.$$eval('#items .itemrow[data-kind="model"] small', n => n.map(x => x.textContent));
+  ok('a model this device lacks shows as a box', row[0]?.startsWith('箱'), row.join(' | '));
+  ok('shared run clean', g.errors.length === 0, g.errors.join(' | '));
   await g.ctx.close();
 }
 
-// PDF sheet: fill the header fields, build the sheet, check both orientations
+// --- 4. links written before the format list and the meta block still open -----------
 {
-  const g = await run('pdf', { width: 1500, height: 950 }, false);
-  await g.page.click('[data-tab="share"]');
-  await g.page.fill('#m-project', 'コスモ石油 CM 30秒');
-  await g.page.fill('#m-cut', 'C-12');
-  await g.page.fill('#m-memo', '演者は白ホリ手前 2m。\nレフ板は下手から。');
-  await g.page.click('#makepdf');
-  await g.page.waitForTimeout(2500);
-  console.log('paper shown:', await g.page.$eval('#papermodal', e => e.classList.contains('show')));
-  console.log('panels:', await g.page.$$eval('#paper .pv img', n => n.length));
-  console.log('labels on sheet:', await g.page.$$eval('#paper .pv .lb', n => n.length));
-  console.log('page rule:', await g.page.$eval('#paper', () => [...document.styleSheets].map(x => { try { return [...x.cssRules].map(r => r.cssText).filter(t => t.startsWith('@page')).join('') } catch { return '' } }).join('')));
-  console.log('sheet text:', (await g.page.$eval('#paper .ph', e => e.innerText)).replace(/\n/g, ' | '));
-  await g.page.screenshot({ path: `${OUT}/pdf-landscape.png`, fullPage: false });
-  await g.page.click('#paperclose');
-  await g.page.click('[data-orient="portrait"]');
-  await g.page.click('#makepdf');
-  await g.page.waitForTimeout(2500);
-  console.log('portrait class:', await g.page.$eval('#paper', e => e.className));
-  await g.page.screenshot({ path: `${OUT}/pdf-portrait.png`, fullPage: false });
-  // the live view must survive the off-screen capture passes
-  await g.page.click('#paperclose'); await g.page.waitForTimeout(600);
-  await g.page.screenshot({ path: `${OUT}/pdf-after.png` });
-  // the real proof: let Chromium make the PDF and check it is exactly one page
-  const openShare = async () => {
-    if (!await g.page.$eval('[data-tab="share"]', b => b.classList.contains('on'))) await g.page.click('[data-tab="share"]');
-    await g.page.evaluate(() => document.body.classList.remove('folded'));
-  };
-  for (const o of ['landscape','portrait']){
-    await openShare();
-    await g.page.click(`[data-orient="${o}"]`);
-    await g.page.click('#makepdf');
-    await g.page.waitForTimeout(2000);
-    const buf = await g.page.pdf({ preferCSSPageSize: true, printBackground: true });
-    const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
-    fs.writeFileSync(`${OUT}/sheet-${o}.pdf`, buf);
-    console.log(`${o}: ${pages} page(s), ${(buf.length/1024).toFixed(0)} KB`);
-    await g.page.click('#paperclose');
-  }
-  console.log('pdf errors:', g.errors);
-  await g.ctx.close();
+  const legacy = {studio:{w:8,d:6,h:4,cove:true}, items:[
+    {id:'c1',type:'camera',x:0,z:2,y:1.4,rot:270,pitch:0,sensor:'apsc',focal:35,aspect:'3:2'}]};
+  const t = await open('legacy', { width: 1280, height: 800 }, false, '#s=' + encodeState(legacy));
+  const info = await t.page.textContent('#info');
+  ok('APS-C link becomes a 23.5 mm manual width', info.includes('23.5mm'), info.split('\n')[1]);
+  ok('legacy run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
 }
 
-// viewer mode
-r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
-console.log('viewer errors:', r.errors);
-await r.ctx.close();
+// --- 5. the printed sheet -------------------------------------------------------------
+{
+  const t = await open('pdf', { width: 1500, height: 950 });
+  await t.add('[data-add="chroma"]');
+  await t.tab('share');
+  await t.page.fill('#m-project', 'コスモ石油 CM 30秒');
+  await t.page.fill('#m-cut', 'C-12');
+  await t.page.fill('#m-memo', '演者は白ホリ手前 2m。\nレフ板は下手から。');
+  for (const o of ['landscape','portrait']){
+    await t.tab('share');
+    await t.page.click(`[data-orient="${o}"]`);
+    await t.page.click('#makepdf');
+    await t.page.waitForTimeout(2500);
+    const panels = await t.page.$$eval('#paper .pv img', n => n.length);
+    const labels = await t.page.$$eval('#paper .pv .lb', n => n.length);
+    ok(`${o}: four panels drawn`, panels === 4, `${panels} panels, ${labels} labels`);
+    ok(`${o}: dimensions kept as text`, labels > 0);
+    await t.page.screenshot({ path: `${OUT}/pdf-${o}.png` });
+    // the real proof: let Chromium make the PDF and check the page count and size
+    const buf = await t.page.pdf({ preferCSSPageSize: true, printBackground: true });
+    fs.writeFileSync(`${OUT}/sheet-${o}.pdf`, buf);
+    const s = buf.toString('latin1');
+    const pages = (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    const mb = (s.match(/\/MediaBox\s*\[([^\]]*)\]/) || [])[1] || '';
+    const [, , wpt, hpt] = mb.trim().split(/\s+/).map(Number);
+    const wmm = Math.round(wpt/72*25.4), hmm = Math.round(hpt/72*25.4);
+    const want = o === 'landscape' ? [297,210] : [210,297];
+    ok(`${o}: one page`, pages === 1, `${pages} pages, ${(buf.length/1024).toFixed(0)} KB`);
+    ok(`${o}: A4 at the right orientation`, wmm === want[0] && hmm === want[1], `${wmm} x ${hmm} mm`);
+    await t.page.click('#paperclose');
+  }
+  const head = await t.page.$eval('#paper .ph', e => e.innerText.replace(/\n/g, ' | '));
+  ok('header carries project, cut and stamp', head.includes('コスモ石油') && head.includes('C-12') && /\d{4}\/\d{2}\/\d{2}/.test(head), head);
+  await t.page.waitForTimeout(500);
+  await t.page.screenshot({ path: `${OUT}/pdf-after.png` });
+  ok('pdf run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 6. viewer mode -------------------------------------------------------------------
+{
+  const hash = global.__link.slice(global.__link.indexOf('#'));
+  const t = await open('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
+  ok('viewer hides the editing panel', await t.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
+  ok('viewer run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
+console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
+process.exit(failures ? 1 : 0);

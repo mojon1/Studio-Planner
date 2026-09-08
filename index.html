@@ -37,16 +37,14 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 #tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
-#tabs #fold{flex:0 0 44px;font-size:1.2rem;color:var(--ink2)}
-body.folded #tabs #fold{transform:rotate(180deg)}
-body.folded #sheet{display:none}
-#unfold{display:none;position:absolute;left:10px;bottom:12px;z-index:3;height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.8);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
-@media (min-width:761px){
-  body.folded:not(.viewer) #panel{display:none}
-  body.folded:not(.viewer) #app{grid-template-columns:1fr}
-  body.folded:not(.viewer) #unfold{display:block}
-}
+#gear{position:absolute;left:80px;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#gear.on{background:var(--accent)}
+#gear:focus-visible{outline:3px solid #fff;outline-offset:2px}
+body.viewer #gear{display:none}
+body.folded:not(.viewer) #panel{display:none}
+body.folded:not(.viewer) #app{grid-template-columns:1fr}
 #sheet{overflow-y:auto;padding:14px 16px 24px;flex:1;min-height:0}
+#selbody:not(:empty){margin-top:18px;padding-top:16px;border-top:2px solid var(--rule)}
 .sec{display:none}.sec.on{display:block}
 h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:700}
 h2:first-child{margin-top:0}
@@ -86,6 +84,8 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3}
 #viewbtns button{height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;backdrop-filter:blur(6px)}
 #viewbtns button.on{background:var(--accent)}
+#viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
+#viewbtns button.icon:not(.on){color:#b9bec9}
 #info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 #labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -93,9 +93,21 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #labels span.dist{color:#fff;background:rgba(194,113,31,.85)}
 #pip{position:absolute;z-index:4;border:2px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;touch-action:none;box-shadow:0 4px 18px rgba(0,0,0,.4);overflow:hidden}
 #pip .bar{height:24px;background:rgba(20,22,26,.85);color:#fff;font-size:.72rem;font-weight:700;padding:3px 8px;cursor:move;display:flex;justify-content:space-between;align-items:center;user-select:none}
-#pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace}
+#pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace;margin-left:auto}
+#pip .bar button{margin-left:8px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
+#pip .bar button:hover{background:rgba(255,255,255,.18)}
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
+#addfab{position:absolute;left:12px;bottom:12px;z-index:4;width:56px;height:56px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.9rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
+#addfab:active{transform:translateY(1px)}
+#addfab:focus-visible{outline:3px solid #fff;outline-offset:2px}
+body.viewer #addfab{display:none}
+#addpop{position:fixed;inset:0;background:rgba(10,12,16,.55);z-index:22;display:none;align-items:center;justify-content:center;padding:16px}
+#addpop.on{display:flex}
+#addpop .pop{background:var(--panel);border-radius:14px;width:min(460px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+#addpop .pophead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--rule)}
+#addpop .pophead button{width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font:inherit;font-size:1.1rem;cursor:pointer}
+#addpop .popbody{padding:14px 16px 20px;overflow-y:auto}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 #shot{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
@@ -113,7 +125,7 @@ label.f2 span{display:block;margin-bottom:4px}
 label.f2 input,label.f2 textarea{width:100%;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;padding:8px 10px}
 label.f2 input{height:40px}
 label.f2 textarea{resize:vertical;line-height:1.5}
-/* --- paper preview ------------------------------------------------------------------ */
+/* --- the printed sheet ---------------------------------------------------------- */
 #papermodal{position:fixed;inset:0;z-index:30;background:#3a3d44;display:none;flex-direction:column}
 #papermodal.show{display:flex}
 .pmbar{flex:none;display:flex;gap:10px;align-items:center;padding:10px 14px;background:#22252c;border-bottom:1px solid #000}
@@ -157,7 +169,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pfoot{flex:none;padding-top:1.5mm;font-size:6.5pt;color:#9ca3af;display:flex;justify-content:space-between}
 @media print{
   html,body{overflow:visible !important;height:auto !important;background:#fff !important}
-  #app,#shot,.pmbar{display:none !important}
+  #app,#shot,#addpop,.pmbar{display:none !important}
   #papermodal{position:static !important;display:block !important;background:#fff !important}
   .pmscroll{overflow:visible !important;padding:0 !important;display:block !important}
   #paper{transform:none !important;box-shadow:none !important;margin:0 !important;padding:0 !important;width:auto !important;height:auto !important}
@@ -165,7 +177,11 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #paper.portrait{height:281mm !important}
 }
 @media (max-width:760px){
+  #addpop{align-items:flex-end;padding:0}
+  #addpop .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
+  #addfab{width:52px;height:52px;font-size:1.7rem}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  body.folded:not(.viewer) #app{grid-template-rows:1fr}
   #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
   #view{order:1}
   #sheet{padding:12px 14px 20px}
@@ -179,58 +195,14 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 <div id="app">
   <div id="panel">
     <div id="tabs">
-      <button data-tab="studio" class="on">スタジオ</button>
-      <button data-tab="add">配置</button>
-      <button data-tab="sel">選択中</button>
+      <button data-tab="list" class="on">リスト</button>
       <button data-tab="share">共有</button>
-      <button id="fold" title="設定を閉じる" aria-label="設定を閉じる">▾</button>
     </div>
     <div id="sheet">
-      <div class="sec on" data-sec="studio">
-        <h2>スタジオを選ぶ</h2>
-        <select id="preset"></select>
-        <div class="dims" style="margin-top:10px">
-          <label>幅 (m)<input type="number" id="sw" step="0.5" min="2" max="40"></label>
-          <label>奥行 (m)<input type="number" id="sd" step="0.5" min="2" max="40"></label>
-          <label>高さ (m)<input type="number" id="sh" step="0.5" min="2" max="15"></label>
-        </div>
-        <h2>ホリゾント（R 壁）を付ける辺</h2>
-        <div class="row"><button class="btn" data-cove="left">左</button><button class="btn" data-cove="back">奥</button><button class="btn" data-cove="right">右</button></div>
-        <p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>
-        <h2>見かた</h2>
-        <p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。カメラの絵は右下の小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>
-      </div>
-      <div class="sec" data-sec="add">
-        <h2>人</h2>
-        <div class="row">
-          <button class="btn" data-add="person" data-person="0">男性</button>
-          <button class="btn" data-add="person" data-person="1">女性</button>
-          <button class="btn" data-add="person" data-person="2">男の子</button>
-          <button class="btn" data-add="person" data-person="3">女の子</button>
-        </div>
-        <h2>小道具</h2>
-        <div class="row">
-          <button class="btn" data-add="car">車</button>
-          <button class="btn" data-add="chair">椅子</button>
-          <button class="btn" data-add="table">テーブル</button>
-          <button class="btn" data-add="box">箱</button>
-        </div>
-        <h2>撮影機材と背景</h2>
-        <div class="row">
-          <button class="btn" data-add="camera">カメラ</button>
-          <button class="btn" data-add="light">ライト</button>
-          <button class="btn" data-add="mirror">反射面</button>
-          <button class="btn" data-add="chroma">背景布</button>
-        </div>
-        <h2>3D モデルを取り込む</h2>
-        <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
-        <input type="file" id="file" accept=".glb,.gltf,.fbx" multiple hidden>
-        <p class="hint">GLB と FBX が読めます。画面にドラッグしても入ります。FBX はテクスチャを埋め込んで書き出してください。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
-        <p class="hint">図面で、置いたものを指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。</p>
-        <h2>置いてあるもの</h2>
+      <div class="sec on" data-sec="list">
         <div class="list" id="items"></div>
+        <div id="selbody"></div>
       </div>
-      <div class="sec" data-sec="sel"><div id="selbody"><p class="hint">図面のものをタップすると、ここで細かく変えられます。</p></div></div>
       <div class="sec" data-sec="share">
         <h2>リンクで共有</h2>
         <p class="hint">このリンクを開くと、アプリ無しで同じ配置がそのまま見られます。</p>
@@ -240,10 +212,9 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
         <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
         <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
-        <h2>用紙の向き</h2>
         <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
         <div class="row"><button class="btn primary" id="makepdf">図面を作る</button></div>
-        <p class="hint">上面・側面・パース・ファインダーの 4 面とカメラ情報が 1 枚に入ります。表示された用紙を確認してから PDF にしてください。</p>
+        <p class="hint">上面・側面・パース・ファインダーの 4 面とカメラ情報が 1 枚に入ります。表示された用紙を確認してから PDF にしてください。案件名とカットとメモは共有リンクにも入ります。</p>
         <h2>画像で共有</h2>
         <div class="row"><button class="btn" id="png-plan">図面を画像に</button><button class="btn" id="png-cam">カメラの絵を画像に</button></div>
         <p class="hint">スマホでは表示された画像を長押しして保存できます。</p>
@@ -257,16 +228,56 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button data-view="plan" class="on">上面</button>
       <button data-view="side">側面</button>
       <button data-view="pers">パース</button>
-      <button data-view="cam">カメラ全画面</button>
+      <button data-view="cam">ファインダー</button>
+      <button id="pipbtn" class="icon on" title="カメラの小窓" aria-label="カメラの小窓">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5h4l1.6-2h6.8L17 7.5h4v11H3z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+      </button>
+      <button id="ruler" class="icon on" title="寸法を出す" aria-label="寸法を出す">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 9h20v6H2z"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/></svg>
+      </button>
     </div>
     <div id="labels"></div>
     <div id="info"></div>
-    <div id="pip"><div class="bar"><span>カメラ</span><small id="pipinfo"></small></div><div class="body"></div><div class="grip"></div></div>
-    <button id="unfold" title="設定を開く">設定を開く</button>
+    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
+    <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
+    <button id="gear" title="設定の開閉" aria-label="設定の開閉">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </button>
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
 </div>
+<div id="addpop"><div class="pop">
+  <div class="pophead"><strong>置くものを選ぶ</strong><button id="addclose" aria-label="閉じる">✕</button></div>
+  <div class="popbody">
+    <h2>人</h2>
+    <div class="row">
+      <button class="btn" data-add="person" data-person="0">男性</button>
+      <button class="btn" data-add="person" data-person="1">女性</button>
+      <button class="btn" data-add="person" data-person="2">男の子</button>
+      <button class="btn" data-add="person" data-person="3">女の子</button>
+    </div>
+    <h2>小道具</h2>
+    <div class="row">
+      <button class="btn" data-add="car">車</button>
+      <button class="btn" data-add="chair">椅子</button>
+      <button class="btn" data-add="table">テーブル</button>
+      <button class="btn" data-add="box">箱</button>
+    </div>
+    <h2>撮影機材と背景</h2>
+    <div class="row">
+      <button class="btn" data-add="camera">カメラ</button>
+      <button class="btn" data-add="light">ライト</button>
+      <button class="btn" data-add="mirror">反射面</button>
+      <button class="btn" data-add="chroma">背景布</button>
+    </div>
+    <p class="hint">カメラは何台でも置けます。増やした分は「リスト」に並び、選んだカメラの絵が小窓に出ます。</p>
+    <h2>3D モデルを取り込む</h2>
+    <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
+    <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
+    <p class="hint">GLB・glTF・FBX が読めます。テクスチャが別ファイルの glTF は、<b>.bin と画像も一緒に選ぶ</b>か、書き出しフォルダごと画面にドラッグしてください。GLB に埋め込んで書き出すのが一番確実です。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
+  </div>
+</div></div>
 <div id="papermodal">
   <div class="pmbar">
     <button class="btn primary" id="doprint">PDF にする</button>
@@ -297,7 +308,8 @@ let savedSensors = [];
 try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
 function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ASPECTS = {'3:2':3/2,'16:9':16/9,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
+// video work comes first, so 16:9 leads and is what a new camera gets
+const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
 const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
 const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布',
@@ -316,7 +328,8 @@ function sensorName(it){
 // horizontal angle of view: wide aspects use the full sensor width, tall ones crop into it
 function hfov(it){ const sw = sensorW(it), ar = ASPECTS[it.aspect]; return 2*Math.atan((ar >= 1 ? sw : sw*ar)/2/it.focal); }
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
-const norm = a => ((a % 360) + 360) % 360;
+// rotations live in -180..180 so a slider has zero in the middle
+const norm = a => { const n = ((a % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
 
 let state = defaultState();
@@ -326,9 +339,9 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {meta:{project:'', cut:'', memo:''}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[
+  return {meta:{project:'', cut:'', memo:''}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
-    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'3:2'},
+    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
 }
 function migrate(st){
@@ -343,9 +356,25 @@ function migrate(st){
     }
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
     if (it.type === 'person' && !it.body) it.body = 'm';
+    if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
+  }
+  // links made when there could only be one camera carry no active camera
+  if (!st.items.some(i => i.id === st.activeCam && i.type === 'camera')) st.activeCam = firstCamId(st);
+  // dimension switches used to be one set on the studio; hand them to their owners
+  if (st.dims){
+    if (st.studio.dim === undefined) st.studio.dim = st.dims.studio !== false;
+    for (const it of st.items){
+      if (it.dim === undefined) it.dim = st.dims.size !== false;
+      if (it.type === 'camera'){
+        if (it.dimWall === undefined) it.dimWall = st.dims.wall !== false;
+        if (it.dimSubject === undefined) it.dimSubject = st.dims.subject !== false;
+      }
+    }
+    delete st.dims;
   }
   return st;
 }
+const firstCamId = st => st.items.find(i => i.type === 'camera')?.id || null;
 
 // ---------- three setup ----------
 const viewEl = document.getElementById('view');
@@ -381,6 +410,7 @@ function applyOrbit(){
 const studioGroup = new THREE.Group(); scene.add(studioGroup);
 const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
 const dimGroup = new THREE.Group(); scene.add(dimGroup);
+const measGroup = new THREE.Group(); scene.add(measGroup);
 const frustumGroup = new THREE.Group(); scene.add(frustumGroup);
 let labels = [];
 
@@ -459,81 +489,145 @@ function buildStudio(){
   fitOrtho();
 }
 
-// dimension lines + labels
-const dimMat = new THREE.LineBasicMaterial({color:0xffd9a8});
-function dimLine(a, b, tickDir, views){
-  const t = tickDir.clone().multiplyScalar(0.18);
-  const pts = [a, b, a.clone().sub(t), a.clone().add(t), b.clone().sub(t), b.clone().add(t)];
-  const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat); l.userData.views = views; dimGroup.add(l);
+// ---------- dimensions ----------
+// Every dimension is a thin ribbon in world space, never a 1px line: a hairline
+// vanishes the moment the drawing is scaled up for print. The weight is a
+// fraction of the room, so it reads the same whatever the studio size.
+const dimMat = new THREE.MeshBasicMaterial({color:0xffd9a8, depthTest:false, side:THREE.DoubleSide});
+const measMat = new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false, side:THREE.DoubleSide});
+const dimWidth = () => Math.max(0.03, Math.max(state.studio.w, state.studio.d) / 200);
+const dimOn = (o, k = 'dim') => !!o && o[k] !== false;   // absent means on: older links keep their look
+const V3 = THREE.Vector3;
+function bar(a, b, offDir, wd, mat, parent){
+  if (a.distanceTo(b) < 1e-4 || offDir.lengthSq() < 1e-8) return;
+  const off = offDir.clone().normalize().multiplyScalar(wd/2);
+  const q = [a.clone().sub(off), b.clone().sub(off), b.clone().add(off), a.clone().add(off)];
+  const pos = [];
+  for (const i of [0,1,2, 0,2,3]) pos.push(q[i].x, q[i].y, q[i].z);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.Mesh(g, mat); m.renderOrder = 6; m.userData.noHit = true; parent.add(m);
 }
+function dashedBar(a, b, offDir, wd, mat, parent){
+  const len = a.distanceTo(b); if (len < 1e-4) return;
+  const dir = new V3().subVectors(b, a).normalize();
+  const step = clamp(len/24, 0.18, 0.5), on = step*0.6;
+  for (let t = 0; t < len - 1e-4; t += step)
+    bar(a.clone().addScaledVector(dir, t), a.clone().addScaledVector(dir, Math.min(t+on, len)), offDir, wd, mat, parent);
+}
+function dimLine(a, b, tickDir, views, parent = dimGroup, mat = dimMat, dash = false){
+  const wd = dimWidth();
+  const g = new THREE.Group(); g.userData.views = views;
+  (dash ? dashedBar : bar)(a, b, tickDir, wd, mat, g);
+  const t = tickDir.clone().normalize().multiplyScalar(0.2);
+  const along = new V3().subVectors(b, a).normalize();
+  bar(a.clone().sub(t), a.clone().add(t), along, wd, mat, g);
+  bar(b.clone().sub(t), b.clone().add(t), along, wd, mat, g);
+  parent.add(g);
+}
+// the room: fixed, so it is rebuilt only when the studio changes
 function buildDims(){
   dimGroup.clear(); labels = [];
-  const {w,d,h} = state.studio; const o = 0.6; const V = THREE.Vector3;
-  const X = new V(1,0,0), Y = new V(0,1,0), Z = new V(0,0,1);
-  dimLine(new V(-w/2,0.01,d/2+o), new V(w/2,0.01,d/2+o), Z, ['plan','pers']);
-  labels.push({p:new V(0,0.01,d/2+o), text:`幅 ${fmt(w)} m`, cls:'dim', views:['plan','pers']});
-  dimLine(new V(w/2+o,0.01,-d/2), new V(w/2+o,0.01,d/2), X, ['plan','pers']);
-  labels.push({p:new V(w/2+o,0.01,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['plan','pers']});
-  dimLine(new V(w/2+o,0,d/2+o), new V(w/2+o,h,d/2+o), X, ['pers']);
-  labels.push({p:new V(w/2+o,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['pers']});
-  dimLine(new V(0,0,d/2+o), new V(0,h,d/2+o), Z, ['side']);
-  labels.push({p:new V(0,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['side']});
-  dimLine(new V(0,-o*0.6,-d/2), new V(0,-o*0.6,d/2), Y, ['side']);
-  labels.push({p:new V(0,-o*0.6,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['side']});
+  buildMeasures();
+  if (!dimOn(state.studio)) return;
+  const {w,d,h} = state.studio; const o = 0.6;
+  const X = new V3(1,0,0), Y = new V3(0,1,0), Z = new V3(0,0,1);
+  dimLine(new V3(-w/2,0.01,d/2+o), new V3(w/2,0.01,d/2+o), Z, ['plan','pers']);
+  labels.push({p:new V3(0,0.01,d/2+o), text:`幅 ${fmt(w)} m`, cls:'dim', views:['plan','pers']});
+  dimLine(new V3(w/2+o,0.01,-d/2), new V3(w/2+o,0.01,d/2), X, ['plan','pers']);
+  labels.push({p:new V3(w/2+o,0.01,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['plan','pers']});
+  dimLine(new V3(w/2+o,0,d/2+o), new V3(w/2+o,h,d/2+o), X, ['pers']);
+  labels.push({p:new V3(w/2+o,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['pers']});
+  dimLine(new V3(0,0,d/2+o), new V3(0,h,d/2+o), Z, ['side']);
+  labels.push({p:new V3(0,h/2,d/2+o), text:`高さ ${fmt(h)} m`, cls:'dim', views:['side']});
+  dimLine(new V3(0,-o*0.6,-d/2), new V3(0,-o*0.6,d/2), Y, ['side']);
+  labels.push({p:new V3(0,-o*0.6,0), text:`奥行 ${fmt(d)} m`, cls:'dim', views:['side']});
 }
-const distLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({color:0xe29a44, dashSize:0.2, gapSize:0.12, depthTest:false}));
-distLine.renderOrder = 7; distLine.visible = false; scene.add(distLine);
-let distLabel = null;
-function updateDist(){
-  const it = sel(), ci = camItem();
-  distLabel = null; distLine.visible = false;
-  if (!it || !ci || it.type === 'camera' || viewerMode || it.hidden || ci.hidden) return;
-  const a = new THREE.Vector3(ci.x, 0.02, ci.z), b = new THREE.Vector3(it.x, 0.02, it.z);
-  distLine.geometry.setFromPoints([a,b]); distLine.computeLineDistances(); distLine.visible = true;
-  distLabel = {p:a.clone().lerp(b,0.5), text:`${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','pers']};
+// what depends on where things stand: rebuilt whenever anything moves
+let measLabels = [];
+function measure(a, b, text){
+  const off = new V3(0,1,0).cross(new V3().subVectors(b, a));
+  dimLine(a, b, off, ['plan','pers'], measGroup, measMat, true);
+  measLabels.push({p:a.clone().lerp(b, 0.5), text, cls:'dist', views:['plan','pers']});
+}
+// each camera carries its own switches, so a plan can measure from one of several
+function buildMeasures(){
+  measGroup.clear(); measLabels = [];
+  const {w,d} = state.studio;
+  for (const ci of cams()){
+    if (ci.hidden) continue;
+    const a = new V3(ci.x, 0.02, ci.z);
+    if (dimOn(ci, 'dimWall')){
+      const back = new V3(ci.x, 0.02, -d/2);
+      measure(a, back, `奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
+      const right = ci.x >= 0;
+      const side = new V3(right ? w/2 : -w/2, 0.02, ci.z);
+      measure(a, side, `${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
+    }
+    if (dimOn(ci, 'dimSubject')){
+      const subs = state.items.filter(i => i.type === 'person' && !i.hidden);
+      const s = sel();                                 // whatever is picked counts as a subject too
+      if (s && s !== ci && !s.hidden && s.type !== 'camera' && !subs.includes(s)) subs.push(s);
+      for (const it of subs){
+        const b = new V3(it.x, 0.02, it.z);
+        if (a.distanceTo(b) > 0.1) measure(a, b, `${a.distanceTo(b).toFixed(2)} m`);
+      }
+    }
+  }
 }
 const labelsEl = document.getElementById('labels');
+const num = v => fmt(+(+v).toFixed(2));
+const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind === 'wall');
 function itemLabels(view){
   const out = [];
-  if (view !== 'side') return out;
   for (const it of state.items){
-    if (it.hidden) continue;
+    if (it.hidden || !dimOn(it)) continue;
+    if (view === 'plan'){
+      // a backdrop or a standing mirror has no depth worth writing, only a width
+      const off = (upright(it) ? 0.45 : (it.d || 0)/2 + 0.35);
+      const r = THREE.MathUtils.degToRad(it.rot || 0);
+      const p = new V3(it.x + Math.sin(r)*off, 0.02, it.z + Math.cos(r)*off);
+      if (upright(it)) out.push({p, text:`幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
+      else if (it.w > 0 && it.d > 0) out.push({p, text:`${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
+      continue;
+    }
+    if (view !== 'side') continue;
     let top, txt;
     if (it.type === 'person'){
       const R = personRig(it);
       top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (it.type === 'mirror' && it.kind !== 'wall') continue;
-    else if (it.h != null){ top = it.h; txt = `高さ ${fmt(+it.h.toFixed(2))} m`; }
+    else if (upright(it)){ top = it.h; txt = `${num(it.w)} × 高 ${num(it.h)} m`; }
+    else if (it.type === 'mirror') continue;
+    else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
-    out.push({p:new THREE.Vector3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
+    out.push({p:new V3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
   }
   return out;
 }
-function labelPositions(view, cam, rect, avoidPip){
+function labelPositions(view, cam, rect, avoidPip = true){
   const out = [];
-  if (view === 'cam') return out;
-  const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
-  const placed = [];
+  if (view === 'cam' || !showDims) return out;
+  const all = labels.concat(measLabels, itemLabels(view));
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
-    if (avoidPip && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
-    if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                               // drop labels that would sit on top of each other
-    placed.push({x, y}); out.push({x, y, text:L.text, cls:L.cls});
+    if (avoidPip && pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (out.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                       // drop labels that would sit on top of each other
+    out.push({x, y, text:L.text, cls:L.cls});
   }
   return out;
 }
 function drawLabels(view, cam, rect){
-  labelsEl.innerHTML = labelPositions(view, cam, rect, true)
+  labelsEl.innerHTML = labelPositions(view, cam, rect)
     .map(L => `<span class="${L.cls}" style="left:${L.x.toFixed(0)}px;top:${L.y.toFixed(0)}px">${L.text}</span>`).join('');
 }
 
 // ---------- item meshes ----------
 const itemObjs = new Map();
 const modelCache = new Map();   // key -> parsed Object3D for models this device holds
+const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox, model:buildModel};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
@@ -704,6 +798,29 @@ function buildBox(it){
   g.add(planeMarker(it.w, it.d, COLORS.box));
   return g;
 }
+// A metal material with nothing to reflect renders black, and glTF's default
+// metallic factor is 1, so imported models need something around them. This is a
+// plain room-ish gradient, put on the model's materials only: the studio itself
+// keeps the flat look the drawings rely on.
+let envTex = null;
+function modelEnv(){
+  if (envTex) return envTex;
+  const w = 16, h = 32, data = new Uint8Array(w*h*4);
+  for (let y = 0; y < h; y++){
+    const t = y/(h-1);                                    // 0 = up, 1 = down
+    const v = t < 0.5 ? 235 - t*180 : 120 - (t-0.5)*130;  // bright ceiling, dark floor
+    for (let x = 0; x < w; x++){
+      const i = (y*w+x)*4;
+      data[i] = v; data[i+1] = v*0.99; data[i+2] = v*0.96; data[i+3] = 255;
+    }
+  }
+  const src = new THREE.DataTexture(data, w, h);
+  src.mapping = THREE.EquirectangularReflectionMapping; src.needsUpdate = true;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  envTex = pmrem.fromEquirectangular(src).texture;
+  pmrem.dispose(); src.dispose();
+  return envTex;
+}
 // imported model: the real mesh when this device has the file, a labelled box otherwise
 function buildModel(it){
   const g = new THREE.Group(), src = modelCache.get(it.key);
@@ -714,7 +831,14 @@ function buildModel(it){
     inst.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(inst), ctr = bb.getCenter(new THREE.Vector3());
     inst.position.set(-ctr.x, -bb.min.y, -ctr.z);
-    inst.traverse(n => { if (n.isMesh){ n.castShadow = true; n.receiveShadow = true; } });
+    inst.traverse(n => {
+      if (!n.isMesh) return;
+      n.castShadow = true; n.receiveShadow = true;
+      for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+        if (!m?.isMeshStandardMaterial || m.envMap) continue;
+        m.envMap = modelEnv(); m.envMapIntensity = 1; m.needsUpdate = true;
+      }
+    });
     g.add(inst);
   } else {
     const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, it.d), mat(COLORS.model, {roughness:0.9, transparent:true, opacity:0.7})));
@@ -851,19 +975,31 @@ function handleRadius(it){
 function updateSelectionVisuals(){
   const it = sel();
   gizmo.visible = !!it && !it.hidden && !viewerMode;
-  updateDist();
+  buildMeasures();
   if (!it) return;
   const r = handleRadius(it);
   gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(r);
 }
 const sel = () => state.items.find(i => i.id === selectedId) || null;
-const camItem = () => state.items.find(i => i.type === 'camera') || null;
+// several cameras can stand in the room; one of them is the one being looked through
+const camItem = () => state.items.find(i => i.id === state.activeCam && i.type === 'camera')
+                   || state.items.find(i => i.type === 'camera') || null;
+const cams = () => state.items.filter(i => i.type === 'camera');
+const camName = ci => { const n = cams(); return n.length > 1 ? `カメラ ${n.indexOf(ci) + 1}` : 'カメラ'; };
+function setActiveCam(id){
+  if (state.activeCam === id) return;
+  state.activeCam = id;
+  const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
+  layoutPip(); needRender = true; saveHash();
+}
 
 // ---------- viewports ----------
 let W = 1, H = 1;
 const pipEl = document.getElementById('pip');
-let pip = {x:-1, y:-1, w:280, h:210};
-try { const s = JSON.parse(localStorage.getItem('studio3d.pip')||'null'); if (s && s.w > 60) pip = s; } catch {}
+let pip = {x:-1, y:-1, w:280, h:210, open:true};
+try { const s = JSON.parse(localStorage.getItem('studio3d.pip')||'null'); if (s && s.w > 60) pip = {open:true, ...s}; } catch {}
+let showDims = true;
+try { showDims = localStorage.getItem('studio3d.dims') !== '0'; } catch {}
 function resize(){
   const r = viewEl.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
   renderer.setSize(W, H, false); canvas.style.width = W+'px'; canvas.style.height = H+'px';
@@ -877,7 +1013,9 @@ function layoutPip(){
   if (pip.w > maxW || pip.h > maxH || (small && pip.w > W*0.55 && !pip.user)){ const k = small ? 0.42 : 0.3; pip.w = Math.round(clamp(W*k, 120, 420)); pip.h = Math.round(pip.w*0.66+24); }
   if (pip.x < 0 || pip.y < 0 || pip.x + pip.w > W || pip.y + pip.h > H){ pip.x = W - pip.w - 10; pip.y = H - pip.h - 10; }
   pip.x = clamp(pip.x, 0, Math.max(0, W - pip.w)); pip.y = clamp(pip.y, 0, Math.max(0, H - pip.h));
-  Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: mainView === 'cam' ? 'none' : 'block'});
+  const shown = pip.open && mainView !== 'cam';
+  Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: shown ? 'block' : 'none'});
+  document.getElementById('pipbtn').classList.toggle('on', pip.open);
   persCam.aspect = W/H; persCam.updateProjectionMatrix();
 }
 function savePip(){ try { localStorage.setItem('studio3d.pip', JSON.stringify(pip)); } catch {} }
@@ -901,11 +1039,10 @@ function renderView(view, rect, isMain){
   });
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
-  dimGroup.traverse(n => { if (n.userData.views) n.visible = isMain && n.userData.views.includes(view); });
+  for (const g of [dimGroup, measGroup]) g.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
   frustumGroup.visible = view !== 'cam' && !frustumGroup.userData.hidden;
-  const showSel = isMain && view !== 'cam';
+  const showSel = isMain && !capturing && view !== 'cam';
   const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !viewerMode;
-  distLine.visible = showSel && !!distLabel && (view === 'plan' || view === 'pers');
   renderer.setScissorTest(true);
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
@@ -916,7 +1053,13 @@ function renderView(view, rect, isMain){
     const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
     setShotCam(ci, iw/ih);
     renderer.setViewport(ix, H-iy-ih, iw, ih); renderer.setScissor(ix, H-iy-ih, iw, ih);
-    renderer.setClearColor(0x3b3f47); renderer.clear(); renderer.render(scene, shotCam);
+    renderer.setClearColor(0x3b3f47); renderer.clear();
+    // the tripod would be in its own shot once the camera is tilted down. Hidden
+    // for this one draw and put back immediately, so picking still finds it.
+    const self = itemObjs.get(ci.id)?.group, wasVisible = self?.visible;
+    if (self) self.visible = false;
+    renderer.render(scene, shotCam);
+    if (self) self.visible = wasVisible;
   } else {
     const cam = view==='plan'?planCam:view==='side'?sideCam:persCam;
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
@@ -946,15 +1089,19 @@ function frame(){
   if (!needRender) return; needRender = false;
   fitOrtho();
   renderView(mainView, mainRect(), true);
-  if (mainView !== 'cam') renderView('cam', pipRect(), false);
+  if (mainView !== 'cam' && pip.open) renderView('cam', pipRect(), false);
   renderer.setScissorTest(false);
   updateInfo();
 }
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
-  if (ci){ const eq = equiv(ci); t += `\n${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`; }
+  if (ci){
+    const eq = equiv(ci), many = cams().length > 1;          // the name only earns its place with more than one
+    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`;
+  }
   el.textContent = t;
+  document.getElementById('pipname').textContent = ci ? camName(ci) : 'カメラ';
   document.getElementById('pipinfo').textContent = ci ? `${ci.focal}mm ${ci.aspect}` : 'カメラ無し';
 }
 function equiv(ci){ const w = sensorW(ci); return Math.abs(w-36) < 0.01 ? null : Math.round(ci.focal*36/w); }
@@ -1055,43 +1202,96 @@ function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildC
 // ---------- view switching ----------
 function setMain(v){ if (v === mainView) return; mainView = v; planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); planCam.zoom = sideCam.zoom = 1; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); resetOrbit(); syncViewBtns(); layoutPip(); needRender = true; }
 function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
-document.querySelectorAll('#viewbtns button').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
+document.querySelectorAll('#viewbtns button[data-view]').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
+const pipCloseBtn = document.getElementById('pipclose'), pipBtn = document.getElementById('pipbtn');
+function setPipOpen(v){ pip.open = v; savePip(); layoutPip(); needRender = true; }
+pipCloseBtn.addEventListener('click', e => { e.stopPropagation(); setPipOpen(false); });
+pipCloseBtn.addEventListener('pointerdown', e => e.stopPropagation());   // the bar drags the window
+pipBtn.addEventListener('click', () => setPipOpen(!pip.open));
+const rulerBtn = document.getElementById('ruler');
+function setDims(v){
+  showDims = v; rulerBtn.classList.toggle('on', v);
+  try { localStorage.setItem('studio3d.dims', v ? '1' : '0'); } catch {}
+  needRender = true;
+}
+rulerBtn.addEventListener('click', () => setDims(!showDims));
+setDims(showDims);
 
 // ---------- UI: tabs ----------
 const tabs = document.querySelectorAll('#tabs button[data-tab]');
 let folded = false;
 try { const f = localStorage.getItem('studio3d.folded'); folded = f === null ? (innerWidth <= 760) : f === '1'; } catch { folded = innerWidth <= 760; }
-function setFolded(v){ folded = v; document.body.classList.toggle('folded', v); try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {} }
+const gearEl = document.getElementById('gear');
+function setFolded(v){
+  folded = v; document.body.classList.toggle('folded', v); gearEl.classList.toggle('on', !v);
+  try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {}
+}
 function showTab(name, open){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); if (open) setFolded(false); }
-tabs.forEach(b => b.addEventListener('click', () => { if (b.classList.contains('on') && !folded) setFolded(true); else showTab(b.dataset.tab, true); }));
-document.getElementById('fold').addEventListener('click', () => setFolded(!folded));
-document.getElementById('unfold').addEventListener('click', () => setFolded(false));
+tabs.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab, true)));
+gearEl.addEventListener('click', () => setFolded(!folded));
 setFolded(folded);
 
-// studio
-const presetEl = document.getElementById('preset');
-PRESETS.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; presetEl.appendChild(o); });
-presetEl.addEventListener('change', () => { const p = PRESETS.find(x => x.id === presetEl.value); if (p && p.w){ Object.assign(state.studio, {w:p.w,d:p.d,h:p.h,cove:{...p.cove}}); clampAll(); onStudioChange(); } });
-for (const k of ['w','d','h']){ const el = document.getElementById('s'+k); el.addEventListener('change', () => { const v = parseFloat(el.value); if (isFinite(v)){ state.studio[k] = clamp(v, 2, 40); presetEl.value = 'custom'; clampAll(); onStudioChange(); } }); }
-document.querySelectorAll('[data-cove]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cove; state.studio.cove[k] = !state.studio.cove[k]; onStudioChange(); }));
+// studio: the room is the first row of the list and edits like anything else
+const STUDIO = 'studio';
 function clampAll(){ for (const it of state.items) setPos(it, it.x, it.z); }
-function onStudioChange(){ buildStudio(); rebuildItems(); renderStudio(); needRender = true; saveHash(); }
-function renderStudio(){
-  const s = state.studio; document.getElementById('sw').value = s.w; document.getElementById('sd').value = s.d; document.getElementById('sh').value = s.h;
-  document.querySelectorAll('[data-cove]').forEach(b => b.classList.toggle('on', !!s.cove[b.dataset.cove]));
+function onStudioChange(){ buildStudio(); rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); }
+const dimBtn = (k, l, on) => `<button class="btn ${on?'on':''}" data-dim="${k}">${l}</button>`;
+function studioPanel(){
+  const s = state.studio;
   const same = (a,b) => !!a.back===!!b.back && !!a.left===!!b.left && !!a.right===!!b.right;
-  const p = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && x.cove && same(x.cove, s.cove)); presetEl.value = p ? p.id : 'custom';
+  const cur = PRESETS.find(x => x.w===s.w && x.d===s.d && x.h===s.h && x.cove && same(x.cove, s.cove));
+  const id = cur ? cur.id : 'custom';
+  let h = `<h2>スタジオ</h2><select id="preset">` +
+    PRESETS.map(p => `<option value="${p.id}"${p.id===id?' selected':''}>${esc(p.name)}</option>`).join('') + `</select>`;
+  h += `<div class="dims" style="margin-top:10px">
+          <label>幅 (m)<input type="number" id="sw" step="0.5" min="2" max="40" value="${s.w}"></label>
+          <label>奥行 (m)<input type="number" id="sd" step="0.5" min="2" max="40" value="${s.d}"></label>
+          <label>高さ (m)<input type="number" id="sh" step="0.5" min="2" max="15" value="${s.h}"></label>
+        </div>`;
+  h += `<h2>ホリゾント（R 壁）を付ける辺</h2><div class="row">` +
+    [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
+  h += `<p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>`;
+  h += `<h2>寸法</h2><div class="row">${dimBtn('studio', '寸法を出す', dimOn(state.studio))}</div>`;
+  h += `<p class="hint">出るのは幅・奥行・高さです。カメラからの距離はカメラの設定に、置いたものの寸法はそれぞれの設定にあります。図面の定規ボタンは全部まとめての開閉です。</p>`;
+  h += `<h2>見かた</h2><p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。選んだカメラの絵は小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>`;
+  return h;
+}
+function bindStudio(el){
+  const pre = el.querySelector('#preset');
+  pre.addEventListener('change', () => {
+    const p = PRESETS.find(x => x.id === pre.value);
+    if (p && p.w){ Object.assign(state.studio, {w:p.w, d:p.d, h:p.h, cove:{...p.cove}}); clampAll(); onStudioChange(); }
+  });
+  for (const k of ['w','d','h']){
+    const n = el.querySelector('#s' + k);
+    n.addEventListener('change', () => { const v = parseFloat(n.value); if (isFinite(v)){ state.studio[k] = clamp(v, 2, 40); clampAll(); onStudioChange(); } });
+  }
+  el.querySelectorAll('[data-cove]').forEach(b => b.addEventListener('click', () => {
+    state.studio.cove[b.dataset.cove] = !state.studio.cove[b.dataset.cove]; onStudioChange();
+  }));
+  el.querySelector('[data-dim]').addEventListener('click', () => {
+    state.studio.dim = !dimOn(state.studio);
+    buildDims(); renderSel(); needRender = true; saveHash();
+  });
 }
 
-// add
+// add: the choices live in a popup, so the panel can stay a list of what is placed
+const addpop = document.getElementById('addpop');
+function openAdd(){ if (!viewerMode) addpop.classList.add('on'); }
+function closeAdd(){ addpop.classList.remove('on'); }
+document.querySelectorAll('[data-openadd]').forEach(b => b.addEventListener('click', openAdd));
+document.getElementById('addclose').addEventListener('click', closeAdd);
+addpop.addEventListener('click', e => { if (e.target === addpop) closeAdd(); });   // tap outside
+addEventListener('keydown', e => { if (e.key === 'Escape') closeAdd(); });
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+  closeAdd();
   const p = b.dataset.person; addItem(b.dataset.add, p ? {body:PEOPLE[+p][1], height:PEOPLE[+p][2]} : null);
 }));
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
   if (type === 'person') it = {id, type, x:0, z:0, rot:0, body:opt?.body || 'm', height:opt?.height || 1.72, pose:'stand'};
-  else if (type === 'camera'){ if (camItem()){ toast('カメラは 1 台です'); select(camItem().id); return; } it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'3:2'}; }
+  else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
   else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
@@ -1108,7 +1308,9 @@ function addItem(type, opt){
     if (it.x > w/2 - 0.3){ it.x = -w/2 + 0.5; it.z += 0.8; if (it.z > d/2 - 0.3) break; }
   }
   setPos(it, it.x, it.z);
-  state.items.push(it); rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+  state.items.push(it);
+  if (type === 'camera') state.activeCam = id;                 // show what the new one sees
+  rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
 function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
 const personLabel = it => it.height < 1.40 ? (it.body === 'f' ? '女の子' : '男の子') : (it.body === 'f' ? '女性' : '男性');
@@ -1116,16 +1318,24 @@ const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stro
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
+  {                                              // the room itself, edited like anything else
+    const row = document.createElement('div'); row.className = 'itemrow'; row.dataset.kind = STUDIO;
+    const b = document.createElement('button'); b.classList.toggle('on', selectedId === STUDIO);
+    const s = state.studio;
+    b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span><small>${fmt(s.w)}×${fmt(s.d)}×高 ${fmt(s.h)} m</small>`;
+    b.addEventListener('click', () => select(STUDIO, true));
+    row.append(b); el.appendChild(row);
+  }
   const counts = {};
   for (const it of state.items){
     counts[it.type] = (counts[it.type]||0)+1;
-    const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : '');
+    const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : ''); row.dataset.kind = it.type;
     const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
-    const label = it.type==='camera' ? 'カメラ' : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
+    const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
     const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
     const sub = it.type==='person' ? `${fmt(it.height)} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
-      : it.type==='camera' ? `${it.focal}mm ${it.aspect}`
+      : it.type==='camera' ? `${it.focal}mm ${it.aspect}${it.id === state.activeCam ? '・表示中' : ''}`
       : it.type==='light' ? `高さ ${it.y} m`
       : it.type==='chroma' ? dims('w','h')
       : it.type==='car' ? `${{sedan:'セダン',wagon:'ワゴン',van:'バン',kei:'軽'}[it.kind]} ${dims('d','w')}`
@@ -1140,19 +1350,36 @@ function renderList(){
     eye.addEventListener('click', () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
     row.append(b, eye); el.appendChild(row);
   }
-  if (!state.items.length) el.innerHTML = '<p class="hint">まだ何も置いていません。</p>';
+  if (!state.items.length){
+    const p = document.createElement('p'); p.className = 'hint';
+    p.textContent = 'まだ何も置いていません。＋ から選んでください。';
+    el.appendChild(p);
+  }
 }
 
 // select
-// selecting on the canvas switches to the 選択中 tab but never unfolds the panel (that would shift the view mid-drag)
-function select(id, open=false){ selectedId = id; updateSelectionVisuals(); renderSel(); renderList(); if (id && !viewerMode) showTab('sel', open); needRender = true; }
+// the settings sit under the list, so selecting only has to show that tab;
+// tapping on the canvas never unfolds the panel (that would shift the view mid-drag)
+function select(id, open=false){
+  const it = state.items.find(i => i.id === id);
+  if (it?.type === 'camera') setActiveCam(id);
+  selectedId = id; updateSelectionVisuals(); renderSel(); renderList();
+  if (id && !viewerMode) showTab('list', open);
+  needRender = true;
+}
 function renderSel(){
-  const it = sel(); const el = document.getElementById('selbody');
-  if (!it){ el.innerHTML = '<p class="hint">図面のものをタップすると、ここで細かく変えられます。</p>'; return; }
+  const el = document.getElementById('selbody');
+  if (selectedId === STUDIO){ el.innerHTML = studioPanel(); bindStudio(el); return; }
+  const it = sel();
+  if (!it){
+    el.innerHTML = '<p class="hint">リストから選ぶか、図面のものをタップすると、ここで細かく変えられます。</p>'
+      + '<p class="hint">図面のものは指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。目のマークで一時的に隠せます。</p>';
+    return;
+  }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) => `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><span class="v">${fmt(val)} ${unit}</span></label>`;
   const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
-  let h = `<h2>${NAMES[it.type]}</h2>`;
+  let h = `<h2>${it.type === 'camera' ? camName(it) : NAMES[it.type]}</h2>`;
   if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
   if (it.type === 'person'){
     h += `<h2>体型</h2>` + btns('body', Object.entries(BODIES), it.body || 'm');
@@ -1178,6 +1405,14 @@ function renderSel(){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
     if (!here) h += `<p class="hint">このモデルの実体はこの端末にありません。実寸の箱で表示しています。</p>`;
+    else {
+      const info = modelInfo.get(it.key);
+      const note = textureNote(it.key);
+      if (note){
+        h += `<p class="hint" style="color:var(--accent-ink)">${esc(note)}</p>`;
+        h += `<p class="hint" style="font-size:.74rem">${esc(textureDetail(it.key))}</p>`;
+      } else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚を読み込みました。</p>`;
+    }
     h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
     h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} m ・ 奥行 ${fmt(+it.d.toFixed(2))} m。高さを入れると全体が合わせて拡大縮小します。</p>`;
     if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
@@ -1209,10 +1444,20 @@ function renderSel(){
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
     h += `<p class="hint">映り込みはカメラの小窓で確認できます。</p>`;
   }
-  h += `<h2>向きと位置</h2>` + range('rot','向き',0,359,1,it.rot,'°');
+  h += `<h2>寸法</h2><div class="row">${dimBtn('own', it.type === 'person' ? '身長を出す' : '寸法を出す', dimOn(it))}`
+    + (it.type === 'camera'
+        ? dimBtn('dimWall', '壁までの距離', dimOn(it, 'dimWall')) + dimBtn('dimSubject', '被写体までの距離', dimOn(it, 'dimSubject'))
+        : '') + `</div>`;
+  h += `<h2>向きと位置</h2>` + range('rot','向き',-180,180,1,rotShown(it),'°');
+  if (it.type === 'camera') h += `<p class="hint">0° で奥の壁のほうを向きます。</p>`;
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
+  el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
+    it[k] = !dimOn(it, k);
+    buildDims(); renderSel(); needRender = true; saveHash();
+  }));
   el.querySelectorAll('[data-num]').forEach(n => n.addEventListener('change', () => { setProp(it, n.dataset.num, n.value); }));
   el.querySelectorAll('[data-sensorpreset]').forEach(b => b.addEventListener('click', () => setProp(it, 'sensorW', savedSensors[+b.dataset.sensorpreset].w)));
   el.querySelectorAll('[data-sensordel]').forEach(b => b.addEventListener('click', () => { savedSensors.splice(+b.dataset.sensordel, 1); saveSensors(); renderSel(); needRender = true; }));
@@ -1230,14 +1475,32 @@ function renderSel(){
     r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.textContent.split(' ').pop()}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
   });
-  el.querySelector('[data-del]').addEventListener('click', () => {
-    state.items = state.items.filter(i => i !== it);
-    if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); idbDel(it.key); }
-    select(null); rebuildItems(); saveHash();
-  });
+  el.querySelector('[data-del]').addEventListener('click', () => deleteItem(it));
 }
+function deleteItem(it){
+  if (!it || viewerMode) return;
+  state.items = state.items.filter(i => i !== it);
+  if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
+  if (it.id === state.activeCam) state.activeCam = firstCamId(state);
+  select(null); rebuildItems(); layoutPip(); saveHash();
+}
+// Delete / Backspace removes what is selected, unless a field has the keyboard
+addEventListener('keydown', e => {
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  const t = e.target;
+  if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  const it = sel(); if (!it) return;
+  e.preventDefault(); deleteItem(it);
+});
+// A camera at 0 should face the back wall, the way a set is normally laid out.
+// Everything else keeps 0 = facing the front, so a person looks at the camera.
+// Only the dial is offset; what is stored stays one convention for the whole scene.
+const CAM_FACE = 180;
+const rotShown = it => it.type === 'camera' ? norm(it.rot - CAM_FACE) : it.rot;
+const rotStored = (it, v) => it.type === 'camera' ? norm(v + CAM_FACE) : v;
 function setProp(it, k, v, live=false){
   if (['height','y','w','d','h','rot','pitch','focal','drape','sensorW','seatH','targetH'].includes(k)) v = parseFloat(v);
+  if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
   if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
   else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
@@ -1263,38 +1526,231 @@ async function idbPut(key, val){ const db = await idb(); return new Promise((res
 async function idbGet(key){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
 
-// loaders are pulled in only when someone actually imports something
-async function parseModel(buf, ext){
-  if (ext === 'glb' || ext === 'gltf'){
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    return new Promise((res, rej) => new GLTFLoader().parse(buf, '', r => res(r.scene), rej));
+const MODEL_EXT = ['glb','gltf','fbx'];
+// what a "glTF Separate" or non-embedded FBX export drops next to the model file
+const ASSET_EXT = ['bin','png','jpg','jpeg','webp','ktx2','basis','bmp','gif','tga','dds','tif','tiff','hdr','exr'];
+const extOf = name => (String(name).split('.').pop() || '').toLowerCase();
+const baseOf = name => String(name).split(/[\\/]/).pop().toLowerCase();
+
+// The .bin and the texture images are handed to the loaders as blob URLs, so an
+// export folder works with no server behind it. Anything the loader asks for and
+// we do not have is recorded, so the user can be told which file is missing
+// instead of watching an untextured model appear.
+function assetURLs(assets){
+  const urls = new Map(), made = [], missing = new Set(), used = new Set(), failed = new Set();
+  for (const [name, buf] of Object.entries(assets || {})){
+    const u = URL.createObjectURL(new Blob([buf])); made.push(u); urls.set(baseOf(name), u);
   }
-  const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
-  return new FBXLoader().parse(buf, '');
+  const manager = new THREE.LoadingManager();
+  manager.onError = url => failed.add(/^([a-z]+):/i.test(url) ? url.split(':')[0] : 'その他');
+  manager.setURLModifier(url => {
+    if (/^(data|blob|https?):/i.test(url)) return url;
+    const name = baseOf(decodeURIComponent(url.split(/[?#]/)[0]));
+    const hit = urls.get(name);
+    if (hit){ used.add(name); return hit; }
+    missing.add(name);
+    return url;                                   // let it 404; the name is already recorded
+  });
+  return {manager, missing, used, failed, revoke: () => made.forEach(URL.revokeObjectURL)};
 }
+
+// the glTF JSON, so we only fetch a decoder when the file actually needs one
+function gltfJSON(buf, ext){
+  try {
+    const bytes = new Uint8Array(buf);
+    if (ext === 'glb' || String.fromCharCode(...bytes.subarray(0,4)) === 'glTF'){
+      const dv = new DataView(buf);
+      if (dv.getUint32(0, true) !== 0x46546C67) return null;
+      const len = dv.getUint32(12, true);
+      return JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + len)));
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch { return null; }
+}
+const DECODER_BASE = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/';
+let draco = null, ktx2 = null, meshopt = null;
+async function attachDecoders(loader, used){
+  if (used.has('KHR_draco_mesh_compression')){
+    if (!draco){
+      const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+      draco = new DRACOLoader().setDecoderPath(DECODER_BASE + 'libs/draco/gltf/');
+    }
+    loader.setDRACOLoader(draco);
+  }
+  if (used.has('KHR_texture_basisu')){
+    if (!ktx2){
+      const { KTX2Loader } = await import('three/addons/loaders/KTX2Loader.js');
+      ktx2 = new KTX2Loader().setTranscoderPath(DECODER_BASE + 'libs/basis/').detectSupport(renderer);
+    }
+    loader.setKTX2Loader(ktx2);
+  }
+  if (used.has('EXT_meshopt_compression')){
+    if (!meshopt) meshopt = (await import('three/addons/libs/meshopt_decoder.module.js')).MeshoptDecoder;
+    loader.setMeshoptDecoder(meshopt);
+  }
+}
+// loaders are pulled in only when someone actually imports something
+async function parseModel(buf, ext, assets){
+  const {manager, missing, used, failed, revoke} = assetURLs(assets);
+  try {
+    let obj, json = null;
+    if (ext === 'glb' || ext === 'gltf'){
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const loader = new GLTFLoader(manager);
+      // three reads embedded textures with ImageBitmapLoader, which fetch()es the
+      // blob: URL. Where fetch is shut but an <img> is not, read them that way
+      // instead of silently losing every texture in the file.
+      const cap = await imageCaps();
+      if (!cap.fetch && cap.blob) loader.register(parser => {
+        const tl = new THREE.TextureLoader(parser.options.manager);
+        tl.crossOrigin = undefined;                 // blob: and data: need no CORS check
+        parser.textureLoader = tl;
+        return {name:'STUDIO_texture_via_img'};
+      });
+      json = gltfJSON(buf, ext);
+      try { await attachDecoders(loader, new Set(json?.extensionsUsed || [])); }
+      catch(e){ console.warn('decoder setup failed', e); throw new Error('compressed'); }
+      obj = await new Promise((res, rej) => loader.parse(buf, '', r => res(r.scene), rej));
+    } else {
+      const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+      obj = new FBXLoader(manager).parse(buf, '');
+    }
+    await new Promise(r => setTimeout(r, 0));       // let queued texture loads settle
+    return {obj, json, missing:[...missing], used:[...used], failed:[...failed]};
+  } finally { setTimeout(revoke, 20000); }          // textures decode asynchronously
+}
+// how much of the model actually arrived, so the panel can say so plainly.
+// any texture-valued property counts: a fixed list of map names misses the rest.
+// the glTF side is counted too, so "no texture" and "the texture never reached
+// the material" can be told apart.
+function inspectModel(obj, json){
+  let meshes = 0; const maps = new Set(), kinds = new Set();
+  obj.traverse(n => {
+    if (!n.isMesh) return;
+    meshes++;
+    for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+      if (!m) continue;
+      kinds.add(m.type);
+      for (const k in m) if (m[k] && m[k].isTexture) maps.add(m[k].uuid);
+    }
+  });
+  return {meshes, textures:maps.size, kinds:[...kinds], ...gltfFacts(json),
+          images: json?.images?.length || 0, exts: json?.extensionsUsed || []};
+}
+// what the file itself claims, so "the exporter never linked them" can be told
+// apart from "the link is there but the image would not load"
+function gltfFacts(json){
+  if (!json) return {};
+  const imgs = json.images || [], mats = json.materials || [];
+  let prims = 0, noMat = 0;
+  for (const m of json.meshes || []) for (const p of m.primitives || []){ prims++; if (p.material === undefined) noMat++; }
+  let refs = 0;
+  const walk = o => { for (const k in o){ const v = o[k];
+    if (v && typeof v === 'object'){ if (/[Tt]exture$/.test(k) && v.index !== undefined) refs++; else walk(v); } } };
+  for (const m of mats) walk(m);
+  return {defs:(json.textures || []).length, mats:mats.length, prims, noMat, refs,
+          mimes:[...new Set(imgs.map(i => i.mimeType || (i.uri ? `外部 ${baseOf(i.uri)}` : '種類不明')))]};
+}
+// glTF hands a texture embedded in a GLB to three as a blob: URL, and a sandboxed
+// page does not always allow every way of reading one back. Measure it once with a
+// 1x1 PNG instead of guessing, and let the result pick the loader below.
+const PROBE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC';
+let caps = null;
+async function imageCaps(){
+  if (caps) return caps;
+  try {
+    const bytes = Uint8Array.from(atob(PROBE_PNG), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], {type:'image/png'});
+    const burl = URL.createObjectURL(blob);
+    const img = src => new Promise(r => { const i = new Image(); i.onload = () => r(true); i.onerror = () => r(false); i.src = src; });
+    const ok = p => p.then(() => true, () => false);
+    caps = {data: await img('data:image/png;base64,' + PROBE_PNG), blob: await img(burl),
+            fetch: await ok(fetch(burl)), bitmap: await ok(createImageBitmap(blob))};
+    URL.revokeObjectURL(burl);
+  } catch(e){ caps = {data:true, blob:true, fetch:true, bitmap:true, failed:true}; }
+  return caps;
+}
+const yn = v => v ? '可' : '不可';
+const capsText = c => c ? `data ${yn(c.data)}・blob ${yn(c.blob)}・fetch ${yn(c.fetch)}・bitmap ${yn(c.bitmap)}` : '';
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
+  const mains = [], sides = [];
   for (const f of files){
-    const ext = (f.name.split('.').pop() || '').toLowerCase();
-    if (!['glb','gltf','fbx'].includes(ext)){ toast(`${f.name} は GLB か FBX ではありません`); continue; }
+    const ext = extOf(f.name);
+    if (MODEL_EXT.includes(ext)) mains.push(f);
+    else if (ASSET_EXT.includes(ext)) sides.push(f);
+    else if (files.length === 1) toast(`${f.name} は読めない種類です`);
+  }
+  if (!mains.length){
+    toast(sides.length ? 'GLB / glTF / FBX の本体も一緒に選んでください' : 'GLB / glTF / FBX を選んでください');
+    return;
+  }
+  const assets = {};
+  let sideBytes = 0;
+  for (const f of sides){
+    if (sideBytes + f.size > 120*1024*1024){ toast('付属ファイルが多すぎるので一部を読みませんでした'); break; }
+    sideBytes += f.size;
+    assets[f.name] = await f.arrayBuffer();
+  }
+  const sliceAll = () => Object.fromEntries(Object.entries(assets).map(([k,v]) => [k, v.slice(0)]));
+  for (const f of mains){
     if (f.size > 60*1024*1024){ toast(`${f.name} は大きすぎます（60MB まで）`); continue; }
+    const ext = extOf(f.name);
     toast(`${f.name} を読み込み中`);
     try {
       const buf = await f.arrayBuffer();
-      const obj = await parseModel(buf.slice(0), ext);
+      const {obj, json, missing, used, failed} = await parseModel(buf.slice(0), ext, sliceAll());
       const raw = sizeOf(obj), max = Math.max(raw.x, raw.y, raw.z);
       if (!(max > 0)){ toast(`${f.name} に形がありません`); continue; }
       let scale = 1;                                  // glTF is metres by spec; FBX units vary
       if (ext === 'fbx'){ if (max > 5000) scale = 0.001; else if (max > 100) scale = 0.01; }
       const key = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       modelCache.set(key, obj);
-      await idbPut(key, {buf, ext, name:f.name}).catch(() => toast('この端末に保存できませんでした'));
+      const info = {...inspectModel(obj, json), missing, failed};
+      if (info.meshes && !info.textures && info.refs) info.probe = capsText(await imageCaps());
+      modelInfo.set(key, info);
+      // keep only the files this model actually asked for, not the whole dropped folder
+      const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
+      await idbPut(key, {buf, ext, name:f.name, assets:keep}).catch(() => toast('この端末に保存できませんでした'));
       addItem('model', {key, name:f.name, scale, upFix:false,
         w:+(raw.x*scale).toFixed(3), d:+(raw.z*scale).toFixed(3), h:+(raw.y*scale).toFixed(3)});
-      if (f.size > 15*1024*1024) toast(`${f.name} は重いのでスマホでは動きが鈍くなります`);
+      const note = textureNote(key);
+      if (note) toast(note);
+      else if (f.size > 15*1024*1024) toast(`${f.name} は重いのでスマホでは動きが鈍くなります`);
       else if (max*scale > 60 || max*scale < 0.02) toast('大きさが怪しいので「高さ」で直してください');
-    } catch(e){ console.warn('import failed', e); toast(`${f.name} を読めませんでした`); }
+    } catch(e){
+      console.warn('import failed', e);
+      toast(e?.message === 'compressed' ? `${f.name} は圧縮形式で、変換部品を取りに行けませんでした`
+        : ext === 'gltf' ? `${f.name} を読めませんでした。.bin とテクスチャも一緒に選んでください`
+        : `${f.name} を読めませんでした`);
+    }
   }
+}
+// three.js dropped spec/gloss in r155; files written that way arrive untextured
+const SPEC_GLOSS = 'KHR_materials_pbrSpecularGlossiness';
+// one line for the panel and the toast; null when the model came in whole
+function textureNote(key){
+  const info = modelInfo.get(key); if (!info) return null;
+  if (info.missing?.length) return `${info.missing.slice(0,3).join('・')} が見つかりません。一緒に選ぶかフォルダごとドラッグしてください`;
+  if (!info.meshes || info.textures) return null;
+  if (info.exts?.includes(SPEC_GLOSS)) return '古い形式（スペキュラ／グロス）のマテリアルなので three.js が読めません。メタリック／ラフネスで書き出し直してください';
+  if (info.noMat) return `${info.noMat} 個の面にマテリアルが割り当たっていません。書き出しの前にマテリアルを付け直してください`;
+  if (info.images && !info.refs) return `画像は ${info.images} 枚ありますが、マテリアルから参照されていません。書き出し設定でテクスチャがマテリアルに結び付いていない状態です`;
+  if (info.images) return `画像 ${info.images} 枚を読み込めませんでした（${(info.mimes||[]).join('・')}）`;
+  return 'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください';
+}
+// the raw facts, for when the note above is not enough to explain a file
+function textureDetail(key){
+  const i = modelInfo.get(key); if (!i) return '';
+  const bits = [`メッシュ ${i.meshes}`, `テクスチャ ${i.textures}`];
+  if (i.prims != null) bits.push(`面 ${i.prims}（材質未指定 ${i.noMat}）`);
+  if (i.images) bits.push(`画像 ${i.images}`, `テクスチャ定義 ${i.defs}`, `マテリアル ${i.mats}`, `参照 ${i.refs}`);
+  if (i.mimes?.length) bits.push(i.mimes.join('・'));
+  if (i.failed?.length) bits.push(`失敗 ${i.failed.join('・')}`);
+  if (i.probe) bits.push(i.probe);
+  if (i.kinds?.length) bits.push(i.kinds.join('・'));
+  if (i.exts?.length) bits.push(i.exts.join(' / '));
+  return bits.join('　');
 }
 async function restoreModels(){
   const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
@@ -1303,16 +1759,43 @@ async function restoreModels(){
     if (modelCache.has(key)) continue;
     try {
       const rec = await idbGet(key); if (!rec) continue;
-      modelCache.set(key, await parseModel(rec.buf.slice(0), rec.ext)); any = true;
+      const assets = Object.fromEntries(Object.entries(rec.assets || {}).map(([k,v]) => [k, v.slice(0)]));
+      const {obj, json, missing, failed} = await parseModel(rec.buf.slice(0), rec.ext, assets);
+      modelCache.set(key, obj); modelInfo.set(key, {...inspectModel(obj, json), missing, failed}); any = true;
     } catch(e){ console.warn('model restore failed', e); }
   }
   if (any){ rebuildItems(); renderList(); renderSel(); needRender = true; }
 }
+// a dropped folder (the shape C4D and Blender write) is walked for its files
+async function filesFromDrop(dt){
+  const entries = [...(dt.items || [])].map(i => i.webkitGetAsEntry?.()).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const out = [];
+  const walk = async e => {
+    if (out.length > 400) return;
+    if (e.isFile) out.push(await new Promise((res, rej) => e.file(res, rej)));
+    else if (e.isDirectory){
+      const rd = e.createReader();
+      for (;;){
+        const batch = await new Promise((res, rej) => rd.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c);
+      }
+    }
+  };
+  for (const e of entries) await walk(e).catch(() => {});
+  return out;
+}
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
-document.getElementById('file').addEventListener('change', e => { if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
+document.getElementById('file').addEventListener('change', e => { closeAdd(); if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
 for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
 for (const ev of ['dragleave','drop']) viewEl.addEventListener(ev, e => { e.preventDefault(); viewEl.classList.remove('drop'); });
-viewEl.addEventListener('drop', e => { if (!viewerMode && e.dataTransfer?.files?.length) importFiles([...e.dataTransfer.files]); });
+viewEl.addEventListener('drop', e => {
+  if (viewerMode || !e.dataTransfer) return;
+  const dt = e.dataTransfer;
+  if (!dt.items?.length && !dt.files?.length) return;
+  filesFromDrop(dt).then(fs => { if (fs.length) importFiles(fs); });
+});
 
 // ---------- share ----------
 function b64u(bytes){ let s=''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
@@ -1346,16 +1829,42 @@ async function copyLink(viewOnly){
 }
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
-document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; select(null); buildStudio(); rebuildItems(); renderStudio(); saveHash(); } });
+document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; select(null); buildStudio(); rebuildItems(); renderList(); saveHash(); } });
 document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); if (mainView === 'cam') setMain('plan'); resize(); saveHash(); });
 
 // png
+// Printed at A4 a screen-sized shot is mush, so this renders at twice the pixels.
+// The numbers are HTML on screen and would be missing from the image, so they are
+// painted onto a copy of the canvas here.
+const PNG_SCALE = 2;
+function pill(ctx, x, y, w, h, r){
+  if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); return; }
+  ctx.fillRect(x, y, w, h);
+}
 function capture(view, name){
-  const prevMain = mainView; mainView = view; fitOrtho();
-  renderView(view, mainRect(), false); renderer.setScissorTest(false);
-  const url = canvas.toDataURL('image/png');
-  mainView = prevMain; needRender = true;
-  const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = name;
+  const prevMain = mainView, pr = renderer.getPixelRatio();
+  mainView = view;
+  renderer.setPixelRatio(pr * PNG_SCALE);
+  fitOrtho();
+  renderView(view, mainRect(), true);                 // isMain draws the dimensions
+  renderer.setScissorTest(false);
+  const out = document.createElement('canvas');
+  out.width = canvas.width; out.height = canvas.height;
+  const ctx = out.getContext('2d');
+  ctx.drawImage(canvas, 0, 0);
+  const k = out.width / Math.max(1, W);               // image pixels per CSS pixel
+  ctx.font = `600 ${Math.round(12*k)}px "IBM Plex Mono", ui-monospace, monospace`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  for (const L of labelPositions(view, mainCam(), mainRect(), false)){
+    const x = L.x*k, y = L.y*k, tw = ctx.measureText(L.text).width, h = 21*k;
+    ctx.fillStyle = L.cls === 'dist' ? 'rgba(180,101,24,.95)' : 'rgba(20,22,26,.88)';
+    pill(ctx, x - tw/2 - 7*k, y - h/2, tw + 14*k, h, 5*k);
+    ctx.fillStyle = L.cls === 'dim' ? '#ffd9a8' : '#ffffff';
+    ctx.fillText(L.text, x, y);
+  }
+  const url = out.toDataURL('image/png');
+  renderer.setPixelRatio(pr); mainView = prevMain; resize();
+  const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = `${name}（${out.width} × ${out.height} px）`;
   document.getElementById('shotdl').href = url; s.classList.add('show');
 }
 document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));
@@ -1365,66 +1874,76 @@ document.getElementById('shotclose').addEventListener('click', () => document.ge
 let toastT; function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
 
 // ---------- PDF sheet ----------
-// Japanese needs real fonts, so the sheet is HTML laid out in mm and handed to the browser's
-// own print-to-PDF; a jsPDF build would have to embed a multi-MB CJK font to match this.
+// Japanese needs real fonts, so the sheet is HTML laid out in mm and handed to the
+// browser's own print-to-PDF. jsPDF would have to embed a multi-MB CJK font to match.
+// The dimension labels stay HTML on top of each image, so they print as text.
 let orient = 'landscape';
 try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
 const paperEl = document.getElementById('paper'), paperModal = document.getElementById('papermodal');
 const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
 
-// render one view at print resolution and return its dimension labels as percentages
+// render one view off-screen at print resolution and return its labels as percentages
 function captureView(view, cw, ch){
   const oW = W, oH = H, oMain = mainView;
   capturing = true; mainView = view;
+  // scene.background is painted by render() over any clear colour, so the light
+  // paper surround has to be swapped in here. The finder keeps the app's dark void.
+  const oBg = scene.background;
+  if (view !== 'cam') scene.background = new THREE.Color(0xdfe2e7);
   renderer.setSize(cw, ch, false); W = cw; H = ch;
   persCam.aspect = cw / ch; persCam.updateProjectionMatrix();   // layoutPip only knows the screen aspect
   fitOrtho();
   const rect = {x:0, y:0, w:cw, h:ch};
-  renderView(view, rect, false); renderer.setScissorTest(false);
+  renderView(view, rect, true);                                 // isMain so the dimension ribbons draw
+  renderer.setScissorTest(false);
   const url = canvas.toDataURL('image/png');
   const cam = view==='plan' ? planCam : view==='side' ? sideCam : view==='pers' ? persCam : shotCam;
   const labs = labelPositions(view, cam, rect, false).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
-  capturing = false; mainView = oMain; W = oW; H = oH;
+  capturing = false; scene.background = oBg; mainView = oMain; W = oW; H = oH;
   renderer.setSize(oW, oH, false); layoutPip(); fitOrtho(); needRender = true;
   return {url, labels:labs};
 }
-const row = (k, v) => `<div class="prow"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+const prow = (k, v) => `<div class="prow"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
 function cameraRows(){
   const ci = camItem();
-  if (!ci) return row('カメラ', '未配置');
-  const eq = equiv(ci), s = state.studio;
-  let h = row('センサー', `${sensorName(ci)}  ${sensorW(ci)} mm`);
-  h += row('レンズ', `${ci.focal} mm${eq ? `（35mm換算 ${eq} mm）` : ''}`);
-  h += row('画面比率', ci.aspect);
-  h += row('水平画角', `${(THREE.MathUtils.radToDeg(hfov(ci))).toFixed(1)}°`);
-  h += row('カメラ高さ', `${ci.y.toFixed(2)} m`);
-  h += row('上下の向き', `${ci.pitch}°`);
-  h += row('パン', `${ci.rot}°`);
-  h += row('立ち位置', `中央から 左右 ${ci.x >= 0 ? '+' : ''}${ci.x.toFixed(2)} m / 前後 ${ci.z >= 0 ? '+' : ''}${ci.z.toFixed(2)} m`);
+  if (!ci) return prow('カメラ', '未配置');
+  const eq = equiv(ci);
+  let h = prow('センサー', `${sensorName(ci)}  ${sensorW(ci)} mm`);
+  h += prow('レンズ', `${ci.focal} mm${eq ? `（35mm換算 ${eq} mm）` : ''}`);
+  h += prow('画面比率', ci.aspect);
+  h += prow('水平画角', `${THREE.MathUtils.radToDeg(hfov(ci)).toFixed(1)}°`);
+  h += prow('カメラ高さ', `${ci.y.toFixed(2)} m`);
+  h += prow('上下の向き', `${ci.pitch}°`);
+  h += prow('パン', `${rotShown(ci)}°（0° で奥）`);
+  h += prow('立ち位置', `左右 ${ci.x >= 0 ? '+' : ''}${ci.x.toFixed(2)} / 前後 ${ci.z >= 0 ? '+' : ''}${ci.z.toFixed(2)} m`);
+  const back = state.studio.d/2 + ci.z;
+  h += prow('奥壁まで', `${back.toFixed(2)} m`);
   const people = state.items.filter(i => i.type === 'person' && !i.hidden);
   if (people.length){
-    const d = people.map(p => Math.hypot(p.x - ci.x, p.z - ci.z)).sort((a,b) => a-b)[0];
-    h += row('最寄りの被写体まで', `${d.toFixed(2)} m`);
+    const d = Math.min(...people.map(p => Math.hypot(p.x - ci.x, p.z - ci.z)));
+    h += prow('最寄りの被写体まで', `${d.toFixed(2)} m`);
   }
+  const others = cams().filter(c => c !== ci);
+  if (others.length) h += prow('他のカメラ', others.map(c => `${camName(c)} ${c.focal}mm`).join('、'));
   return h;
 }
 function studioRows(){
   const s = state.studio, cv = s.cove;
   const edges = [cv.back && '奥', cv.left && '左', cv.right && '右'].filter(Boolean);
-  let h = row('スタジオ', `幅 ${fmt(s.w)} × 奥行 ${fmt(s.d)} × 高 ${fmt(s.h)} m`);
-  h += row('ホリゾント', edges.length ? edges.join('・') : 'なし');
+  let h = prow('スタジオ', `幅 ${fmt(s.w)} × 奥行 ${fmt(s.d)} × 高 ${fmt(s.h)} m`);
+  h += prow('ホリゾント', edges.length ? edges.join('・') : 'なし');
   const people = state.items.filter(i => i.type === 'person' && !i.hidden);
-  if (people.length) h += row('人物', people.map(p => `${personLabel(p)} ${fmt(p.height)}m`).join('、'));
+  if (people.length) h += prow('人物', people.map(p => `${personLabel(p)} ${fmt(p.height)}m`).join('、'));
   const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','chroma','mirror'].includes(i.type));
-  if (props.length) h += row('小道具・背景', props.map(p => NAMES[p.type]).filter((v,i,a) => a.indexOf(v) === i).join('、'));
+  if (props.length) h += prow('小道具・背景', [...new Set(props.map(p => NAMES[p.type]))].join('、'));
   const lights = state.items.filter(i => i.type === 'light' && !i.hidden);
-  if (lights.length) h += row('ライト', `${lights.length} 灯`);
+  if (lights.length) h += prow('ライト', `${lights.length} 灯`);
   return h;
 }
 function buildSheet(){
-  const land = orient === 'landscape', m = state.meta;
+  const land = orient === 'landscape', m = state.meta, ci = camItem();
   const [cw, ch] = land ? [1092, 1038] : [1140, 852];   // 12 px/mm at the panel size, about 300 dpi
-  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam','ファインダー']]
+  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam', ci ? `ファインダー（${camName(ci)}）` : 'ファインダー']]
     .map(([v, name]) => ({name, ...captureView(v, cw, ch)}));
   const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
   const panels = shots.map(sh => `<div class="pv"><img src="${sh.url}" alt="${esc(sh.name)}">` +
@@ -1440,7 +1959,7 @@ function buildSheet(){
      <div class="pbody">
        <div class="pviews">${panels}</div>
        <div class="pside">
-         <div class="pbox"><h4>カメラ情報</h4><div class="inner">${cameraRows()}</div></div>
+         <div class="pbox"><h4>${esc(ci ? camName(ci) : 'カメラ')}</h4><div class="inner">${cameraRows()}</div></div>
          <div class="pbox"><h4>スタジオ・被写体</h4><div class="inner">${studioRows()}</div></div>
          <div class="pbox pmemo"><h4>メモ</h4><div class="inner">${esc(m.memo || '')}</div></div>
        </div>
@@ -1450,8 +1969,7 @@ function buildSheet(){
 }
 function fitPaper(){
   const box = paperEl.parentElement.getBoundingClientRect();
-  const pw = orient === 'landscape' ? 297 : 210, mmPx = paperEl.offsetWidth / pw;
-  const k = Math.min(1, (box.width - 24) / (pw * mmPx));
+  const k = Math.min(1, (box.width - 24) / Math.max(1, paperEl.offsetWidth));
   paperEl.style.transform = `scale(${k.toFixed(3)})`;
   paperEl.parentElement.style.height = k < 1 ? `${paperEl.offsetHeight * k + 40}px` : '';
 }
@@ -1488,7 +2006,7 @@ addEventListener('resize', () => { if (paperModal.classList.contains('show')) fi
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; syncViewBtns(); }
-  buildStudio(); rebuildItems(); renderStudio(); renderList(); renderSel(); renderMeta();
+  buildStudio(); rebuildItems(); renderList(); renderSel(); renderMeta();
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;
   frame();
