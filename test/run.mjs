@@ -222,6 +222,50 @@ await r.ctx.close();
   await g.ctx.close();
 }
 
+// PDF sheet: fill the header fields, build the sheet, check both orientations
+{
+  const g = await run('pdf', { width: 1500, height: 950 }, false);
+  await g.page.click('[data-tab="share"]');
+  await g.page.fill('#m-project', 'コスモ石油 CM 30秒');
+  await g.page.fill('#m-cut', 'C-12');
+  await g.page.fill('#m-memo', '演者は白ホリ手前 2m。\nレフ板は下手から。');
+  await g.page.click('#makepdf');
+  await g.page.waitForTimeout(2500);
+  console.log('paper shown:', await g.page.$eval('#papermodal', e => e.classList.contains('show')));
+  console.log('panels:', await g.page.$$eval('#paper .pv img', n => n.length));
+  console.log('labels on sheet:', await g.page.$$eval('#paper .pv .lb', n => n.length));
+  console.log('page rule:', await g.page.$eval('#paper', () => [...document.styleSheets].map(x => { try { return [...x.cssRules].map(r => r.cssText).filter(t => t.startsWith('@page')).join('') } catch { return '' } }).join('')));
+  console.log('sheet text:', (await g.page.$eval('#paper .ph', e => e.innerText)).replace(/\n/g, ' | '));
+  await g.page.screenshot({ path: `${OUT}/pdf-landscape.png`, fullPage: false });
+  await g.page.click('#paperclose');
+  await g.page.click('[data-orient="portrait"]');
+  await g.page.click('#makepdf');
+  await g.page.waitForTimeout(2500);
+  console.log('portrait class:', await g.page.$eval('#paper', e => e.className));
+  await g.page.screenshot({ path: `${OUT}/pdf-portrait.png`, fullPage: false });
+  // the live view must survive the off-screen capture passes
+  await g.page.click('#paperclose'); await g.page.waitForTimeout(600);
+  await g.page.screenshot({ path: `${OUT}/pdf-after.png` });
+  // the real proof: let Chromium make the PDF and check it is exactly one page
+  const openShare = async () => {
+    if (!await g.page.$eval('[data-tab="share"]', b => b.classList.contains('on'))) await g.page.click('[data-tab="share"]');
+    await g.page.evaluate(() => document.body.classList.remove('folded'));
+  };
+  for (const o of ['landscape','portrait']){
+    await openShare();
+    await g.page.click(`[data-orient="${o}"]`);
+    await g.page.click('#makepdf');
+    await g.page.waitForTimeout(2000);
+    const buf = await g.page.pdf({ preferCSSPageSize: true, printBackground: true });
+    const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+    fs.writeFileSync(`${OUT}/sheet-${o}.pdf`, buf);
+    console.log(`${o}: ${pages} page(s), ${(buf.length/1024).toFixed(0)} KB`);
+    await g.page.click('#paperclose');
+  }
+  console.log('pdf errors:', g.errors);
+  await g.ctx.close();
+}
+
 // viewer mode
 r = await run('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
 console.log('viewer errors:', r.errors);

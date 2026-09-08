@@ -108,6 +108,62 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 body.viewer #panel{display:none}
 body.viewer #app{grid-template-columns:1fr}
 body.viewer #viewerbar{display:block}
+label.f2{display:block;margin:8px 0;font-size:.85rem;color:var(--ink2)}
+label.f2 span{display:block;margin-bottom:4px}
+label.f2 input,label.f2 textarea{width:100%;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;padding:8px 10px}
+label.f2 input{height:40px}
+label.f2 textarea{resize:vertical;line-height:1.5}
+/* --- paper preview ------------------------------------------------------------------ */
+#papermodal{position:fixed;inset:0;z-index:30;background:#3a3d44;display:none;flex-direction:column}
+#papermodal.show{display:flex}
+.pmbar{flex:none;display:flex;gap:10px;align-items:center;padding:10px 14px;background:#22252c;border-bottom:1px solid #000}
+.pmbar .btn{flex:0 0 auto;min-height:40px}
+.pmhint{color:#c8ccd4;font-size:.82rem}
+.pmscroll{flex:1;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
+#paper{background:#fff;color:#15171b;box-shadow:0 6px 30px rgba(0,0,0,.5);transform-origin:top center;
+  font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;padding:8mm;display:flex;flex-direction:column}
+#paper.landscape{width:297mm;height:210mm}
+#paper.portrait{width:210mm;height:297mm}
+#paper *{box-sizing:border-box}
+.ph{flex:none;display:flex;align-items:flex-end;gap:8mm;border-bottom:1.2pt solid #15171b;padding-bottom:2.5mm}
+.ph .pj{font-size:15pt;font-weight:700;line-height:1.2;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph .pj em{display:block;font-style:normal;font-size:7pt;font-weight:500;color:#6b7280;letter-spacing:.1em}
+.ph .cut{font-size:13pt;font-weight:700;border:1.2pt solid #15171b;padding:1mm 3mm;white-space:nowrap}
+.ph .meta{text-align:right;font-size:7.5pt;color:#4b5563;line-height:1.6;white-space:nowrap}
+.pbody{flex:1;display:flex;gap:5mm;min-height:0;padding-top:3mm}
+#paper.portrait .pbody{flex-direction:column;gap:3mm}
+.pviews{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+#paper.landscape .pviews{flex:0 0 186mm}
+#paper.portrait .pviews{flex:0 0 146mm}
+.pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden}
+.pv img{width:100%;height:100%;object-fit:cover;display:block}
+.pv .cap{position:absolute;left:0;top:0;background:#15171b;color:#fff;font-size:7pt;font-weight:700;padding:.6mm 2mm;letter-spacing:.06em}
+.pv .lb{position:absolute;transform:translate(-50%,-50%);font-size:6.5pt;font-weight:700;background:rgba(255,255,255,.9);
+  color:#15171b;border:.4pt solid #6b7280;padding:0 1mm;white-space:nowrap;border-radius:.6mm}
+.pv .lb.dim{border-color:#b45309;color:#92400e}
+.pv .lb.dist{background:#c2711f;border-color:#8f5010;color:#fff}
+.pside{flex:1;display:flex;flex-direction:column;gap:3mm;min-width:0}
+#paper.portrait .pside{flex:1;flex-direction:row;gap:4mm}
+.pbox{border:.8pt solid #9ca3af;display:flex;flex-direction:column;min-height:0}
+.pbox>h4{margin:0;font-size:7pt;font-weight:700;letter-spacing:.1em;background:#e5e7eb;color:#374151;padding:1mm 2mm;border-bottom:.4pt solid #9ca3af}
+.pbox .inner{padding:1.5mm 2mm;font-size:8pt;line-height:1.55}
+.prow{display:flex;justify-content:space-between;gap:3mm;border-bottom:.3pt dotted #b6bcc6;padding:.5mm 0}
+.prow:last-child{border-bottom:0}
+.prow .k{color:#6b7280;white-space:nowrap}
+.prow .v{font-weight:700;text-align:right}
+.pmemo{flex:1;min-height:18mm}
+.pmemo .inner{flex:1;white-space:pre-wrap;font-size:8pt;line-height:2.1;
+  background-image:repeating-linear-gradient(#fff 0 calc(2.1em - .3pt), #dfe3e9 calc(2.1em - .3pt) 2.1em)}
+.pfoot{flex:none;padding-top:1.5mm;font-size:6.5pt;color:#9ca3af;display:flex;justify-content:space-between}
+@media print{
+  html,body{overflow:visible !important;height:auto !important;background:#fff !important}
+  #app,#shot,.pmbar{display:none !important}
+  #papermodal{position:static !important;display:block !important;background:#fff !important}
+  .pmscroll{overflow:visible !important;padding:0 !important;display:block !important}
+  #paper{transform:none !important;box-shadow:none !important;margin:0 !important;padding:0 !important;width:auto !important;height:auto !important}
+  #paper.landscape{height:194mm !important}
+  #paper.portrait{height:281mm !important}
+}
 @media (max-width:760px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
@@ -180,6 +236,14 @@ body.viewer #viewerbar{display:block}
         <p class="hint">このリンクを開くと、アプリ無しで同じ配置がそのまま見られます。</p>
         <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
         <input type="text" id="linkbox" readonly>
+        <h2>PDF にする</h2>
+        <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
+        <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
+        <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
+        <h2>用紙の向き</h2>
+        <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
+        <div class="row"><button class="btn primary" id="makepdf">図面を作る</button></div>
+        <p class="hint">上面・側面・パース・ファインダーの 4 面とカメラ情報が 1 枚に入ります。表示された用紙を確認してから PDF にしてください。</p>
         <h2>画像で共有</h2>
         <div class="row"><button class="btn" id="png-plan">図面を画像に</button><button class="btn" id="png-cam">カメラの絵を画像に</button></div>
         <p class="hint">スマホでは表示された画像を長押しして保存できます。</p>
@@ -202,6 +266,14 @@ body.viewer #viewerbar{display:block}
     <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
+</div>
+<div id="papermodal">
+  <div class="pmbar">
+    <button class="btn primary" id="doprint">PDF にする</button>
+    <button class="btn" id="paperclose">閉じる</button>
+    <span class="pmhint">印刷画面で「送信先」を <b>PDF に保存</b> にしてください</span>
+  </div>
+  <div class="pmscroll"><div id="paper"></div></div>
 </div>
 <div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><a class="btn" id="shotdl" download="studio.png">保存</a><button class="btn" id="shotclose">閉じる</button></div></div>
 
@@ -241,6 +313,8 @@ function sensorName(it){
   const s = savedSensors.find(s => Math.abs(s.w - sensorW(it)) < 0.01);
   return s ? s.name : `センサー ${sensorW(it)}mm`;
 }
+// horizontal angle of view: wide aspects use the full sensor width, tall ones crop into it
+function hfov(it){ const sw = sensorW(it), ar = ASPECTS[it.aspect]; return 2*Math.atan((ar >= 1 ? sw : sw*ar)/2/it.focal); }
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const norm = a => ((a % 360) + 360) % 360;
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
@@ -252,13 +326,15 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[
+  return {meta:{project:'', cut:'', memo:''}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'3:2'},
   ]};
 }
 function migrate(st){
   if (typeof st.studio.cove !== 'object' || !st.studio.cove) st.studio.cove = {back:!!st.studio.cove, left:false, right:false};
+  if (!st.meta || typeof st.meta !== 'object') st.meta = {project:'', cut:'', memo:''};
+  for (const k of ['project','cut','memo']) if (typeof st.meta[k] !== 'string') st.meta[k] = '';
   for (const it of st.items){
     if (it.type === 'camera'){
       if (it.sensor === 'apsc'){ it.sensor = 'custom'; it.sensorW = 23.5; }   // links made before the format list
@@ -435,20 +511,24 @@ function itemLabels(view){
   }
   return out;
 }
-function drawLabels(view, cam, rect){
-  if (view === 'cam'){ labelsEl.innerHTML = ''; return; }
+function labelPositions(view, cam, rect, avoidPip){
+  const out = [];
+  if (view === 'cam') return out;
   const all = labels.concat(itemLabels(view)); if (distLabel) all.push(distLabel);
-  let html = ''; const placed = [];
+  const placed = [];
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x = rect.x + (v.x+1)/2*rect.w, y = rect.y + (1-v.y)/2*rect.h;
-    if (x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
-    if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                   // drop labels that would sit on top of each other
-    placed.push({x, y});
-    html += `<span class="${L.cls}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px">${L.text}</span>`;
+    if (avoidPip && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (placed.some(p => Math.abs(p.x - x) < 72 && Math.abs(p.y - y) < 15)) continue;                               // drop labels that would sit on top of each other
+    placed.push({x, y}); out.push({x, y, text:L.text, cls:L.cls});
   }
-  labelsEl.innerHTML = html;
+  return out;
+}
+function drawLabels(view, cam, rect){
+  labelsEl.innerHTML = labelPositions(view, cam, rect, true)
+    .map(L => `<span class="${L.cls}" style="left:${L.x.toFixed(0)}px;top:${L.y.toFixed(0)}px">${L.text}</span>`).join('');
 }
 
 // ---------- item meshes ----------
@@ -830,7 +910,7 @@ function renderView(view, rect, isMain){
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
     renderer.setClearColor(0x111214); renderer.clear();
-    if (isMain) drawLabels(view, shotCam, rect);
+    if (isMain && !capturing) drawLabels(view, shotCam, rect);
     if (!ci) return;
     const ar = ASPECTS[ci.aspect]; let iw = rect.w, ih = rect.w/ar; if (ih > rect.h){ ih = rect.h; iw = rect.h*ar; }
     const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
@@ -840,9 +920,9 @@ function renderView(view, rect, isMain){
   } else {
     const cam = view==='plan'?planCam:view==='side'?sideCam:persCam;
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
-    renderer.setClearColor(view==='plan'?0x2a2d34:0x30343b); renderer.clear();
+    renderer.setClearColor(capturing ? 0xdfe2e7 : view==='plan'?0x2a2d34:0x30343b); renderer.clear();  // paper wants a light surround, not the app's dark one
     renderer.render(scene, cam);
-    if (isMain) drawLabels(view, cam, rect);
+    if (isMain && !capturing) drawLabels(view, cam, rect);
   }
 }
 function mainCam(){ return mainView==='plan'?planCam:mainView==='side'?sideCam:mainView==='pers'?persCam:shotCam; }
@@ -859,6 +939,7 @@ function applyWallVisibility(view){
     n.material.opacity = fade ? 0.22 : 1; n.material.depthWrite = !fade;
   }
 }
+let capturing = false;   // true while rendering frames destined for the printed sheet
 let needRender = true;
 function frame(){
   requestAnimationFrame(frame);
@@ -1283,12 +1364,131 @@ document.getElementById('shotclose').addEventListener('click', () => document.ge
 
 let toastT; function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
 
+// ---------- PDF sheet ----------
+// Japanese needs real fonts, so the sheet is HTML laid out in mm and handed to the browser's
+// own print-to-PDF; a jsPDF build would have to embed a multi-MB CJK font to match this.
+let orient = 'landscape';
+try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
+const paperEl = document.getElementById('paper'), paperModal = document.getElementById('papermodal');
+const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
+
+// render one view at print resolution and return its dimension labels as percentages
+function captureView(view, cw, ch){
+  const oW = W, oH = H, oMain = mainView;
+  capturing = true; mainView = view;
+  renderer.setSize(cw, ch, false); W = cw; H = ch;
+  persCam.aspect = cw / ch; persCam.updateProjectionMatrix();   // layoutPip only knows the screen aspect
+  fitOrtho();
+  const rect = {x:0, y:0, w:cw, h:ch};
+  renderView(view, rect, false); renderer.setScissorTest(false);
+  const url = canvas.toDataURL('image/png');
+  const cam = view==='plan' ? planCam : view==='side' ? sideCam : view==='pers' ? persCam : shotCam;
+  const labs = labelPositions(view, cam, rect, false).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
+  capturing = false; mainView = oMain; W = oW; H = oH;
+  renderer.setSize(oW, oH, false); layoutPip(); fitOrtho(); needRender = true;
+  return {url, labels:labs};
+}
+const row = (k, v) => `<div class="prow"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+function cameraRows(){
+  const ci = camItem();
+  if (!ci) return row('カメラ', '未配置');
+  const eq = equiv(ci), s = state.studio;
+  let h = row('センサー', `${sensorName(ci)}  ${sensorW(ci)} mm`);
+  h += row('レンズ', `${ci.focal} mm${eq ? `（35mm換算 ${eq} mm）` : ''}`);
+  h += row('画面比率', ci.aspect);
+  h += row('水平画角', `${(THREE.MathUtils.radToDeg(hfov(ci))).toFixed(1)}°`);
+  h += row('カメラ高さ', `${ci.y.toFixed(2)} m`);
+  h += row('上下の向き', `${ci.pitch}°`);
+  h += row('パン', `${ci.rot}°`);
+  h += row('立ち位置', `中央から 左右 ${ci.x >= 0 ? '+' : ''}${ci.x.toFixed(2)} m / 前後 ${ci.z >= 0 ? '+' : ''}${ci.z.toFixed(2)} m`);
+  const people = state.items.filter(i => i.type === 'person' && !i.hidden);
+  if (people.length){
+    const d = people.map(p => Math.hypot(p.x - ci.x, p.z - ci.z)).sort((a,b) => a-b)[0];
+    h += row('最寄りの被写体まで', `${d.toFixed(2)} m`);
+  }
+  return h;
+}
+function studioRows(){
+  const s = state.studio, cv = s.cove;
+  const edges = [cv.back && '奥', cv.left && '左', cv.right && '右'].filter(Boolean);
+  let h = row('スタジオ', `幅 ${fmt(s.w)} × 奥行 ${fmt(s.d)} × 高 ${fmt(s.h)} m`);
+  h += row('ホリゾント', edges.length ? edges.join('・') : 'なし');
+  const people = state.items.filter(i => i.type === 'person' && !i.hidden);
+  if (people.length) h += row('人物', people.map(p => `${personLabel(p)} ${fmt(p.height)}m`).join('、'));
+  const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','chroma','mirror'].includes(i.type));
+  if (props.length) h += row('小道具・背景', props.map(p => NAMES[p.type]).filter((v,i,a) => a.indexOf(v) === i).join('、'));
+  const lights = state.items.filter(i => i.type === 'light' && !i.hidden);
+  if (lights.length) h += row('ライト', `${lights.length} 灯`);
+  return h;
+}
+function buildSheet(){
+  const land = orient === 'landscape', m = state.meta;
+  const [cw, ch] = land ? [1092, 1038] : [1140, 852];   // 12 px/mm at the panel size, about 300 dpi
+  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam','ファインダー']]
+    .map(([v, name]) => ({name, ...captureView(v, cw, ch)}));
+  const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+  const panels = shots.map(sh => `<div class="pv"><img src="${sh.url}" alt="${esc(sh.name)}">` +
+    sh.labels.map(L => `<span class="lb ${L.cls}" style="left:${L.x.toFixed(2)}%;top:${L.y.toFixed(2)}%">${L.text}</span>`).join('') +
+    `<span class="cap">${esc(sh.name)}</span></div>`).join('');
+  paperEl.className = orient;
+  paperEl.innerHTML =
+    `<div class="ph">
+       <div class="pj"><em>PROJECT</em>${esc(m.project || '案件名未入力')}</div>
+       ${m.cut ? `<div class="cut">${esc(m.cut)}</div>` : ''}
+       <div class="meta">出力 ${esc(stamp)}<br>Studio Planner</div>
+     </div>
+     <div class="pbody">
+       <div class="pviews">${panels}</div>
+       <div class="pside">
+         <div class="pbox"><h4>カメラ情報</h4><div class="inner">${cameraRows()}</div></div>
+         <div class="pbox"><h4>スタジオ・被写体</h4><div class="inner">${studioRows()}</div></div>
+         <div class="pbox pmemo"><h4>メモ</h4><div class="inner">${esc(m.memo || '')}</div></div>
+       </div>
+     </div>
+     <div class="pfoot"><span>1 マス = 1 m。寸法は概算です。</span><span>${esc(m.project || '')} ${esc(m.cut || '')}</span></div>`;
+  pageStyle.textContent = `@page { size: A4 ${orient}; margin: 8mm; }`;
+}
+function fitPaper(){
+  const box = paperEl.parentElement.getBoundingClientRect();
+  const pw = orient === 'landscape' ? 297 : 210, mmPx = paperEl.offsetWidth / pw;
+  const k = Math.min(1, (box.width - 24) / (pw * mmPx));
+  paperEl.style.transform = `scale(${k.toFixed(3)})`;
+  paperEl.parentElement.style.height = k < 1 ? `${paperEl.offsetHeight * k + 40}px` : '';
+}
+document.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('click', () => {
+  orient = b.dataset.orient;
+  document.querySelectorAll('[data-orient]').forEach(x => x.classList.toggle('on', x.dataset.orient === orient));
+  try { localStorage.setItem('studio3d.orient', orient); } catch {}
+}));
+for (const [id, key] of [['m-project','project'], ['m-cut','cut'], ['m-memo','memo']]){
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => { state.meta[key] = el.value; saveHash(); });
+}
+function renderMeta(){
+  document.getElementById('m-project').value = state.meta.project || '';
+  document.getElementById('m-cut').value = state.meta.cut || '';
+  document.getElementById('m-memo').value = state.meta.memo || '';
+  document.querySelectorAll('[data-orient]').forEach(x => x.classList.toggle('on', x.dataset.orient === orient));
+}
+document.getElementById('makepdf').addEventListener('click', () => {
+  buildSheet(); paperModal.classList.add('show'); requestAnimationFrame(fitPaper);
+});
+document.getElementById('paperclose').addEventListener('click', () => paperModal.classList.remove('show'));
+document.getElementById('doprint').addEventListener('click', () => {
+  const m = state.meta, keep = document.title;
+  const name = [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_');
+  document.title = name || 'StudioPlanner';          // browsers name the PDF after the title
+  window.print();
+  setTimeout(() => { document.title = keep; }, 1000);
+});
+addEventListener('resize', () => { if (paperModal.classList.contains('show')) fitPaper(); });
+
 // ---------- boot ----------
 (async () => {
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; syncViewBtns(); }
-  buildStudio(); rebuildItems(); renderStudio(); renderList(); renderSel();
+  buildStudio(); rebuildItems(); renderStudio(); renderList(); renderSel(); renderMeta();
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;
   frame();
