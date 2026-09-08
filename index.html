@@ -106,12 +106,14 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #addfab:active{transform:translateY(1px)}
 #addfab:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #addfab{display:none}
-#addpop{position:fixed;inset:0;background:rgba(10,12,16,.55);z-index:22;display:none;align-items:center;justify-content:center;padding:16px}
-#addpop.on{display:flex}
-#addpop .pop{background:var(--panel);border-radius:14px;width:min(460px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45)}
-#addpop .pophead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--rule)}
-#addpop .pophead button{width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font:inherit;font-size:1.1rem;cursor:pointer}
-#addpop .popbody{padding:14px 16px 20px;overflow-y:auto}
+#addpop,#namedlg{position:fixed;inset:0;background:rgba(10,12,16,.55);z-index:22;display:none;align-items:center;justify-content:center;padding:16px}
+#addpop.on,#namedlg.on{display:flex}
+#addpop .pop,#namedlg .pop{background:var(--panel);border-radius:14px;width:min(460px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+#addpop .pophead,#namedlg .pophead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--rule)}
+#addpop .pophead button,#namedlg .pophead button{width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font:inherit;font-size:1.1rem;cursor:pointer}
+#addpop .popbody,#namedlg .popbody{padding:14px 16px 20px;overflow-y:auto}
+#namedlg .pop{width:min(420px,100%)}
+#namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 #shot{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
@@ -184,8 +186,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #paper.portrait{height:281mm !important}
 }
 @media (max-width:760px){
-  #addpop{align-items:flex-end;padding:0}
-  #addpop .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
+  #addpop,#namedlg{align-items:flex-end;padding:0}
+  #addpop .pop,#namedlg .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
   #addfab{width:52px;height:52px;font-size:1.7rem}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   body.folded:not(.viewer) #app{grid-template-rows:1fr}
@@ -296,6 +298,13 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   </div>
   <div class="pmscroll"><div id="paper"></div></div>
 </div>
+<div id="namedlg"><div class="pop">
+  <div class="pophead"><strong>名前をつけて保存</strong><button id="nameclose" aria-label="閉じる">✕</button></div>
+  <div class="popbody">
+    <input type="text" id="namein" spellcheck="false">
+    <div class="row"><button class="btn primary" id="nameok">保存</button></div>
+  </div>
+</div></div>
 <div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><button class="btn" id="shotdl">保存</button><button class="btn" id="shotclose">閉じる</button></div></div>
 
 <script type="module">
@@ -435,8 +444,25 @@ const gizKnob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), new THREE
 gizKnob.renderOrder = 9; gizKnob.position.set(0,0,1); gizmo.add(gizKnob);
 const gizArrow = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 12), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
 gizArrow.rotation.x = Math.PI/2; gizArrow.renderOrder = 9; gizArrow.position.set(0,0,1.32); gizmo.add(gizArrow);
-const gizDot = new THREE.Mesh(new THREE.CircleGeometry(0.08, 20), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
-gizDot.rotation.x = -Math.PI/2; gizDot.renderOrder = 9; gizmo.add(gizDot);
+// The middle of the ring is what drags the object, so it wears the four-way arrow
+// everyone already reads as "move". It is drawn twice: a fatter white copy underneath
+// keeps it legible over a dark car or a white floor alike.
+function crossArrowShape(){
+  // half length, bar half width, head half width, head length
+  const L = 0.44, w = 0.072, hw = 0.165, hl = 0.155, sh = new THREE.Shape();
+  const P = [[L,0],[L-hl,hw],[L-hl,w],[w,w],[w,L-hl],[hw,L-hl],[0,L],[-hw,L-hl],[-w,L-hl],[-w,w],
+             [-L+hl,w],[-L+hl,hw],[-L,0],[-L+hl,-hw],[-L+hl,-w],[-w,-w],[-w,-L+hl],[-hw,-L+hl],
+             [0,-L],[hw,-L+hl],[w,-L+hl],[w,-w],[L-hl,-w],[L-hl,-hw]];
+  sh.moveTo(P[0][0], P[0][1]);
+  for (const [x,y] of P.slice(1)) sh.lineTo(x, y);
+  sh.closePath();
+  return sh;
+}
+const crossGeo = new THREE.ShapeGeometry(crossArrowShape());
+for (const [color, scale, order] of [[0xffffff, 1.28, 9], [0xe29a44, 1, 10]]){
+  const m = new THREE.Mesh(crossGeo, new THREE.MeshBasicMaterial({color, depthTest:false}));
+  m.rotation.x = -Math.PI/2; m.scale.setScalar(scale); m.renderOrder = order; gizmo.add(m);
+}
 
 const matWall = new THREE.MeshStandardMaterial({color:0xf2f2f0, roughness:0.95, side:THREE.DoubleSide});
 const matFloor = new THREE.MeshStandardMaterial({color:0xdcdcd8, roughness:0.9, side:THREE.DoubleSide});
@@ -1013,21 +1039,15 @@ function updateItemTransform(it){
   if (it.type === 'camera') buildFrustum(it);
   updateSelectionVisuals();
 }
-function handleRadius(it){
-  if (it.type === 'camera') return 0.9;
-  if (it.type === 'mirror') return Math.max(0.8, it.h*0.5 + 0.3);
-  if (it.type === 'chroma') return Math.max(1.0, (it.drape||0) + 0.4);
-  if (it.w && it.d) return Math.max(0.8, Math.hypot(it.w, it.d)*0.5 + 0.35);
-  if (it.type === 'person' && it.pose === 'lie') return Math.max(0.9, it.height*0.5 + 0.3);
-  return 0.8;
-}
+// The ring used to grow with the object it was on, which made it swallow the plan as
+// soon as a car or a big backdrop was selected. One size for everything instead.
+const GIZMO_R = 0.9;
 function updateSelectionVisuals(){
   const it = sel();
   gizmo.visible = !!it && !it.hidden && !viewerMode;
   buildMeasures();
   if (!it) return;
-  const r = handleRadius(it);
-  gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(r);
+  gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
 }
 const sel = () => state.items.find(i => i.id === selectedId) || null;
 // several cameras can stand in the room; one of them is the one being looked through
@@ -1912,15 +1932,51 @@ let downloadsNS = null;
 function findDownloads(){
   downloadsNS = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 }
-async function saveFile(filename, blob){
+// asking for the name ourselves, for the places that have no save dialog of their own
+const nameDlg = document.getElementById('namedlg'), nameIn = document.getElementById('namein');
+let nameResolve = null;
+function askName(suggest){
+  nameIn.value = suggest; nameDlg.classList.add('on');
+  const dot = suggest.lastIndexOf('.');
+  nameIn.focus(); nameIn.setSelectionRange(0, dot > 0 ? dot : suggest.length);
+  return new Promise(res => { nameResolve = res; });
+}
+function closeName(v){ nameDlg.classList.remove('on'); const r = nameResolve; nameResolve = null; r?.(v); }
+document.getElementById('nameok').addEventListener('click', () => closeName(nameIn.value.trim() || null));
+document.getElementById('nameclose').addEventListener('click', () => closeName(null));
+nameDlg.addEventListener('click', e => { if (e.target === nameDlg) closeName(null); });
+nameIn.addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); closeName(nameIn.value.trim() || null); }
+  if (e.key === 'Escape') closeName(null);
+});
+
+// A file must never appear in the download folder unasked: saving always names it
+// first. Chrome and Edge on the desktop open the real 名前を付けて保存 dialog, which
+// also lets the folder be chosen; everywhere else the name is asked for here.
+async function saveFile(filename, blob, mime){
+  const ext = filename.slice(filename.lastIndexOf('.'));
+  if (window.showSaveFilePicker){
+    try {
+      const h = await window.showSaveFilePicker({suggestedName:filename,
+        types:[{description:ext.slice(1).toUpperCase(), accept:{[mime]:[ext]}}]});
+      const w = await h.createWritable(); await w.write(blob); await w.close();
+      toast('保存しました'); return;
+    } catch(e){
+      if (e?.name === 'AbortError') return;      // the dialog was closed on purpose
+      // blocked instead: inside a preview frame, or without a fresh click. ask below
+    }
+  }
+  let name = await askName(filename);
+  if (!name) return;
+  if (!name.includes('.')) name += ext;
   const ns = downloadsNS ? await downloadsNS : null;
   if (ns){
-    try { await ns.save({filename, data:blob}); toast('保存しました'); }
+    try { await ns.save({filename:name, data:blob}); toast('保存しました'); }
     catch(e){ if (e?.code !== 'declined') toast('保存できませんでした'); }
     return;
   }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = filename;
+  a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   toast('保存しました');
@@ -1934,7 +1990,7 @@ function projectName(){
   return [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_') || 'StudioPlanner';
 }
 document.getElementById('savefile').addEventListener('click', () => {
-  saveFile(projectName() + '.studio.json', new Blob([JSON.stringify(state, null, 1)], {type:'application/json'}));
+  saveFile(projectName() + '.json', new Blob([JSON.stringify(state, null, 1)], {type:'application/json'}), 'application/json');
 });
 document.getElementById('loadfile').addEventListener('click', () => document.getElementById('projfile').click());
 document.getElementById('projfile').addEventListener('change', async e => {
@@ -1990,7 +2046,7 @@ function capture(view, name){
   s.classList.add('show');
 }
 let shotBlob = null, shotName = 'studio.png';
-document.getElementById('shotdl').addEventListener('click', () => { if (shotBlob) saveFile(shotName, shotBlob); });
+document.getElementById('shotdl').addEventListener('click', () => { if (shotBlob) saveFile(shotName, shotBlob, 'image/png'); });
 document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));
 document.getElementById('png-cam').addEventListener('click', () => capture('cam', 'カメラの絵'));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));

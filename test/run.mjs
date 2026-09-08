@@ -301,13 +301,47 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForTimeout(200);
   const before = await t.page.$$eval('#items .itemrow', n => n.length);
 
-  const dl = await Promise.all([t.page.waitForEvent('download'), t.page.click('#savefile')]).then(r => r[0]);
+  // desktop Chrome path: the real save dialog, stubbed so headless can watch it
+  await t.page.evaluate(() => {
+    window.__picked = null;
+    window.showSaveFilePicker = async opts => {
+      window.__picked = {name: opts.suggestedName, types: opts.types};
+      return { createWritable: async () => ({
+        write: async b => { window.__written = typeof b === 'string' ? b : await b.text(); },
+        close: async () => {},
+      }) };
+    };
+  });
+  await t.page.click('#savefile');
+  await t.page.waitForTimeout(400);
+  const picked = await t.page.evaluate(() => ({p: window.__picked, w: window.__written}));
+  ok('save opens the save dialog rather than downloading',
+     !!picked.p && picked.p.name.includes('青山スタジオ') && picked.p.name.includes('C-3')
+     && /\d{4}-\d{2}-\d{2}/.test(picked.p.name) && picked.p.name.endsWith('.json'), picked.p?.name);
+  const viaPicker = JSON.parse(picked.w);
+  ok('the dialog is handed the whole scene', viaPicker.items.length === before - 1 && viaPicker.meta.cut === 'C-3');
+
+  // a closed dialog leaves nothing behind
+  await t.page.evaluate(() => {
+    window.showSaveFilePicker = async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; };
+  });
+  await t.page.click('#savefile');
+  await t.page.waitForTimeout(300);
+  ok('closing the dialog saves nothing', !await t.page.$eval('#namedlg', e => e.classList.contains('on')));
+
+  // everywhere else: the app asks for the name itself, then hands the file over
+  await t.page.evaluate(() => { delete window.showSaveFilePicker; });
+  await t.page.click('#savefile');
+  await t.page.waitForTimeout(300);
+  ok('without a save dialog the app asks for the name', await t.page.$eval('#namedlg', e => e.classList.contains('on')));
+  const suggested = await t.page.inputValue('#namein');
+  await t.page.fill('#namein', '下見メモ');
+  const dl = await Promise.all([t.page.waitForEvent('download'), t.page.click('#nameok')]).then(r => r[0]);
   const name = dl.suggestedFilename();
-  const file = path.join(OUT, 'project.studio.json');
+  const file = path.join(OUT, 'project.json');
   await dl.saveAs(file);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  ok('save names the file from the project and cut',
-     name.includes('青山スタジオ') && name.includes('C-3') && /\d{4}-\d{2}-\d{2}/.test(name) && name.endsWith('.studio.json'), name);
+  ok('the typed name is used, with the extension kept', name === '下見メモ.json', `${name} (suggested ${suggested})`);
   ok('the file holds the whole scene', saved.items.length === before - 1 && saved.meta.cut === 'C-3', `${saved.items.length} items`);
 
   // wipe it, then read the file back
@@ -329,8 +363,11 @@ async function open(name, viewport, mobile = false, hash = ''){
   // the PNG dialog hands over a file the same way
   await t.page.click('#png-plan');
   await t.page.waitForTimeout(1200);
-  const png = await Promise.all([t.page.waitForEvent('download'), t.page.click('#shotdl')]).then(r => r[0]);
-  ok('the image dialog saves a named PNG', png.suggestedFilename().endsWith('.png') && png.suggestedFilename().includes('青山スタジオ'), png.suggestedFilename());
+  await t.page.click('#shotdl');
+  await t.page.waitForTimeout(300);
+  const pngSuggest = await t.page.inputValue('#namein');
+  const png = await Promise.all([t.page.waitForEvent('download'), t.page.click('#nameok')]).then(r => r[0]);
+  ok('the image dialog saves a named PNG', png.suggestedFilename().endsWith('.png') && pngSuggest.includes('青山スタジオ'), pngSuggest);
   await t.page.click('#shotclose');
 
   ok('project file run clean', t.errors.length === 0, t.errors.join(' | '));
