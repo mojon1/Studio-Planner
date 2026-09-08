@@ -232,16 +232,15 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
         <input type="file" id="projfile" accept=".json,application/json" hidden>
         <p class="hint">取り込んだ 3D モデルの実体はこの端末に残ります。別の PC で開くと実寸の箱になります。</p>
-        <h2>PDF にする</h2>
+        <h2>PDF</h2>
         <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
         <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
         <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
         <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
-        <div class="row"><button class="btn primary" id="makepdf">図面を作る</button></div>
+        <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
         <p class="hint">4 面とカメラ情報が A4 一枚に入ります。</p>
-        <h2>画像で共有</h2>
-        <div class="row"><button class="btn" id="png-plan">図面を画像に</button><button class="btn" id="png-cam">カメラの絵を画像に</button></div>
-        <p class="hint">画像は長押しで保存。</p>
+        <h2>画像</h2>
+        <div class="row"><button class="btn" id="png">画像保存</button></div>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
       </div>
@@ -249,9 +248,9 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   </div>
   <div id="view">
     <div id="viewbtns">
-      <button data-view="plan" class="on">上面</button>
+      <button data-view="plan">上面</button>
       <button data-view="side">側面</button>
-      <button data-view="pers">パース</button>
+      <button data-view="pers" class="on">パース</button>
       <button data-view="cam">ファインダー</button>
       <button id="pipbtn" class="icon on" title="カメラの小窓" aria-label="カメラの小窓">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5h4l1.6-2h6.8L17 7.5h4v11H3z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
@@ -346,9 +345,10 @@ const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
 const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反射面', chroma:'背景布',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
-const BODIES = {m:'男性', f:'女性'};
 // the four person buttons differ only in body type and starting height
-const PEOPLE = [['男性','m',1.72], ['女性','f',1.58], ['男の子','m',1.20], ['女の子','f',1.18]];
+const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
+const PERSON_KIND = Object.fromEntries(PEOPLE.map(([k, label, body]) => [k, {label, body}]));
+const personBody = it => PERSON_KIND[it.kind]?.body || 'm';
 const SWATCHES = [['#1fb24a','グリーン'],['#1f5fd0','ブルー'],['#f4f4f2','白'],['#8a8a8a','グレー'],['#1a1a1a','黒'],['#c9b79c','ベージュ']];
 const PROP_SWATCHES = [['#e8e6e2','白'],['#a9b0bd','グレー'],['#c8a882','木'],['#2b2f36','黒'],['#b5423a','赤'],['#3a63b5','青']];
 const sensorW = it => it.sensor === 'custom' ? clamp(+it.sensorW || 36, 4, 80) : SENSORS[it.sensor]?.w || 36;
@@ -366,13 +366,13 @@ const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'')
 
 let state = defaultState();
 let selectedId = null;
-let mainView = 'plan';      // plan | side | pers | cam
+let mainView = 'pers';      // plan | side | pers | cam
 let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
   return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
-    {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
+    {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand', kind:'man'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
 }
@@ -388,7 +388,9 @@ function migrate(st){
       if (!SENSORS[it.sensor]) it.sensor = 'ff';
     }
     if (it.type === 'chroma' && !it.color) it.color = it.kind === 'blue' ? '#1f5fd0' : '#1fb24a';
-    if (it.type === 'person' && !it.body) it.body = 'm';
+    // people used to be 男性/男の子 by height alone, so shrinking one changed who they were
+    if (it.type === 'person' && !it.kind)
+      it.kind = it.height < 1.40 ? (it.body === 'f' ? 'girl' : 'boy') : (it.body === 'f' ? 'woman' : 'man');
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -725,7 +727,7 @@ function wedge(halfAngle, len, color, opacity=0.25){
 // --- artist mannequin ------------------------------------------------------
 // head-to-body ratio falls with height, so one slider turns an adult into a child
 function personRig(it){
-  const H = it.height, fem = it.body === 'f';
+  const H = it.height, fem = personBody(it) === 'f';
   const heads = clamp(7.5 + (H - 1.75) * 3.27, 4.2, 8.0);
   const hh = H / heads, t = clamp((1.75 - H) / 0.55, 0, 1);
   return { H, hh, fem, t,
@@ -750,10 +752,8 @@ function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.Sphere
 // megabytes into every page load, including for everyone who never asks for one. The
 // cost is that they need a real server: the claude.ai preview frame cannot fetch them
 // and quietly stays on the mannequin, and so does file://.
-const PERSON_MODELS = [
-  {file:'models/asia-adult-male.glb', body:'m', adult:true},
-];
-const personModel = it => PERSON_MODELS.find(m => m.body === (it.body || 'm') && m.adult === (it.height >= 1.40)) || null;
+const PERSON_MODELS = {man: 'models/asia-adult-male.glb'};
+const personModel = it => PERSON_MODELS[it.kind] || null;
 const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
 async function loadPerson(file){
   if (realPeople.has(file)) return;
@@ -764,7 +764,7 @@ async function loadPerson(file){
     const {obj} = await parseModel(await r.arrayBuffer(), 'glb', {});
     realPeople.set(file, obj);
   } catch(e){ console.warn('person model failed', e); realPeople.set(file, 'fail'); }
-  for (const it of state.items) if (it.type === 'person' && it.look === 'real') rebuildItem(it);
+  for (const it of state.items) if (it.type === 'person' && personModel(it)) rebuildItem(it);
   renderSel(); needRender = true;
 }
 // the file is modelled 1 m tall, so one number turns it into whatever height is set
@@ -790,11 +790,11 @@ function buildRealPerson(it, src){
 }
 function buildPerson(it){
   // only the standing pose exists as a scan; sitting and lying stay with the mannequin
-  const pm = it.look === 'real' && it.pose === 'stand' ? personModel(it) : null;
-  if (pm){
-    const src = realPeople.get(pm.file);
+  const file = it.pose === 'stand' ? personModel(it) : null;
+  if (file){
+    const src = realPeople.get(file);
     if (src && src !== 'loading' && src !== 'fail') return buildRealPerson(it, src);
-    if (!realPeople.has(pm.file)) loadPerson(pm.file);
+    if (!realPeople.has(file)) loadPerson(file);
   }
   const g = new THREE.Group(), R = personRig(it), c = mat(COLORS.person, {roughness:0.85});
   const H = R.H, hh = R.hh, sit = it.pose === 'sit';
@@ -1417,12 +1417,12 @@ addpop.addEventListener('click', e => { if (e.target === addpop) closeAdd(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') closeAdd(); });
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
   closeAdd();
-  const p = b.dataset.person; addItem(b.dataset.add, p ? {body:PEOPLE[+p][1], height:PEOPLE[+p][2]} : null);
+  const p = b.dataset.person; addItem(b.dataset.add, p ? {kind:PEOPLE[+p][0], height:PEOPLE[+p][3]} : null);
 }));
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
-  if (type === 'person') it = {id, type, x:0, z:0, rot:0, body:opt?.body || 'm', height:opt?.height || 1.72, pose:'stand'};
+  if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', height:opt?.height || 1.72, pose:'stand'};
   else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
@@ -1445,7 +1445,7 @@ function addItem(type, opt){
   rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
 }
 function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
-const personLabel = it => it.height < 1.40 ? (it.body === 'f' ? '女の子' : '男の子') : (it.body === 'f' ? '女性' : '男性');
+const personLabel = it => PERSON_KIND[it.kind]?.label || '人';
 const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderList(){
@@ -1504,7 +1504,7 @@ function renderSel(){
   if (selectedId === STUDIO){ el.innerHTML = studioPanel(); bindStudio(el); return; }
   const it = sel();
   if (!it){
-    el.innerHTML = '<p class="hint">リストか図面から選ぶと、ここで変えられます。図面ではドラッグで移動、リングをなぞると回転。</p>';
+    el.innerHTML = '';
     return;
   }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
@@ -1515,19 +1515,11 @@ function renderSel(){
   let h = `<h2>${it.type === 'camera' ? camName(it) : NAMES[it.type]}</h2>`;
   if (it.hidden) h += `<p class="hint">隠し中。目のマークで戻せます。</p>`;
   if (it.type === 'person'){
-    h += btns('body', Object.entries(BODIES), it.body || 'm');
     h += range('height','身長',0.70,2.10,0.01,it.height,'m');
     h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
-    const pm = personModel(it);
-    if (pm){
-      h += `<h2>見た目</h2>` + btns('look', [['doll','マネキン'],['real','人物']], it.look || 'doll');
-      const st = realPeople.get(pm.file);
-      if (it.look === 'real'){
-        if (st === 'fail') h += `<p class="hint">人物モデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}</p>`;
-        else if (st === 'loading') h += `<p class="hint">読み込み中…</p>`;
-        else if (it.pose !== 'stand') h += `<p class="hint">人物モデルは立ちポーズのみ。</p>`;
-      }
-    }
+    // the only thing worth saying is when the model could not be fetched at all
+    if (personModel(it) && realPeople.get(personModel(it)) === 'fail')
+      h += `<p class="hint">人物モデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}</p>`;
   } else if (it.type === 'car'){
     h += btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
@@ -2119,8 +2111,8 @@ function capture(view, name){
 }
 let shotBlob = null, shotName = 'studio.png';
 document.getElementById('shotdl').addEventListener('click', () => { if (shotBlob) saveFile(shotName, shotBlob, 'image/png'); });
-document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));
-document.getElementById('png-cam').addEventListener('click', () => capture('cam', 'カメラの絵'));
+const VIEW_NAME = {plan:'上面', side:'側面', pers:'パース', cam:'ファインダー'};
+document.getElementById('png').addEventListener('click', () => capture(mainView, VIEW_NAME[mainView]));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
 
 let toastT; function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
@@ -2320,7 +2312,8 @@ window.__sp = {THREE, state: () => state, group: id => itemObjs.get(id)?.group |
   findDownloads();
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
-  if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; syncViewBtns(); }
+  if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; }
+  syncViewBtns();
   buildStudio(); rebuildItems(); renderList(); renderSel(); renderMeta();
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;

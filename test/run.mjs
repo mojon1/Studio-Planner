@@ -362,7 +362,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('a file that is not a scene is refused, not applied',
      (await t.page.textContent('#toast')).includes('読めません') && await t.page.$$eval('#items .itemrow', n => n.length) === after);
   // the PNG dialog hands over a file the same way
-  await t.page.click('#png-plan');
+  await t.page.click('#png');
   await t.page.waitForTimeout(1200);
   await t.page.click('#shotdl');
   await t.page.waitForTimeout(300);
@@ -380,15 +380,10 @@ async function open(name, viewport, mobile = false, hash = ''){
   const t = await open('person', { width: 1280, height: 800 });
   await t.page.click('#items .itemrow > button:first-child >> nth=1');   // the default 男性
   await t.page.waitForTimeout(300);
-  ok('an adult male offers the real model', await t.page.$$eval('[data-set="look"]', b => b.length) === 2);
-
-  const before = await t.page.evaluate(() => document.querySelector('canvas').toDataURL().length);
-  await t.page.click('[data-set="look"][data-val="real"]');
   await t.page.waitForTimeout(3000);
-  const look = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').look);
-  ok('the switch is remembered on the item', look === 'real', String(look));
-  const after = await t.page.evaluate(() => document.querySelector('canvas').toDataURL().length);
-  ok('the drawing changes once the model is in', after !== before, `${before} -> ${after}`);
+  ok('a person carries the kind chosen at the + button',
+     await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').kind) === 'man');
+  ok('and no mannequin switch is offered', await t.page.$$eval('[data-set="look"]', b => b.length) === 0);
   await t.page.screenshot({ path: `${OUT}/person-real.png` });
 
   // the scan is 1 m tall in the file; the height slider still has to rule
@@ -404,10 +399,23 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForTimeout(400);
   const sit = await measure();
   ok('sitting falls back to the mannequin', sit.h < 1.4, `${sit.h} m`);
-  ok('and says so', (await t.page.textContent('#selbody')).includes('立ちポーズのみ'));
 
   await t.page.click('[data-set="pose"][data-val="stand"]');
   await t.page.waitForTimeout(600);
+
+  // shrinking someone used to turn them into a child and drop the model
+  const setHeight = async v => {                    // through the readout, as a person would
+    await t.page.click('[data-edit="height"]');
+    await t.page.fill('input.vedit', v);
+    await t.page.press('input.vedit', 'Enter');
+    await t.page.waitForTimeout(700);
+  };
+  await setHeight('1.30');
+  const small = await measure();
+  ok('a shorter person keeps the model, and the label', Math.abs(small.h - 1.30) < 0.02, `${small.h} m`);
+  ok('the list still calls them 男性',
+     (await t.page.textContent('#items .itemrow >> nth=1')).includes('男性'));
+  await setHeight('1.75');
   // a share link carries the choice, because the file ships with the app
   const link = await t.page.evaluate(() => location.hash);
   ok('the choice rides in the share link', link.length > 10);
@@ -416,10 +424,12 @@ async function open(name, viewport, mobile = false, hash = ''){
 
   // where the file cannot be fetched the mannequin stays and the panel says why
   const g = await open('person-404', { width: 1280, height: 800 });
+  // the model is fetched at load, so the block has to be in place before the reload
   await g.page.route('**/models/*.glb', r => r.fulfill({status: 404}));
+  await g.page.reload();
+  await g.page.waitForTimeout(2500);
   await g.page.click('#items .itemrow > button:first-child >> nth=1');
-  await g.page.click('[data-set="look"][data-val="real"]');
-  await g.page.waitForTimeout(1500);
+  await g.page.waitForTimeout(500);
   const txt = await g.page.textContent('#selbody');
   ok('a missing model explains itself', txt.includes('サーバーから開いたとき'), txt.slice(0, 60));
   const h = await g.page.evaluate(() => {
