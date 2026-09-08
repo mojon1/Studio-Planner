@@ -1511,7 +1511,7 @@ function renderSel(){
       h += `<h2>見た目</h2>` + btns('look', [['doll','マネキン'],['real','人物']], it.look || 'doll');
       const st = realPeople.get(pm.file);
       if (it.look === 'real'){
-        if (st === 'fail') h += `<p class="hint">人物モデルを読めませんでした。マネキンで表示しています。</p>`;
+        if (st === 'fail') h += `<p class="hint">人物モデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}</p>`;
         else if (st === 'loading') h += `<p class="hint">読み込み中…</p>`;
         else if (it.pose !== 'stand') h += `<p class="hint">人物モデルは立ちポーズのみ。</p>`;
       }

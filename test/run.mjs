@@ -413,6 +413,23 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the choice rides in the share link', link.length > 10);
   ok('person run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+
+  // where the file cannot be fetched the mannequin stays and the panel says why
+  const g = await open('person-404', { width: 1280, height: 800 });
+  await g.page.route('**/models/*.glb', r => r.fulfill({status: 404}));
+  await g.page.click('#items .itemrow > button:first-child >> nth=1');
+  await g.page.click('[data-set="look"][data-val="real"]');
+  await g.page.waitForTimeout(1500);
+  const txt = await g.page.textContent('#selbody');
+  ok('a missing model explains itself', txt.includes('サーバーから開いたとき'), txt.slice(0, 60));
+  const h = await g.page.evaluate(() => {
+    const sp = window.__sp, gr = sp.group(sp.state().items.find(i => i.type === 'person').id);
+    const b = new sp.THREE.Box3().setFromObject(gr);
+    return +(b.max.y - b.min.y).toFixed(3);
+  });
+  ok('and the mannequin is still standing there', Math.abs(h - 1.7) < 0.05, `${h} m`);
+  ok('missing-model run clean', g.errors.length === 0, g.errors.join(' | '));
+  await g.ctx.close();
 }
 
 await browser.close(); server.close();
