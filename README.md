@@ -64,9 +64,10 @@ python -m http.server 8000
 https://mojon1.github.io/Studio-Planner/
 ```
 
-`.github/workflows/pages.yml` が `enablement: true` で Pages 自体も有効にするので、
-リポジトリの設定を手で触る必要は無い。最初の 1 回だけ、Actions タブで
-「Deploy to GitHub Pages」が緑になるのを確認すること。
+**最初の 1 回だけ手作業がいる。** リポジトリの Settings → Pages →
+Build and deployment → Source を「**GitHub Actions**」にする。
+GITHUB_TOKEN には Pages サイトを新規作成する権限が無いため、ここは自動化できない。
+入れたら Actions タブの「Deploy to GitHub Pages」を Re-run。以降は push で出る。
 
 出すのは `index.html` / `models/` / `ogp.png` / `README.md` だけ。
 `test/` `tools/` `docs/` `CLAUDE.md` は除いてある。

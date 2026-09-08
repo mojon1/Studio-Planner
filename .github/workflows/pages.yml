@@ -1,5 +1,9 @@
 # main に push するたび、そのまま GitHub Pages に出る。ビルドは無い。
-# enablement: true があるので、リポジトリの Pages 設定を手で入れる必要も無い。
+#
+# 最初の 1 回だけ、リポジトリの Settings → Pages → Source を
+# 「GitHub Actions」にする必要がある。GITHUB_TOKEN には Pages サイトを
+# 新規作成する権限が無く、configure-pages の enablement では入らなかった
+# （Resource not accessible by integration）。一度入れれば以降は自動。
 name: Deploy to GitHub Pages
 
 on:
@@ -24,16 +28,14 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      # 開発用のものは出さない。models/ のような新しい素材は黙って入るようにしておく
+      # 開発用のものは出さない。models/ のような新しい素材は黙って入る
       - name: Collect the site
         run: |
           mkdir -p _site
-          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' \
-                --exclude 'test' --exclude 'tools' --exclude 'docs' \
-                --exclude 'CLAUDE.md' --exclude '.gitignore' ./ _site/
+          for f in * .nojekyll; do
+            case "$f" in test|tools|docs|_site|CLAUDE.md) continue ;; esac
+            [ -e "$f" ] && cp -r "$f" _site/
+          done
           touch _site/.nojekyll
           ls -la _site
       - uses: actions/upload-pages-artifact@v3
