@@ -419,6 +419,36 @@ async function open(name, viewport, mobile = false, hash = ''){
   // a share link carries the choice, because the file ships with the app
   const link = await t.page.evaluate(() => location.hash);
   ok('the choice rides in the share link', link.length > 10);
+
+  // the + panel offers the cast as pictures, and placing one puts that model in
+  await t.page.click('#addfab');
+  await t.page.waitForTimeout(400);
+  const cast = await t.page.$$eval('#people button[data-model]', b => b.map(x => x.dataset.model));
+  ok('every model is offered as a thumbnail', cast.length === 6, cast.join(', '));
+  const thumbs = await t.page.$$eval('#people img', imgs => imgs.map(i => i.naturalWidth));
+  ok('the thumbnails actually load', thumbs.length === 6 && thumbs.every(w => w === 200), thumbs.join(','));
+  await t.page.click('#people button[data-model="af-business-woman"]');
+  await t.page.waitForTimeout(2500);
+  const placed = await t.page.evaluate(() => {
+    const it = window.__sp.state().items.at(-1);
+    return {model: it.model, kind: it.kind, height: it.height};
+  });
+  ok('the placed person carries that model', placed.model === 'af-business-woman' && placed.kind === 'woman',
+     JSON.stringify(placed));
+  ok('and the height that goes with her', Math.abs(placed.height - 1.58) < 0.001, String(placed.height));
+  const herH = await t.page.evaluate(() => {
+    const sp = window.__sp, g = sp.group(sp.state().items.at(-1).id);
+    const b = new sp.THREE.Box3().setFromObject(g);
+    return +(b.max.y - b.min.y).toFixed(3);
+  });
+  ok('and she is drawn at that height', Math.abs(herH - 1.58) < 0.02, `${herH} m`);
+  await t.page.screenshot({ path: `${OUT}/cast.png` });
+
+  // a mannequin is still a mannequin
+  await t.page.click('#addfab');
+  await t.page.click('[data-person="2"]');
+  await t.page.waitForTimeout(700);
+  ok('a mannequin carries no model', await t.page.evaluate(() => window.__sp.state().items.at(-1).model) === null);
   ok('person run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 

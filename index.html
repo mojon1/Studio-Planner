@@ -124,6 +124,12 @@ body.viewer #addfab{display:none}
 #addpop .pophead,#namedlg .pophead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--rule)}
 #addpop .pophead button,#namedlg .pophead button{width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font:inherit;font-size:1.1rem;cursor:pointer}
 #addpop .popbody,#namedlg .popbody{padding:14px 16px 20px;overflow-y:auto}
+.people{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0}
+.people button{border:1px solid var(--rule);background:var(--btn);border-radius:8px;padding:4px 2px 5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+.people button:active{transform:translateY(1px)}
+.people button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.people img{width:100%;height:auto;display:block;pointer-events:none}
+.people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
 #namedlg .pop{width:min(420px,100%)}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -274,6 +280,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   <div class="pophead"><strong>置くものを選ぶ</strong><button id="addclose" aria-label="閉じる">✕</button></div>
   <div class="popbody">
     <h2>人</h2>
+    <div class="people" id="people"></div>
+    <h2>マネキン</h2>
     <div class="row">
       <button class="btn" data-add="person" data-person="0">男性</button>
       <button class="btn" data-add="person" data-person="1">女性</button>
@@ -347,7 +355,7 @@ const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'反�
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
-const PERSON_KIND = Object.fromEntries(PEOPLE.map(([k, label, body]) => [k, {label, body}]));
+const PERSON_KIND = Object.fromEntries(PEOPLE.map(([k, label, body, height]) => [k, {label, body, height}]));
 const personBody = it => PERSON_KIND[it.kind]?.body || 'm';
 const SWATCHES = [['#1fb24a','グリーン'],['#1f5fd0','ブルー'],['#f4f4f2','白'],['#8a8a8a','グレー'],['#1a1a1a','黒'],['#c9b79c','ベージュ']];
 const PROP_SWATCHES = [['#e8e6e2','白'],['#a9b0bd','グレー'],['#c8a882','木'],['#2b2f36','黒'],['#b5423a','赤'],['#3a63b5','青']];
@@ -372,7 +380,7 @@ let uid = 1;
 
 function defaultState(){
   return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
-    {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand', kind:'man'},
+    {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand', kind:'man', model:'asia-casual-man'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
 }
@@ -391,6 +399,9 @@ function migrate(st){
     // people used to be 男性/男の子 by height alone, so shrinking one changed who they were
     if (it.type === 'person' && !it.kind)
       it.kind = it.height < 1.40 ? (it.body === 'f' ? 'girl' : 'boy') : (it.body === 'f' ? 'woman' : 'man');
+    // and there used to be exactly one model, worn by every adult male
+    if (it.type === 'person' && it.model === undefined) it.model = it.kind === 'man' ? 'asia-casual-man' : null;
+    if (it.type === 'person' && it.model && !MODEL_BY_ID[it.model]) it.model = null;
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -748,12 +759,21 @@ function limb(a, b, r0, r1, m){
 }
 function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m)); s.position.set(x,y,z); return s; }
 // --- real people -----------------------------------------------------------------
-// These live next to index.html rather than inside it. Inlined, four of them would put
-// megabytes into every page load, including for everyone who never asks for one. The
-// cost is that they need a real server: the claude.ai preview frame cannot fetch them
-// and quietly stays on the mannequin, and so does file://.
-const PERSON_MODELS = {man: 'models/asia-adult-male.glb'};
-const personModel = it => PERSON_MODELS[it.kind] || null;
+// These live next to index.html rather than inside it. Inlined, a dozen of them would
+// put megabytes into every page load, including for everyone who never asks for one.
+// The cost is that they need a real server: the claude.ai preview frame cannot fetch
+// them and quietly stays on the mannequin, and so does file://.
+// Adding one is a line here plus the .glb and its thumbnail; see tools/make-thumbs.mjs.
+const PEOPLE_MODELS = [
+  {id:'asia-casual-man',   kind:'man',   wear:'カジュアル', label:'アジア系 男性 カジュアル'},
+  {id:'asia-business-man', kind:'man',   wear:'スーツ',     label:'アジア系 男性 スーツ'},
+  {id:'af-casual-man',     kind:'man',   wear:'カジュアル', label:'アフリカ系 男性 カジュアル'},
+  {id:'af-business-man',   kind:'man',   wear:'スーツ',     label:'アフリカ系 男性 スーツ'},
+  {id:'af-casual-woman',   kind:'woman', wear:'カジュアル', label:'アフリカ系 女性 カジュアル'},
+  {id:'af-business-woman', kind:'woman', wear:'スーツ',     label:'アフリカ系 女性 スーツ'},
+];
+const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
+const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
 const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
 async function loadPerson(file){
   if (realPeople.has(file)) return;
@@ -1409,12 +1429,27 @@ function bindStudio(el){
 
 // add: the choices live in a popup, so the panel can stay a list of what is placed
 const addpop = document.getElementById('addpop');
-function openAdd(){ if (!viewerMode) addpop.classList.add('on'); }
+function openAdd(){ if (viewerMode) return; buildPeoplePicker(); addpop.classList.add('on'); }
 function closeAdd(){ addpop.classList.remove('on'); }
 document.querySelectorAll('[data-openadd]').forEach(b => b.addEventListener('click', openAdd));
 document.getElementById('addclose').addEventListener('click', closeAdd);
 addpop.addEventListener('click', e => { if (e.target === addpop) closeAdd(); });   // tap outside
 addEventListener('keydown', e => { if (e.key === 'Escape') closeAdd(); });
+// The faces are the labels: at a glance you pick a person, not a filename. Built on the
+// first open so the thumbnails are not fetched by everyone who never opens the panel.
+let peopleBuilt = false;
+function buildPeoplePicker(){
+  if (peopleBuilt) return;
+  peopleBuilt = true;
+  const el = document.getElementById('people');
+  el.innerHTML = PEOPLE_MODELS.map(m => `<button data-model="${m.id}" title="${esc(m.label)}" aria-label="${esc(m.label)}">` +
+    `<img src="models/thumbs/${m.id}.webp" alt="" width="200" height="300"><small>${esc(m.wear)}</small></button>`).join('');
+  el.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => {
+    closeAdd();
+    const m = MODEL_BY_ID[b.dataset.model];
+    addItem('person', {kind:m.kind, model:m.id, height:PERSON_KIND[m.kind].height});
+  }));
+}
 document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
   closeAdd();
   const p = b.dataset.person; addItem(b.dataset.add, p ? {kind:PEOPLE[+p][0], height:PEOPLE[+p][3]} : null);
@@ -1422,7 +1457,7 @@ document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click',
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
-  if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', height:opt?.height || 1.72, pose:'stand'};
+  if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', model:opt?.model || null, height:opt?.height || 1.72, pose:'stand'};
   else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
