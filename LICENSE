@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 Taichi Teramura
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+EXCEPTION — 3D models under models/
+
+The 3D models in models/ are NOT covered by the MIT License above.
+They remain the sole property of Taichi Teramura, all rights reserved.
+They may be used through this application, but may not be extracted,
+redistributed, or reused in other works without written permission.
+
+models/ 以下の 3D モデルは上記 MIT ライセンスの対象外です。
+著作権は寺村太一に帰属し、すべての権利を留保します。本アプリを通じて
+利用することはできますが、取り出して再配布したり、他の作品に流用することは
+できません。
