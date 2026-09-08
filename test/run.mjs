@@ -132,6 +132,20 @@ async function open(name, viewport, mobile = false, hash = ''){
   }
   ok('no two dimension labels overlap', overlap === 0, `${overlap} overlapping pairs of ${boxes.length}`);
 
+  // the distance line belongs to the object now, and only appears when switched on
+  await t.page.click('#items .itemrow[data-kind="person"] > button:first-child');
+  await t.page.waitForTimeout(250);
+  ok('objects carry a カメラまで switch', await t.page.$('[data-dim="dimCam"]') !== null);
+  ok('cameras no longer carry 被写体まで', await t.page.$('[data-dim="dimSubject"]') === null);
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(500);
+  await t.page.click('[data-dim="dimCam"]'); await t.page.waitForTimeout(400);
+  await t.page.click('#items .itemrow[data-kind="box"] > button:first-child'); await t.page.waitForTimeout(500);
+  const lines = (await t.page.$$eval('#labels span', n => n.map(x => x.textContent))).filter(x => x.includes('まで'));
+  // the switched-on person keeps its line; the box only has one because it is selected
+  ok('a switched-on object keeps its line', lines.some(x => x.startsWith('男性まで')), lines.join(' | '));
+  ok('only switched-on and selected objects are measured',
+     lines.filter(x => !x.includes('壁まで')).length === 2, lines.join(' | '));
+
   // views and the wall rules
   for (const v of ['side','pers','cam','plan']){ await t.page.click(`[data-view="${v}"]`); await t.page.waitForTimeout(450); }
   await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(500);
@@ -226,6 +240,23 @@ async function open(name, viewport, mobile = false, hash = ''){
     const want = o === 'landscape' ? [297,210] : [210,297];
     ok(`${o}: one page`, pages === 1, `${pages} pages, ${(buf.length/1024).toFixed(0)} KB`);
     ok(`${o}: A4 at the right orientation`, wmm === want[0] && hmm === want[1], `${wmm} x ${hmm} mm`);
+    if (o === 'landscape'){
+      const pane = await t.page.$('#paper .pv[data-pane="plan"]');
+      const b = await pane.boundingBox();
+      await t.page.mouse.move(b.x + b.width/2, b.y + b.height/2);
+      await t.page.mouse.down();
+      await t.page.mouse.move(b.x + b.width/2 + 40, b.y + b.height/2 + 25, {steps:6});
+      await t.page.mouse.up();
+      await t.page.waitForTimeout(200);
+      const moved = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      ok('a panel can be dragged to reframe it', /translate\(-?[1-9]/.test(moved), moved);
+      await t.page.mouse.wheel(0, -200); await t.page.waitForTimeout(200);
+      const zoomed = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      ok('the wheel zooms a panel', !/scale\(1\.000\)/.test(zoomed), zoomed);
+      await t.page.click('#framereset'); await t.page.waitForTimeout(200);
+      const back = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      ok('reset puts every panel back', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(back), back);
+    }
     await t.page.click('#paperclose');
   }
   const head = await t.page.$eval('#paper .ph', e => e.innerText.replace(/\n/g, ' | '));

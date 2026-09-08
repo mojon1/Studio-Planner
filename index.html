@@ -151,8 +151,9 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pviews{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
 #paper.landscape .pviews{flex:0 0 186mm}
 #paper.portrait .pviews{flex:0 0 146mm}
-.pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden}
-.pv img{width:100%;height:100%;object-fit:cover;display:block}
+.pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden;cursor:move;touch-action:none}
+.pvin{position:absolute;inset:0;transform-origin:center center}
+.pv img{width:100%;height:100%;object-fit:cover;display:block;user-select:none;-webkit-user-drag:none}
 .pv .cap{position:absolute;left:0;top:0;background:#15171b;color:#fff;font-size:7pt;font-weight:700;padding:.6mm 2mm;letter-spacing:.06em}
 .pv .lb{position:absolute;transform:translate(-50%,-50%);font-size:4.6pt;font-weight:700;background:rgba(255,255,255,.92);
   color:#15171b;border:.25pt solid #8a919c;padding:0 .5mm;white-space:nowrap;border-radius:.5mm;line-height:1.5}
@@ -174,6 +175,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 @media print{
   html,body{overflow:visible !important;height:auto !important;background:#fff !important}
   #app,#shot,#addpop,.pmbar{display:none !important}
+  .pv{cursor:auto !important}
   #papermodal{position:static !important;display:block !important;background:#fff !important}
   .pmscroll{overflow:visible !important;padding:0 !important;display:block !important}
   #paper{transform:none !important;box-shadow:none !important;margin:0 !important;padding:0 !important;width:auto !important;height:auto !important}
@@ -284,7 +286,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   <div class="pmbar">
     <button class="btn primary" id="doprint">PDF にする</button>
     <button class="btn" id="paperclose">閉じる</button>
-    <span class="pmhint">印刷画面で「送信先」を <b>PDF に保存</b> にしてください</span>
+    <button class="btn" id="framereset">図の位置を戻す</button>
+    <span class="pmhint">各図はドラッグで移動、ホイールで拡大縮小、ダブルクリックで戻す。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
   </div>
   <div class="pmscroll"><div id="paper"></div></div>
 </div>
@@ -341,7 +344,7 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {meta:{project:'', cut:'', memo:''}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
+  return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
@@ -350,6 +353,7 @@ function migrate(st){
   if (typeof st.studio.cove !== 'object' || !st.studio.cove) st.studio.cove = {back:!!st.studio.cove, left:false, right:false};
   if (!st.meta || typeof st.meta !== 'object') st.meta = {project:'', cut:'', memo:''};
   for (const k of ['project','cut','memo']) if (typeof st.meta[k] !== 'string') st.meta[k] = '';
+  if (!st.meta.frames || typeof st.meta.frames !== 'object') st.meta.frames = {};
   for (const it of st.items){
     if (it.type === 'camera'){
       if (it.sensor === 'apsc'){ it.sensor = 'custom'; it.sensorW = 23.5; }   // links made before the format list
@@ -556,25 +560,26 @@ function buildMeasures(){
   measGroup.clear(); measLabels = [];
   const {w,d} = state.studio;
   for (const ci of cams()){
-    if (ci.hidden) continue;
+    if (ci.hidden || !dimOn(ci, 'dimWall')) continue;
     const a = new V3(ci.x, 0.02, ci.z);
     const from = cams().length > 1 ? camName(ci) + ' ' : '';
-    if (dimOn(ci, 'dimWall')){
-      const back = new V3(ci.x, 0.02, -d/2);
-      measure(a, back, `${from}奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
-      const right = ci.x >= 0;
-      const side = new V3(right ? w/2 : -w/2, 0.02, ci.z);
-      measure(a, side, `${from}${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
-    }
-    if (dimOn(ci, 'dimSubject')){
-      const subs = state.items.filter(i => i.type === 'person' && !i.hidden);
-      const s = sel();                                 // whatever is picked counts as a subject too
-      if (s && s !== ci && !s.hidden && s.type !== 'camera' && !subs.includes(s)) subs.push(s);
-      for (const it of subs){
-        const b = new V3(it.x, 0.02, it.z);
-        if (a.distanceTo(b) > 0.1) measure(a, b, `${from}${itemName(it)}まで ${a.distanceTo(b).toFixed(2)} m`);
-      }
-    }
+    const back = new V3(ci.x, 0.02, -d/2);
+    measure(a, back, `${from}奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
+    const right = ci.x >= 0;
+    const side = new V3(right ? w/2 : -w/2, 0.02, ci.z);
+    measure(a, side, `${from}${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
+  }
+  // The camera distance is a switch on each object, not one switch on the camera:
+  // turning it on at the camera drew a line to every subject and buried the plan.
+  // It runs to whichever camera is being looked through, plus whatever is selected.
+  const ci = camItem();
+  if (!ci || ci.hidden) return;
+  const a = new V3(ci.x, 0.02, ci.z), picked = sel();
+  for (const it of state.items){
+    if (it.hidden || it.type === 'camera') continue;
+    if (it.dimCam !== true && it !== picked) continue;
+    const b = new V3(it.x, 0.02, it.z);
+    if (a.distanceTo(b) > 0.1) measure(a, b, `${itemName(it)}まで ${a.distanceTo(b).toFixed(2)} m`);
   }
 }
 const labelsEl = document.getElementById('labels');
@@ -973,9 +978,7 @@ function buildChroma(it){
     const fl = shadowed(new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.drape), cloth)); fl.rotation.x = -Math.PI/2; fl.position.set(0, 0.012, it.drape/2); g.add(fl);
     const cove = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,it.w,16,1,true, Math.PI, Math.PI/2), cloth); cove.rotation.z = Math.PI/2; cove.position.set(0,0.25,0.25); g.add(cove);
   }
-  const bar = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,it.w+0.3,8), mat(0x444))); bar.rotation.z = Math.PI/2; bar.position.set(0,it.h+0.02,-0.03); g.add(bar);
-  for (const s of [-1,1]){ const pole = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,it.h+0.04,8), mat(0x444))); pole.position.set(s*(it.w/2+0.12), (it.h+0.04)/2, -0.03); g.add(pole); }
-  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w+0.3, 0.14), new THREE.MeshBasicMaterial({color:col})); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; marker.userData.plan = true; g.add(marker);
+  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:col})); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; marker.userData.plan = true; g.add(marker);
   return g;
 }
 function rebuildItems(){
@@ -1488,9 +1491,8 @@ function renderSel(){
   }
   const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
   h += `<h2>寸法を出す</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
-    + (it.type === 'camera'
-        ? dimBtn('dimWall', '壁まで', dimOn(it, 'dimWall')) + dimBtn('dimSubject', '被写体まで', dimOn(it, 'dimSubject'))
-        : '') + `</div>`;
+    + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', dimOn(it, 'dimWall'))
+                            : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
   h += range('rot','向き',-180,180,1,rotShown(it),'°');
   if (it.type === 'camera') h += `<p class="hint">0° で奥向き。</p>`;
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
@@ -1498,7 +1500,7 @@ function renderSel(){
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
-    it[k] = !dimOn(it, k);
+    it[k] = k === 'dimCam' ? it.dimCam !== true : !dimOn(it, k);   // this one starts off
     buildDims(); renderSel(); needRender = true; saveHash();
   }));
   el.querySelectorAll('[data-num]').forEach(n => n.addEventListener('change', () => { setProp(it, n.dataset.num, n.value); }));
@@ -2000,8 +2002,12 @@ function studioRows(){
   h += prow('ホリゾント', edges.length ? edges.join('・') : 'なし');
   const people = state.items.filter(i => i.type === 'person' && !i.hidden);
   if (people.length) h += prow('人物', people.map(p => `${personLabel(p)} ${fmt(p.height)}m`).join('、'));
-  const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','chroma','mirror'].includes(i.type));
-  if (props.length) h += prow('小道具・背景', [...new Set(props.map(p => NAMES[p.type]))].join('、'));
+  const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','mirror'].includes(i.type));
+  if (props.length) h += prow('小道具', [...new Set(props.map(p => itemName(p)))].join('、'));
+  // backdrops get a line each: on set, the exact cloth size is what people ask for
+  const cloths = state.items.filter(i => i.type === 'chroma' && !i.hidden);
+  cloths.forEach((c, i) => h += prow(cloths.length > 1 ? `背景布 ${i+1}` : '背景布',
+    `幅 ${num(c.w)} × 高 ${num(c.h)}${c.drape > 0 ? ` × 床 ${num(c.drape)}` : ''} m`));
   const lights = state.items.filter(i => i.type === 'light' && !i.hidden);
   if (lights.length) h += prow('ライト', `${lights.length} 灯`);
   return h;
@@ -2010,11 +2016,13 @@ function buildSheet(){
   const land = orient === 'landscape', m = state.meta, ci = camItem();
   const [cw, ch] = land ? [1092, 1038] : [1140, 852];   // 12 px/mm at the panel size, about 300 dpi
   const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam', ci ? `ファインダー（${camName(ci)}）` : 'ファインダー']]
-    .map(([v, name]) => ({name, ...captureView(v, cw, ch)}));
+    .map(([v, name]) => ({view:v, name, ...captureView(v, cw, ch)}));
   const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-  const panels = shots.map(sh => `<div class="pv"><img src="${sh.url}" alt="${esc(sh.name)}">` +
+  const panels = shots.map(sh =>
+    `<div class="pv" data-pane="${sh.view}"><div class="pvin" style="${frameCSS(sh.view)}">` +
+    `<img src="${sh.url}" alt="${esc(sh.name)}" draggable="false">` +
     sh.labels.map(L => `<span class="lb ${L.cls}" style="left:${L.x.toFixed(2)}%;top:${L.y.toFixed(2)}%">${L.text}</span>`).join('') +
-    `<span class="cap">${esc(sh.name)}</span></div>`).join('');
+    `</div><span class="cap">${esc(sh.name)}</span></div>`).join('');
   paperEl.className = orient;
   paperEl.innerHTML =
     `<div class="ph">
@@ -2033,9 +2041,58 @@ function buildSheet(){
      <div class="pfoot"><span>1 マス = 1 m。寸法は概算です。</span><span>${esc(m.project || '')} ${esc(m.cut || '')}</span></div>`;
   pageStyle.textContent = `@page { size: A4 ${orient}; margin: 8mm; }`;
 }
+const frameOf = v => (state.meta.frames[v] ||= {s:1, x:0, y:0});
+const frameCSS = v => { const f = frameOf(v); return `transform:translate(${f.x.toFixed(2)}%,${f.y.toFixed(2)}%) scale(${f.s.toFixed(3)})`; };
+function applyFrame(v){
+  const el = paperEl.querySelector(`.pv[data-pane="${v}"] .pvin`);
+  if (el) el.style.cssText = frameCSS(v);
+}
+// the sheet is drawn at full A4 and then scaled to fit the screen, so a drag in
+// screen pixels has to be divided by that scale before it means anything on paper
+let paperScale = 1;
+{
+  let drag = null;
+  paperEl.addEventListener('pointerdown', e => {
+    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    const v = pane.dataset.pane, box = pane.getBoundingClientRect();
+    pane.setPointerCapture(e.pointerId);
+    drag = {v, box, x:e.clientX, y:e.clientY, f:{...frameOf(v)}};
+    e.preventDefault();
+  });
+  paperEl.addEventListener('pointermove', e => {
+    if (!drag) return;
+    // box is the panel on screen, and a translate percentage lands on the same
+    // scaled size, so the page scale cancels and the ratio is all that is needed
+    const f = frameOf(drag.v);
+    f.x = drag.f.x + (e.clientX - drag.x) / drag.box.width * 100;
+    f.y = drag.f.y + (e.clientY - drag.y) / drag.box.height * 100;
+    applyFrame(drag.v);
+  });
+  const stop = () => { if (drag){ drag = null; saveHash(); } };
+  paperEl.addEventListener('pointerup', stop);
+  paperEl.addEventListener('pointercancel', stop);
+  paperEl.addEventListener('wheel', e => {
+    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    e.preventDefault();
+    const f = frameOf(pane.dataset.pane);
+    f.s = clamp(f.s * (e.deltaY < 0 ? 1.12 : 0.893), 0.4, 6);
+    applyFrame(pane.dataset.pane); saveHash();
+  }, {passive:false});
+  paperEl.addEventListener('dblclick', e => {
+    const pane = e.target.closest?.('.pv[data-pane]'); if (!pane) return;
+    state.meta.frames[pane.dataset.pane] = {s:1, x:0, y:0};
+    applyFrame(pane.dataset.pane); saveHash();
+  });
+}
+document.getElementById('framereset').addEventListener('click', () => {
+  state.meta.frames = {};
+  for (const v of ['plan','side','pers','cam']) applyFrame(v);
+  saveHash();
+});
 function fitPaper(){
   const box = paperEl.parentElement.getBoundingClientRect();
   const k = Math.min(1, (box.width - 24) / Math.max(1, paperEl.offsetWidth));
+  paperScale = k;
   paperEl.style.transform = `scale(${k.toFixed(3)})`;
   paperEl.parentElement.style.height = k < 1 ? `${paperEl.offsetHeight * k + 40}px` : '';
 }
