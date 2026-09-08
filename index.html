@@ -154,8 +154,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden}
 .pv img{width:100%;height:100%;object-fit:cover;display:block}
 .pv .cap{position:absolute;left:0;top:0;background:#15171b;color:#fff;font-size:7pt;font-weight:700;padding:.6mm 2mm;letter-spacing:.06em}
-.pv .lb{position:absolute;transform:translate(-50%,-50%);font-size:6.5pt;font-weight:700;background:rgba(255,255,255,.9);
-  color:#15171b;border:.4pt solid #6b7280;padding:0 1mm;white-space:nowrap;border-radius:.6mm}
+.pv .lb{position:absolute;transform:translate(-50%,-50%);font-size:4.6pt;font-weight:700;background:rgba(255,255,255,.92);
+  color:#15171b;border:.25pt solid #8a919c;padding:0 .5mm;white-space:nowrap;border-radius:.5mm;line-height:1.5}
 .pv .lb.dim{border-color:#b45309;color:#92400e}
 .pv .lb.dist{background:#c2711f;border-color:#8f5010;color:#fff}
 .pside{flex:1;display:flex;flex-direction:column;gap:3mm;min-width:0}
@@ -209,7 +209,6 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       </div>
       <div class="sec" data-sec="share">
         <h2>リンクで共有</h2>
-        <p class="hint">このリンクを開くと、アプリ無しで同じ配置がそのまま見られます。</p>
         <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
         <input type="text" id="linkbox" readonly>
         <h2>PDF にする</h2>
@@ -218,10 +217,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
         <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
         <div class="row"><button class="btn primary" id="makepdf">図面を作る</button></div>
-        <p class="hint">上面・側面・パース・ファインダーの 4 面とカメラ情報が 1 枚に入ります。表示された用紙を確認してから PDF にしてください。案件名とカットとメモは共有リンクにも入ります。</p>
+        <p class="hint">4 面とカメラ情報が A4 一枚に入ります。</p>
         <h2>画像で共有</h2>
         <div class="row"><button class="btn" id="png-plan">図面を画像に</button><button class="btn" id="png-cam">カメラの絵を画像に</button></div>
-        <p class="hint">スマホでは表示された画像を長押しして保存できます。</p>
+        <p class="hint">画像は長押しで保存。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
       </div>
@@ -275,11 +274,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button class="btn" data-add="mirror">反射面</button>
       <button class="btn" data-add="chroma">背景布</button>
     </div>
-    <p class="hint">カメラは何台でも置けます。増やした分は「リスト」に並び、選んだカメラの絵が小窓に出ます。</p>
     <h2>3D モデルを取り込む</h2>
     <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
     <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
-    <p class="hint">GLB・glTF・FBX が読めます。テクスチャが別ファイルの glTF は、<b>.bin と画像も一緒に選ぶ</b>か、書き出しフォルダごと画面にドラッグしてください。GLB に埋め込んで書き出すのが一番確実です。取り込んだモデルはこの端末に保存され、共有リンクでは実寸の箱として相手に見えます。</p>
+    <p class="hint">GLB・glTF・FBX。テクスチャが別ファイルなら <b>.bin と画像も一緒に</b>、またはフォルダごとドラッグ。共有リンクでは相手に実寸の箱として見えます。</p>
   </div>
 </div></div>
 <div id="papermodal">
@@ -560,12 +558,13 @@ function buildMeasures(){
   for (const ci of cams()){
     if (ci.hidden) continue;
     const a = new V3(ci.x, 0.02, ci.z);
+    const from = cams().length > 1 ? camName(ci) + ' ' : '';
     if (dimOn(ci, 'dimWall')){
       const back = new V3(ci.x, 0.02, -d/2);
-      measure(a, back, `奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
+      measure(a, back, `${from}奥壁まで ${a.distanceTo(back).toFixed(2)} m`);
       const right = ci.x >= 0;
       const side = new V3(right ? w/2 : -w/2, 0.02, ci.z);
-      measure(a, side, `${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
+      measure(a, side, `${from}${right ? '右' : '左'}壁まで ${a.distanceTo(side).toFixed(2)} m`);
     }
     if (dimOn(ci, 'dimSubject')){
       const subs = state.items.filter(i => i.type === 'person' && !i.hidden);
@@ -573,7 +572,7 @@ function buildMeasures(){
       if (s && s !== ci && !s.hidden && s.type !== 'camera' && !subs.includes(s)) subs.push(s);
       for (const it of subs){
         const b = new V3(it.x, 0.02, it.z);
-        if (a.distanceTo(b) > 0.1) measure(a, b, `${a.distanceTo(b).toFixed(2)} m`);
+        if (a.distanceTo(b) > 0.1) measure(a, b, `${from}${itemName(it)}まで ${a.distanceTo(b).toFixed(2)} m`);
       }
     }
   }
@@ -583,6 +582,15 @@ const num = v => fmt(+(+v).toFixed(2));
 const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind === 'wall');
 // a reflector is read as a panel, so its two edges are named by which is longer
 const sides = (a, b) => `長辺 ${num(Math.max(a,b))} × 短辺 ${num(Math.min(a,b))} m`;
+// a drawing with several things in it needs to say which one each number belongs to
+const MIRROR_NAME = {water:'水面', floor:'床鏡', wall:'鏡'};
+function itemName(it){
+  if (it.type === 'camera') return camName(it);
+  if (it.type === 'person') return personLabel(it);
+  if (it.type === 'mirror') return MIRROR_NAME[it.kind] || '反射面';
+  if (it.type === 'model') return (it.name || 'モデル').replace(/\.[^.]+$/, '').slice(0, 12);
+  return NAMES[it.type] || '';
+}
 function itemLabels(view){
   const out = [];
   for (const it of state.items){
@@ -597,7 +605,7 @@ function itemLabels(view){
       if (it.type === 'chroma') txt = depth > 0 ? `幅 ${num(it.w)} × 奥行 ${num(depth)} m` : `幅 ${num(it.w)} m`;
       else if (it.type === 'mirror') txt = it.kind === 'wall' ? `幅 ${num(it.w)} m` : sides(it.w, it.h);
       else if (it.w > 0 && it.d > 0) txt = `${num(it.w)} × ${num(it.d)} m`;
-      if (txt) out.push({p, text:txt, cls:'dim', views:['plan']});
+      if (txt) out.push({p, text:`${itemName(it)}：${txt}`, cls:'dim', views:['plan']});
       continue;
     }
     if (view !== 'side') continue;
@@ -607,33 +615,35 @@ function itemLabels(view){
       top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (it.type === 'chroma'){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else if (it.type === 'mirror'){ if (it.kind !== 'wall') continue; top = it.h; txt = sides(it.w, it.h); }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
-    out.push({p:new V3(it.x, top + 0.25, it.z), text:txt, cls:'', views:['side']});
+    out.push({p:new V3(it.x, top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side']});
   }
   return out;
 }
 // em and lh are the size of one label character and one label line, in the pixels of
 // `rect`. The printed sheet shrinks a big render into a small panel, so the same
 // label is far larger relative to the image there and needs its own numbers.
-function labelPositions(view, cam, rect, avoidPip = true, em = 7, lh = 19){
+// a full-width character takes about `em`; ASCII a little over half of one
+const textEms = t => { let n = 0; for (const ch of t) n += ch.charCodeAt(0) < 0x2e80 ? 0.58 : 1; return n; };
+function labelPositions(view, cam, rect, avoidPip = true, em = 12, lh = 19){
   const out = [];
   if (view === 'cam' || !showDims) return out;
   const all = labels.concat(measLabels, itemLabels(view));
-  const hits = (x, y, w, h) => out.some(p => Math.abs(p.x - x) < (p.w + w)/2 + em*0.5 && Math.abs(p.y - y) < (p.h + h)/2 + lh*0.15);
+  const hits = (x, y, w, h) => out.some(p => Math.abs(p.x - x) < (p.w + w)/2 + em*0.3 && Math.abs(p.y - y) < (p.h + h)/2 + lh*0.1);
   for (const L of all){
     if (!L.views.includes(view)) continue;
     const v = L.p.clone().project(cam); if (v.z > 1) continue;
     const x0 = rect.x + (v.x+1)/2*rect.w, y0 = rect.y + (1-v.y)/2*rect.h;
-    const w = L.text.length*em + em*2, h = lh;
+    const w = textEms(L.text)*em + em*0.8, h = lh;
     // step away from the anchor rather than dropping the number outright
     let x = x0, y = y0, placed = !hits(x, y, w, h);
-    for (const [dx, dy] of [[0,-1],[0,1],[0,-2],[0,2],[1,-1],[-1,-1],[1,1],[-1,1],[0,-3],[0,3]]){
-      if (placed) break;
-      x = x0 + dx*w*0.62; y = y0 + dy*lh; placed = !hits(x, y, w, h);
-    }
+    if (!placed) for (let ring = 1; ring <= 4 && !placed; ring++)
+      for (const [dx, dy] of [[0,-1],[0,1],[1,0],[-1,0],[1,-1],[-1,-1],[1,1],[-1,1]]){
+        x = x0 + dx*ring*w*0.55; y = y0 + dy*ring*lh*1.15;
+        if ((placed = !hits(x, y, w, h))) break;
+      }
     if (!placed) continue;
     if (x < rect.x + w/2 || x > rect.x + rect.w - w/2 || y < rect.y + h/2 || y > rect.y + rect.h - h/2) continue;
     if (avoidPip && pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
@@ -1281,10 +1291,10 @@ function studioPanel(){
         </div>`;
   h += `<h2>ホリゾント（R 壁）を付ける辺</h2><div class="row">` +
     [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
-  h += `<p class="hint">上が奥の壁です。図面の 1 マスは 1 m。奥と左右を両方付けると角も丸くなります。</p>`;
-  h += `<h2>寸法</h2><div class="row">${dimBtn('studio', '寸法を出す', dimOn(state.studio))}</div>`;
-  h += `<p class="hint">出るのは幅・奥行・高さです。カメラからの距離はカメラの設定に、置いたものの寸法はそれぞれの設定にあります。図面の定規ボタンは全部まとめての開閉です。</p>`;
-  h += `<h2>見かた</h2><p class="hint">「上面」で置く、「側面」で高さを見る、「パース」は指でくるくる回せます。選んだカメラの絵は小窓に常に出ます。小窓は上の帯をドラッグで移動、右下の角で大きさ変更、中をなぞるとカメラの向きが変わります。</p>`;
+  h += `<p class="hint">上が奥の壁。1 マス 1 m。</p>`;
+  h += `<h2>寸法を出す</h2><div class="row">${dimBtn('studio', '幅・奥行・高さ', dimOn(state.studio))}</div>`;
+
+
   return h;
 }
 function bindStudio(el){
@@ -1403,30 +1413,29 @@ function renderSel(){
   if (selectedId === STUDIO){ el.innerHTML = studioPanel(); bindStudio(el); return; }
   const it = sel();
   if (!it){
-    el.innerHTML = '<p class="hint">リストから選ぶか、図面のものをタップすると、ここで細かく変えられます。</p>'
-      + '<p class="hint">図面のものは指でドラッグして動かせます。選ぶと周りにリングが出るので、リングをなぞると向きが変わります。目のマークで一時的に隠せます。</p>';
+    el.innerHTML = '<p class="hint">リストか図面から選ぶと、ここで変えられます。図面ではドラッグで移動、リングをなぞると回転。</p>';
     return;
   }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
   const range = (name, label, min, max, step, val, unit) =>
     `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}">` +
     `<button type="button" class="v" data-edit="${name}" data-min="${min}" data-max="${max}" data-step="${step}" data-unit="${unit}" title="タップで数値を入力">${fmt(val)} ${unit}</button></label>`;
-  const colors = (pal, cur) => `<h2>色</h2><div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
+  const colors = (pal, cur) => `<div class="swatches">${pal.map(([c,n]) => `<button class="${c===String(cur).toLowerCase()?'on':''}" data-set="color" data-val="${c}" title="${n}" style="background:${c}"></button>`).join('')}<input type="color" data-color value="${cur}" title="好きな色"></div>`;
   let h = `<h2>${it.type === 'camera' ? camName(it) : NAMES[it.type]}</h2>`;
-  if (it.hidden) h += `<p class="hint">今は隠しています。「配置」の一覧の目のマークで戻せます。</p>`;
+  if (it.hidden) h += `<p class="hint">隠し中。目のマークで戻せます。</p>`;
   if (it.type === 'person'){
-    h += `<h2>体型</h2>` + btns('body', Object.entries(BODIES), it.body || 'm');
+    h += btns('body', Object.entries(BODIES), it.body || 'm');
     h += range('height','身長',0.70,2.10,0.01,it.height,'m');
-    h += `<p class="hint">頭身は身長から自動で決まります。低くすると子どもの体型になります。</p>`;
-    h += `<h2>ポーズ</h2>` + btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+
+    h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
   } else if (it.type === 'car'){
-    h += `<h2>形</h2>` + btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
+    h += btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
     h += colors(PROP_SWATCHES, it.color || '#b9c0cc');
   } else if (it.type === 'chair'){
     h += range('seatH','座面高',0.20,0.90,0.01,it.seatH,'m') + range('h','背もたれ上端',0.25,1.40,0.01,it.h,'m');
     h += range('w','幅',0.30,1.20,0.01,it.w,'m') + range('d','奥行',0.30,1.20,0.01,it.d,'m');
-    h += `<p class="hint">背もたれ上端を座面高まで下げるとスツールになります。</p>`;
+    h += `<p class="hint">背もたれを座面まで下げるとスツール。</p>`;
     h += colors(PROP_SWATCHES, it.color || '#a58256');
   } else if (it.type === 'table'){
     h += range('w','幅',0.40,4.00,0.05,it.w,'m') + range('d','奥行',0.30,2.00,0.05,it.d,'m') + range('h','高さ',0.20,1.20,0.01,it.h,'m');
@@ -1437,17 +1446,17 @@ function renderSel(){
   } else if (it.type === 'model'){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
-    if (!here) h += `<p class="hint">このモデルの実体はこの端末にありません。実寸の箱で表示しています。</p>`;
+    if (!here) h += `<p class="hint">実体はこの端末にありません。実寸の箱で表示中。</p>`;
     else {
       const info = modelInfo.get(it.key);
       const note = textureNote(it.key);
       if (note){
         h += `<p class="hint" style="color:var(--accent-ink)">${esc(note)}</p>`;
         h += `<p class="hint" style="font-size:.74rem">${esc(textureDetail(it.key))}</p>`;
-      } else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚を読み込みました。</p>`;
+      } else if (info?.textures) h += `<p class="hint">テクスチャ ${info.textures} 枚。</p>`;
     }
     h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
-    h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} m ・ 奥行 ${fmt(+it.d.toFixed(2))} m。高さを入れると全体が合わせて拡大縮小します。</p>`;
+    h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} × 奥行 ${fmt(+it.d.toFixed(2))} m。高さを変えると全体が拡大縮小します。</p>`;
     if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
   } else if (it.type === 'camera'){
     h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
@@ -1456,33 +1465,34 @@ function renderSel(){
       if (savedSensors.length) h += `<div class="row saved">` + savedSensors.map((s,i) =>
         `<button class="btn ${Math.abs(s.w - sensorW(it)) < 0.01 ? 'on':''}" data-sensorpreset="${i}">${esc(s.name)}<small>${s.w}mm</small></button><button class="btn del" data-sensordel="${i}" title="${esc(s.name)} を消す" aria-label="${esc(s.name)} を消す">×</button>`).join('') + `</div>`;
       h += `<div class="row nm"><input type="text" data-sensorname placeholder="機材の名前" maxlength="20"><button class="btn" data-sensorsave>この幅を保存</button></div>`;
-      h += `<p class="hint">保存するとこの端末に残り、次回からボタンで選べます。<br>規格値: 1 型 13.2 / マイクロフォーサーズ 17.3 / APS-C 23.5 / スーパー35 フィルム基準 24.9 / スーパー35 デジタル 27 前後 / フルサイズ 36 / ビスタビジョン 41 / ALEXA 65 は 54 前後</p>`;
+      h += `<p class="hint">1 型 13.2 / MFT 17.3 / APS-C 23.5 / S35 24.9〜28 / フルサイズ 36 / ビスタビジョン 41 / ALEXA 65 は 54 前後</p>`;
     } else if (it.sensor === 's35'){
-      h += `<p class="hint">実機は 24.9〜28.3mm と幅があります。正確に見たいときは「手動」で実測値を入れてください。</p>`;
+      h += `<p class="hint">実機は 24.9〜28.3mm。正確には「手動」で。</p>`;
     }
     h += `<h2>レンズ</h2>` + btns('focal', (LENSES[it.sensor]||LENSES.ff).map(f => [f, f+'mm']), it.focal);
     h += range('focal','細かく',10,400,1,it.focal,'mm');
     h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]), it.aspect);
-    h += `<h2>位置</h2>` + range('y','高さ',0.2,4,0.05,it.y,'m') + range('pitch','上下の向き',-45,45,1,it.pitch,'°');
-    h += `<p class="hint">カメラの小窓の中をなぞると向きが変わり、2 本指で広げるとズームします。</p>`;
+    h += range('y','高さ',0.2,4,0.05,it.y,'m') + range('pitch','上下の向き',-45,45,1,it.pitch,'°');
+
   } else if (it.type === 'light'){
     h += range('y','高さ',0.3,5,0.05,it.y,'m');
-    h += `<p class="hint">ライトは位置と向きの目安だけで、明るさは計算しません。</p>`;
+    h += `<p class="hint">明るさは計算しません。位置と向きの目安です。</p>`;
   } else if (it.type === 'chroma'){
     h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
-    h += `<p class="hint">「床に垂らす」を 0 にすると背景だけの布になります。</p>`;
+
   } else {
-    h += `<h2>種類</h2>` + btns('kind', [['water','床の水面'],['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
+    h += btns('kind', [['water','床の水面'],['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
-    h += `<p class="hint">映り込みはカメラの小窓で確認できます。</p>`;
+
   }
-  h += `<h2>寸法</h2><div class="row">${dimBtn('own', it.type === 'person' ? '身長を出す' : '寸法を出す', dimOn(it))}`
+  const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
+  h += `<h2>寸法を出す</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
     + (it.type === 'camera'
-        ? dimBtn('dimWall', '壁までの距離', dimOn(it, 'dimWall')) + dimBtn('dimSubject', '被写体までの距離', dimOn(it, 'dimSubject'))
+        ? dimBtn('dimWall', '壁まで', dimOn(it, 'dimWall')) + dimBtn('dimSubject', '被写体まで', dimOn(it, 'dimSubject'))
         : '') + `</div>`;
-  h += `<h2>向きと位置</h2>` + range('rot','向き',-180,180,1,rotShown(it),'°');
-  if (it.type === 'camera') h += `<p class="hint">0° で奥の壁のほうを向きます。</p>`;
+  h += range('rot','向き',-180,180,1,rotShown(it),'°');
+  if (it.type === 'camera') h += `<p class="hint">0° で奥向き。</p>`;
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>これを消す</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
@@ -1954,7 +1964,7 @@ function captureView(view, cw, ch){
   renderer.setScissorTest(false);
   const url = canvas.toDataURL('image/png');
   const cam = view==='plan' ? planCam : view==='side' ? sideCam : view==='pers' ? persCam : shotCam;
-  const labs = labelPositions(view, cam, rect, false, 15, 34).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
+  const labs = labelPositions(view, cam, rect, false, 19, 29).map(L => ({x:L.x/cw*100, y:L.y/ch*100, text:L.text, cls:L.cls}));
   capturing = false; scene.background = oBg; mainView = oMain; W = oW; H = oH;
   renderer.setSize(oW, oH, false); layoutPip(); fitOrtho(); needRender = true;
   return {url, labels:labs};
