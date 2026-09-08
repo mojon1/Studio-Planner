@@ -326,6 +326,13 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForTimeout(400);
   ok('a file that is not a scene is refused, not applied',
      (await t.page.textContent('#toast')).includes('読めません') && await t.page.$$eval('#items .itemrow', n => n.length) === after);
+  // the PNG dialog hands over a file the same way
+  await t.page.click('#png-plan');
+  await t.page.waitForTimeout(1200);
+  const png = await Promise.all([t.page.waitForEvent('download'), t.page.click('#shotdl')]).then(r => r[0]);
+  ok('the image dialog saves a named PNG', png.suggestedFilename().endsWith('.png') && png.suggestedFilename().includes('青山スタジオ'), png.suggestedFilename());
+  await t.page.click('#shotclose');
+
   ok('project file run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }

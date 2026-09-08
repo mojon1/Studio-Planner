@@ -296,7 +296,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   </div>
   <div class="pmscroll"><div id="paper"></div></div>
 </div>
-<div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><a class="btn" id="shotdl" download="studio.png">保存</a><button class="btn" id="shotclose">閉じる</button></div></div>
+<div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><button class="btn" id="shotdl">保存</button><button class="btn" id="shotclose">閉じる</button></div></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -1903,6 +1903,29 @@ async function copyLink(viewOnly){
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
 document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; select(null); buildStudio(); rebuildItems(); renderList(); saveHash(); } });
+// ---------- handing a file to the viewer ----------
+// A plain <a download> is inert inside the claude.ai preview frame, which is where
+// this gets tried first, so a file goes through the viewer's own save when there is
+// one and through the link everywhere else. The lookup is started at boot because
+// it can sit for ten seconds when nothing answers.
+let downloadsNS = null;
+function findDownloads(){
+  downloadsNS = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+}
+async function saveFile(filename, blob){
+  const ns = downloadsNS ? await downloadsNS : null;
+  if (ns){
+    try { await ns.save({filename, data:blob}); toast('保存しました'); }
+    catch(e){ if (e?.code !== 'declined') toast('保存できませんでした'); }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  toast('保存しました');
+}
+
 // ---------- project file ----------
 // The link covers a quick hand-off; a job that comes back next month wants a file
 // on the desktop. Same JSON as the link, uncompressed so it stays readable.
@@ -1911,12 +1934,7 @@ function projectName(){
   return [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_') || 'StudioPlanner';
 }
 document.getElementById('savefile').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 1)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = projectName() + '.studio.json';
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
-  toast('保存しました');
+  saveFile(projectName() + '.studio.json', new Blob([JSON.stringify(state, null, 1)], {type:'application/json'}));
 });
 document.getElementById('loadfile').addEventListener('click', () => document.getElementById('projfile').click());
 document.getElementById('projfile').addEventListener('change', async e => {
@@ -1968,8 +1986,11 @@ function capture(view, name){
   const url = out.toDataURL('image/png');
   renderer.setPixelRatio(pr); mainView = prevMain; resize();
   const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = `${name}（${out.width} × ${out.height} px）`;
-  document.getElementById('shotdl').href = url; s.classList.add('show');
+  out.toBlob(b => { shotBlob = b; shotName = `${projectName()}_${name}.png`; }, 'image/png');
+  s.classList.add('show');
 }
+let shotBlob = null, shotName = 'studio.png';
+document.getElementById('shotdl').addEventListener('click', () => { if (shotBlob) saveFile(shotName, shotBlob); });
 document.getElementById('png-plan').addEventListener('click', () => capture('plan', '図面'));
 document.getElementById('png-cam').addEventListener('click', () => capture('cam', 'カメラの絵'));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
@@ -2164,6 +2185,7 @@ addEventListener('resize', () => { if (paperModal.classList.contains('show')) fi
 
 // ---------- boot ----------
 (async () => {
+  findDownloads();
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; syncViewBtns(); }
