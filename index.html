@@ -1175,7 +1175,8 @@ function buildCamera(it){
 // 3D frustum, clipped by the studio (floor, walls, coves, ceiling)
 function setShotCam(ci, aspect){
   shotCam.aspect = aspect; shotCam.filmGauge = sensorW(ci); shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
-  shotCam.position.set(ci.x, standHeight(ci) + ci.y, ci.z);      // 箱に乗せたら視点もその上 shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
+  shotCam.position.set(ci.x, standHeight(ci) + ci.y, ci.z);      // 箱に乗せたら視点もその上
+  shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
   shotCam.updateMatrixWorld(true);
 }
 const fRay = new THREE.Raycaster();

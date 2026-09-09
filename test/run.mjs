@@ -676,6 +676,35 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 12. the camera window: dragging inside it pans and tilts, and it redraws --------
+{
+  const t = await open('finder', { width: 1300, height: 900 });
+  const P = t.page;
+  const body = await P.locator('#pip .body').boundingBox();
+  const before = await P.locator('#pip').screenshot();
+  await P.mouse.move(body.x + body.width/2, body.y + body.height/2);
+  await P.mouse.down();
+  for (let i = 1; i <= 8; i++){
+    await P.mouse.move(body.x + body.width/2 + i*10, body.y + body.height/2 + i*4);
+    await P.waitForTimeout(30);
+  }
+  await P.mouse.up(); await P.waitForTimeout(600);
+  const c = await P.evaluate(() => { const i = window.__sp.state().items.find(x => x.type === 'camera'); return {rot:i.rot, pitch:i.pitch}; });
+  ok('dragging the camera window pans and tilts', Math.abs(c.rot - 180) > 5 && Math.abs(c.pitch + 6) > 1, JSON.stringify(c));
+  ok('and the window redraws from the new angle', !before.equals(await P.locator('#pip').screenshot()));
+  // 行末コメントを足したとき、同じ行にあった shotCam.rotation.set が丸ごと消えて
+  // ファインダーがパンもチルトもしなくなったことがある。角度そのものを見る
+  await P.click('#viewbtns button[data-view="cam"]'); await P.waitForTimeout(600);
+  const a = await P.evaluate(() => {
+    const sp = window.__sp, i = sp.state().items.find(x => x.type === 'camera');
+    const d = Math.abs(sp.camera().rotation.y - (i.rot * Math.PI/180 + Math.PI)) % (2*Math.PI);
+    return +Math.min(d, 2*Math.PI - d).toFixed(4);
+  });
+  ok('the finder camera really carries that angle', a < 0.001, String(a));
+  ok('finder run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
