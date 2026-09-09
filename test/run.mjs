@@ -712,6 +712,105 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 13. front view, grid switch, apple boxes, camera angles, shared poses --------
+{
+  const t = await open('batch', { width: 1400, height: 900 });
+  const P = t.page;
+  const st = () => P.evaluate(() => window.__sp.state());
+  ok('five views, front among them',
+     (await P.$$eval('#viewbtns button[data-view]', b => b.map(x => x.textContent))).join('/') === '上面/側面/正面/パース/ファインダー',
+     (await P.$$eval('#viewbtns button[data-view]', b => b.map(x => x.textContent))).join('/'));
+  await P.click('#viewbtns button[data-view="front"]'); await P.waitForTimeout(600);
+  ok('the front view draws its own width and height',
+     (await P.$$eval('#labels span', n => n.map(x => x.textContent))).filter(x => /幅|高さ/.test(x)).length >= 2,
+     (await P.$$eval('#labels span', n => n.map(x => x.textContent))).join(' | '));
+  ok('the camera window switch sits bottom right',
+     await P.evaluate(() => { const r = document.getElementById('pipbtn').getBoundingClientRect();
+       return r.x > innerWidth*0.8 && r.y > innerHeight*0.8; }));
+  const gridOn = () => P.evaluate(() => { let v = null; window.__sp.scene.traverse(n => { if (n.userData.grid) v = n.visible; }); return v; });
+  ok('the grid starts on', await gridOn() === true);
+  await P.click('#gridbtn'); await P.waitForTimeout(300);
+  ok('and can be switched off', await gridOn() === false);
+  await P.click('#gridbtn'); await P.waitForTimeout(300);
+  ok('the grid runs past the studio walls', await P.evaluate(() => {
+    const sp = window.__sp; let g = null; sp.scene.traverse(n => { if (n.userData.grid) g = n; });
+    g.geometry.computeBoundingBox();
+    return g.geometry.boundingBox.max.x > sp.state().studio.w/2 + 2; }));
+  ok('the share panel carries a version and a copyright',
+     /v\d+\.\d+\.\d+/.test(await P.textContent('.colophon')) && (await P.textContent('.colophon')).includes('©'),
+     await P.textContent('.colophon'));
+
+  // 箱馬。標準寸法なので大きさは変えられない
+  await t.add('[data-add="koma"]'); await P.waitForTimeout(500);
+  const koma = () => P.evaluate(() => { const i = window.__sp.state().items.find(x => x.type === 'koma');
+    return i && [i.kind, i.w, i.d, i.h].join('/'); });
+  ok('an apple box is 450 x 300 x 150 lying flat', await koma() === 'flat/0.45/0.3/0.15', await koma());
+  await P.click('#selbody [data-set="kind"][data-val="side"]'); await P.waitForTimeout(400);
+  ok('on its side it stands 300', await koma() === 'side/0.45/0.15/0.3', await koma());
+  await P.click('#selbody [data-set="kind"][data-val="end"]'); await P.waitForTimeout(400);
+  ok('on end it stands 450', await koma() === 'end/0.3/0.15/0.45', await koma());
+  ok('and no size sliders are offered', await P.$$eval('#selbody [data-range="w"]', b => b.length) === 0);
+  ok('the reflector is called a mirror now',
+     (await P.$$eval('#items .itemrow > button.name', n => n.map(x => x.textContent))).join('/').includes('ミラー') === false);
+
+  // カメラ
+  await P.click('#items .itemrow[data-kind="camera"] > button.name'); await P.waitForTimeout(400);
+  ok('height, pan, tilt and roll lead the camera panel',
+     (await P.$$eval('#selbody label.f span:first-child', n => n.map(x => x.textContent))).slice(0,4).join('/') === '高さ/パン/チルト/ロール',
+     (await P.$$eval('#selbody label.f span:first-child', n => n.map(x => x.textContent))).join('/'));
+  ok('the focal length slider sits above its presets', await P.evaluate(() => {
+    const kids = [...document.getElementById('selbody').children];
+    const slider = kids.findIndex(k => k.querySelector?.('[data-range="focal"]'));
+    const presets = kids.findIndex(k => k.querySelector?.('[data-set="focal"]'));
+    return slider >= 0 && presets > slider; }));
+  ok('135mm is gone from the presets',
+     !(await P.$$eval('#selbody [data-set="focal"]', b => b.map(x => x.textContent))).includes('135mm'),
+     (await P.$$eval('#selbody [data-set="focal"]', b => b.map(x => x.textContent))).join('/'));
+  await P.evaluate(() => { const c = window.__sp.state().items.find(i => i.type === 'camera'); c.roll = 20; window.__sp.select(c.id); });
+  await P.click('#viewbtns button[data-view="cam"]'); await P.waitForTimeout(600);
+  ok('roll turns the finder camera round its own axis',
+     Math.abs(await P.evaluate(() => window.__sp.camera().rotation.z) - 20*Math.PI/180) < 0.001);
+
+  // チルトの弧をなぞる
+  await P.click('#viewbtns button[data-view="pers"]'); await P.waitForTimeout(600);
+  await P.evaluate(() => { const sp = window.__sp, c = sp.state().items.find(i => i.type === 'camera');
+    c.pitch = 0; c.roll = 0; const o = sp.orbit; o.theta = 1.1; o.phi = 1.15; o.radius = 4.5;
+    o.target.set(c.x, 1.2, c.z); sp.select(c.id); sp.render(); });
+  await P.waitForTimeout(700);
+  const onArc = deg => P.evaluate(d => {
+    const sp = window.__sp, r = document.getElementById('view').getBoundingClientRect(), g = sp.tilt();
+    g.updateMatrixWorld(true);
+    const v = new sp.THREE.Vector3(Math.cos(d*Math.PI/180)*0.55, Math.sin(d*Math.PI/180)*0.55, 0)
+      .applyMatrix4(g.matrixWorld).project(sp.camera());
+    return {x: r.x + (v.x+1)/2*r.width, y: r.y + (1-v.y)/2*r.height};
+  }, deg);
+  const a0 = await onArc(0), a1 = await onArc(30);
+  await P.mouse.move(a0.x, a0.y); await P.mouse.down();
+  await P.mouse.move(a1.x, a1.y, { steps: 10 }); await P.mouse.up(); await P.waitForTimeout(400);
+  ok('dragging the arc tilts the camera',
+     Math.abs(await P.evaluate(() => window.__sp.state().items.find(i => i.type === 'camera').pitch) - 30) <= 2,
+     String(await P.evaluate(() => window.__sp.state().items.find(i => i.type === 'camera').pitch)));
+  ok('batch run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+{
+  // 共有リンクを開いた直後、誰もパネルを開かなくてもポーズが乗っている
+  const posed = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
+    {id:'p1',type:'person',x:0,z:0,rot:0,height:1.72,pose:'stand',kind:'man',model:'asia-casual-man',posture:'sit-chair'},
+    {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const t = await open('sharedpose', { width: 1200, height: 800 }, false, '#s=' + encodeState(posed));
+  await t.page.waitForTimeout(1200);
+  const h = await t.page.evaluate(() => {
+    const sp = window.__sp, b = new sp.THREE.Box3();
+    sp.group('p1').traverse(n => { if (n.isSkinnedMesh){ n.computeBoundingBox();
+      b.union(n.boundingBox.clone().applyMatrix4(n.matrixWorld)); } });
+    return +(b.max.y - b.min.y).toFixed(2);
+  });
+  ok('a shared link brings the pose with it', h > 1.0 && h < 1.5, `${h} m`);
+  ok('shared-pose run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
