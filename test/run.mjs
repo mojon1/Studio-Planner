@@ -1155,6 +1155,43 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t2.ctx.close(); await t.ctx.close();
 }
 
+// --- 19. the finder: an eye, not a shutter, and a window of its own ----------------
+{
+  const t = await open('popout', { width: 1300, height: 850 });
+  const d = await t.page.$eval('#pipbtn svg path', e => e.getAttribute('d'));
+  ok('the bottom-right button is an eye, not a camera', d.startsWith('M2 12s'), d.slice(0, 12));
+
+  const [pop] = await Promise.all([t.ctx.waitForEvent('page'), t.page.click('#pipout')]);
+  await pop.waitForLoadState('domcontentloaded');
+  await t.page.waitForTimeout(1500);
+  ok('the finder opens in a window of its own', (await pop.title()).includes('ファインダー'), await pop.title());
+  ok('and the docked one steps aside', await t.page.$eval('#pip', e => getComputedStyle(e).display) === 'none');
+  const shot = await pop.evaluate(() => {
+    const c = document.getElementById('c'), g = c.getContext('2d');
+    const px = g.getImageData(Math.round(c.width/2), Math.round(c.height/2), 1, 1).data;
+    return {w: c.width, h: c.height, lit: px[0] + px[1] + px[2]};
+  });
+  ok('the window really carries the picture', shot.w > 100 && shot.lit > 30, JSON.stringify(shot));
+  ok('and it names the camera and the lens',
+     (await pop.$eval('.bar', e => e.textContent)).includes('35mm'), await pop.$eval('.bar', e => e.textContent.trim()));
+
+  const before = await t.page.evaluate(() => { const c = window.__sp.state().items.find(i => i.type === 'camera');
+    return {rot: c.rot, pitch: c.pitch}; });
+  const box = await pop.locator('#c').boundingBox();
+  await pop.mouse.move(box.x + box.width/2, box.y + box.height/2); await pop.mouse.down();
+  await pop.mouse.move(box.x + box.width/2 + 80, box.y + box.height/2 + 20, { steps: 8 }); await pop.mouse.up();
+  await t.page.waitForTimeout(600);
+  const after = await t.page.evaluate(() => { const c = window.__sp.state().items.find(i => i.type === 'camera');
+    return {rot: c.rot, pitch: c.pitch}; });
+  ok('dragging in that window pans and tilts', after.rot !== before.rot && after.pitch !== before.pitch,
+     `${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+  await pop.screenshot({ path: `${OUT}/popout.png` });
+  await pop.close(); await t.page.waitForTimeout(600);
+  ok('closing it brings the small window back', await t.page.$eval('#pip', e => getComputedStyle(e).display) === 'block');
+  ok('popout run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

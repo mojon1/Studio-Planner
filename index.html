@@ -148,7 +148,7 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #pip{position:absolute;z-index:4;border:2px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;touch-action:none;box-shadow:0 4px 18px rgba(0,0,0,.4);overflow:hidden;user-select:none;-webkit-user-select:none}
 #pip .bar{height:24px;background:rgba(20,22,26,.85);color:#fff;font-size:.72rem;font-weight:700;padding:3px 8px;cursor:move;display:flex;justify-content:space-between;align-items:center;user-select:none}
 #pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace;margin-left:auto}
-#pip .bar button{margin-left:8px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
+#pip .bar button{margin-left:6px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
 #pip .bar button:hover{background:rgba(255,255,255,.18)}
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
@@ -319,7 +319,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.5.1<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.5.2<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -339,10 +339,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     </div>
     <div id="labels"></div>
     <div id="info"></div>
-    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
+    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipout" title="別ウィンドウで開く" aria-label="別ウィンドウで開く"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
     <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
     <button id="pipbtn" class="on" title="カメラの小窓" aria-label="カメラの小窓">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5h4l1.6-2h6.8L17 7.5h4v11H3z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
     <button id="undobtn" title="元に戻す" aria-label="元に戻す" disabled>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h11a5 5 0 0 1 0 10h-5"/><path d="M8 4 4 8l4 4"/></svg>
@@ -890,7 +890,7 @@ function labelPositions(view, cam, rect, avoidPip = true, em = 12, lh = 19){
       }
     if (!placed) continue;
     if (x < rect.x + w/2 || x > rect.x + rect.w - w/2 || y < rect.y + h/2 || y > rect.y + rect.h - h/2) continue;
-    if (avoidPip && pip.open && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
+    if (avoidPip && pipShown() && x > pip.x - 30 && x < pip.x + pip.w + 30 && y > pip.y - 12 && y < pip.y + pip.h + 12) continue; // keep the camera window clear
     out.push({x, y, w, h, text:L.text, cls:L.cls});
   }
   return out;
@@ -1633,7 +1633,7 @@ function layoutPip(){
   if (pip.w > maxW || pip.h > maxH || (small && pip.w > W*0.55 && !pip.user)){ const k = small ? 0.42 : 0.3; pip.w = Math.round(clamp(W*k, 120, 420)); pip.h = Math.round(pip.w*0.66+24); }
   if (pip.x < 0 || pip.y < 0 || pip.x + pip.w > W || pip.y + pip.h > H){ pip.x = W - pip.w - 10; pip.y = Math.max(0, H - pip.h - 74); }
   pip.x = clamp(pip.x, 0, Math.max(0, W - pip.w)); pip.y = clamp(pip.y, 0, Math.max(0, H - pip.h));
-  const shown = pip.open && mainView !== 'cam';
+  const shown = pipShown();
   Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: shown ? 'block' : 'none'});
   document.getElementById('pipbtn').classList.toggle('on', pip.open);
   layoutInfo();
@@ -1736,8 +1736,9 @@ function frame(){
   requestAnimationFrame(frame);
   if (!needRender) return; needRender = false;
   fitOrtho();
+  drawPop();                                     // 先に描いて写し、この後の本体描画で上書きする
   renderView(mainView, mainRect(), true);
-  if (mainView !== 'cam' && pip.open) renderView('cam', pipRect(), false);
+  if (pipShown()) renderView('cam', pipRect(), false);
   renderer.setScissorTest(false);
   updateInfo();
 }
@@ -1760,7 +1761,7 @@ function layoutInfo(){
   const r = el.getBoundingClientRect(); if (!r.width) return;
   const over = o => { if (!o) return false; const b = o.getBoundingClientRect();
     return b.width > 0 && r.left < b.right + 6 && b.left < r.right + 6 && r.top < b.bottom + 6 && b.top < r.bottom + 6; };
-  if (over(document.getElementById('viewbtns')) || (pip.open && over(pipEl))) el.classList.add('hide');
+  if (over(document.getElementById('viewbtns')) || (pipShown() && over(pipEl))) el.classList.add('hide');
 }
 function equiv(ci){ const w = sensorW(ci); return Math.abs(w-36) < 0.01 ? null : Math.round(ci.focal*36/w); }
 
@@ -1953,6 +1954,81 @@ function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildC
   pipEl.addEventListener('dblclick', () => setMain('cam'));
 }
 
+// ---------- ファインダーを別ウィンドウへ ----------
+// WebGL のキャンバスは 1 枚しか無いので、別ウィンドウへ「もう一度描く」ことはできない。
+// 本体のキャンバスの隅にファインダーを 1 回描いて、その矩形を drawImage で
+// 向こうの 2D キャンバスへ写している。本体側は直後に上から描き直すので、
+// 1 フレームの中で終わり、画面にはちらつきとして出ない
+// （renderer は preserveDrawingBuffer:true なので読み出しても安全）。
+let popWin = null, popCv = null, popCtx = null;
+const popOpen = () => !!popWin && !popWin.closed;
+const pipShown = () => pip.open && mainView !== 'cam' && !popOpen();
+const POP_HTML = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<title>ファインダー — Studio Planner</title><style>
+html,body{margin:0;height:100%;background:#111214;color:#e6e8ec;overflow:hidden;
+  font:13px "Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+.bar{height:30px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#1b1e24;border-bottom:1px solid #000}
+.bar b{font-size:.85rem}
+.bar small{margin-left:auto;color:#9aa1ad;font-family:ui-monospace,"IBM Plex Mono",monospace;font-size:.78rem}
+canvas{display:block;width:100%;height:calc(100% - 30px);background:#111214;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+</style></head><body><div class="bar"><b id="n">カメラ</b><small id="i"></small></div><canvas id="c"></canvas></body></html>`;
+function popOut(){
+  if (popOpen()){ popWin.focus(); return; }
+  const w = clamp(Math.round(pip.w * 2), 360, 1000), h = Math.round(w * 0.60) + 30;
+  let win = null;
+  try { win = window.open('', 'studioPlannerFinder', `popup=yes,width=${w},height=${h}`); } catch {}
+  if (!win){ toast('ブラウザにポップアップを止められました。許可してからもう一度お試しください。'); return; }
+  win.document.open(); win.document.write(POP_HTML); win.document.close();
+  popWin = win;
+  popCv = win.document.getElementById('c'); popCtx = popCv.getContext('2d');
+  const done = () => { if (popWin === win){ popWin = null; popCv = null; popCtx = null; layoutPip(); needRender = true; } };
+  win.addEventListener('pagehide', done); win.addEventListener('unload', done);
+  win.addEventListener('resize', () => { needRender = true; });
+  bindPopInput(win, popCv);
+  layoutPip(); needRender = true;
+}
+function closePop(){ if (popOpen()) popWin.close(); popWin = null; popCv = null; popCtx = null; }
+addEventListener('pagehide', closePop);            // 本体を閉じたら置き去りにしない
+// 向こうのキャンバスでもドラッグでパン・チルト、ホイールで焦点距離。小窓と同じ操作
+function bindPopInput(win, cv){
+  let last = null;
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); last = {x:e.clientX, y:e.clientY}; });
+  cv.addEventListener('pointermove', e => {
+    if (!last || viewerMode) return;
+    lookDrag(e.clientX - last.x, e.clientY - last.y); last = {x:e.clientX, y:e.clientY};
+  });
+  const up = () => { if (last){ const ci = camItem(); if (ci && !viewerMode){ ci.pitch = Math.round(ci.pitch); renderSel(); saveHash(); } } last = null; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => {
+    e.preventDefault(); const ci = camItem(); if (!ci || viewerMode) return;
+    ci.focal = clamp(Math.round(ci.focal * (e.deltaY < 0 ? 1.1 : 0.9)), 10, 400);
+    refreshCam(ci); renderSel(); saveHash(); needRender = true;
+  }, {passive:false});
+  cv.title = 'ドラッグでパン・チルト / ホイールで焦点距離';
+}
+// 本体のキャンバスへ 1 回描いて、その矩形を向こうへ写す
+function drawPop(){
+  if (!popOpen() || !popCtx) return;
+  const cssW = Math.max(1, popCv.clientWidth), cssH = Math.max(1, popCv.clientHeight);
+  const ratio = renderer.getPixelRatio();                       // 写す元（本体のキャンバス）の倍率
+  const dpr = Math.min(popWin.devicePixelRatio || 1, 2);        // 別のディスプレイなら別の倍率
+  const bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
+  if (popCv.width !== bw || popCv.height !== bh){ popCv.width = bw; popCv.height = bh; }
+  // 本体のキャンバスに収まる最大の矩形を、向こうの縦横比で取る
+  const ar = cssW / cssH;
+  let rw = Math.min(W, H * ar), rh = rw / ar;
+  if (rh > H){ rh = H; rw = rh * ar; }
+  renderView('cam', {x:0, y:0, w:rw, h:rh}, false);
+  renderer.setScissorTest(false);
+  popCtx.imageSmoothingQuality = 'high';
+  popCtx.clearRect(0, 0, bw, bh);
+  popCtx.drawImage(canvas, 0, 0, Math.round(rw*ratio), Math.round(rh*ratio), 0, 0, bw, bh);
+  const ci = camItem();
+  popWin.document.getElementById('n').textContent = ci ? camName(ci) : 'カメラ';
+  popWin.document.getElementById('i').textContent = ci ? `${sensorName(ci)} ${ci.focal}mm  ${ci.aspect}` : 'カメラ無し';
+}
+
 // ---------- view switching ----------
 function setMain(v){
   if (v === mainView) return;
@@ -1967,10 +2043,13 @@ function setOrthoZoom(z){
 function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
 document.querySelectorAll('#viewbtns button[data-view]').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
 const pipCloseBtn = document.getElementById('pipclose'), pipBtn = document.getElementById('pipbtn');
-function setPipOpen(v){ pip.open = v; savePip(); layoutPip(); needRender = true; }
+function setPipOpen(v){ pip.open = v; if (!v) closePop(); savePip(); layoutPip(); needRender = true; }
 pipCloseBtn.addEventListener('click', e => { e.stopPropagation(); setPipOpen(false); });
 pipCloseBtn.addEventListener('pointerdown', e => e.stopPropagation());   // the bar drags the window
-pipBtn.addEventListener('click', () => setPipOpen(!pip.open));
+const pipOutBtn = document.getElementById('pipout');
+pipOutBtn.addEventListener('click', e => { e.stopPropagation(); popOut(); });
+pipOutBtn.addEventListener('pointerdown', e => e.stopPropagation());
+pipBtn.addEventListener('click', () => { if (popOpen()) closePop(); setPipOpen(!pip.open); });
 document.getElementById('undobtn').addEventListener('click', undo);
 document.getElementById('redobtn').addEventListener('click', redo);
 const rulerBtn = document.getElementById('ruler');
