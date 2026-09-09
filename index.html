@@ -12,6 +12,8 @@
 <meta property="og:image" content="https://mojon1.github.io/Studio-Planner/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2027'/%3E%3Cpath d='M5 21h22M8 21V11h16v10' stroke='%23e29a44' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%23e29a44'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
@@ -47,6 +49,13 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
 #tabs,#sheet{zoom:.78}
+#cuts{zoom:.78;display:flex;gap:6px;align-items:center;padding:8px 10px 0;overflow-x:auto;flex:none;scrollbar-width:none}
+#cuts::-webkit-scrollbar{display:none}
+#cuts button{flex:none;height:34px;padding:0 12px;border:1px solid var(--rule);background:var(--btn);color:var(--ink2);
+  border-radius:17px;font:inherit;font-size:.86rem;font-weight:500;cursor:pointer;white-space:nowrap}
+#cuts button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+#cuts button.add{width:34px;padding:0;font-size:1.1rem;color:var(--ink2)}
+body.viewer #cuts{display:none}
 #tabs{display:flex;border-bottom:1px solid var(--rule);flex:none}
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
@@ -55,6 +64,11 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #pipbtn.on{background:var(--accent);color:#fff}
 #pipbtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #pipbtn{display:none}
+#undobtn,#redobtn{position:absolute;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#undobtn{left:132px}#redobtn{left:184px}
+#undobtn:disabled,#redobtn:disabled{opacity:.32;cursor:default}
+#undobtn:focus-visible,#redobtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+body.viewer #undobtn,body.viewer #redobtn{display:none}
 #gear{position:absolute;left:80px;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
 #gear.on{background:var(--accent)}
 #gear:focus-visible{outline:3px solid #fff;outline-offset:2px}
@@ -128,6 +142,7 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
 #viewbtns button.icon:not(.on){color:#b9bec9}
 #info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
+#info.hide{display:none}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 #labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
 #labels span.dim{color:#ffd9a8}
@@ -158,6 +173,16 @@ body.viewer #addfab{display:none}
 .people button.on{border-color:var(--accent);background:var(--accent-bg)}
 .poses{grid-template-columns:repeat(3,1fr)}
 #namedlg .pop{width:min(420px,100%)}
+#qrdlg{position:fixed;inset:0;background:rgba(10,12,16,.72);z-index:24;display:none;align-items:center;justify-content:center;padding:16px}
+#qrdlg.on{display:flex}
+#qrdlg .pop{background:#fff;color:#111;border-radius:14px;width:min(460px,100%);max-height:92vh;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+#qrdlg canvas{width:min(78vw,78vh,400px);height:auto;image-rendering:pixelated;background:#fff}
+#qrdlg .qrtitle{font-weight:700;font-size:.95rem}
+#qrdlg .qrnote{font-size:.75rem;color:#555;text-align:center;line-height:1.6;margin:0}
+#qrdlg .qrnote span{font-size:.66rem;color:#999}
+#qrdlg .row{width:100%}
+#qrdlg .btn{background:#f1f2f4;color:#111;border:1px solid #d5d7db}
+#qrdlg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
@@ -183,21 +208,22 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pmbar .btn{flex:0 0 auto;min-height:40px}
 .pmhint{color:#c8ccd4;font-size:.82rem}
 .pmscroll{flex:1;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
-#paper{background:#fff;color:#15171b;box-shadow:0 6px 30px rgba(0,0,0,.5);transform-origin:top center;
+#papers{transform-origin:top center;display:flex;flex-direction:column;align-items:center;gap:20px}
+.paper{background:#fff;color:#15171b;box-shadow:0 6px 30px rgba(0,0,0,.5);
   font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;padding:8mm;display:flex;flex-direction:column}
-#paper.landscape{width:297mm;height:210mm}
-#paper.portrait{width:210mm;height:297mm}
-#paper *{box-sizing:border-box}
+.paper.landscape{width:297mm;height:210mm}
+.paper.portrait{width:210mm;height:297mm}
+.paper *{box-sizing:border-box}
 .ph{flex:none;display:flex;align-items:flex-end;gap:8mm;border-bottom:1.2pt solid #15171b;padding-bottom:2.5mm}
 .ph .pj{font-size:15pt;font-weight:700;line-height:1.2;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ph .pj em{display:block;font-style:normal;font-size:7pt;font-weight:500;color:#6b7280;letter-spacing:.1em}
 .ph .cut{font-size:13pt;font-weight:700;border:1.2pt solid #15171b;padding:1mm 3mm;white-space:nowrap}
 .ph .meta{text-align:right;font-size:7.5pt;color:#4b5563;line-height:1.6;white-space:nowrap}
 .pbody{flex:1;display:flex;gap:5mm;min-height:0;padding-top:3mm}
-#paper.portrait .pbody{flex-direction:column;gap:3mm}
+.paper.portrait .pbody{flex-direction:column;gap:3mm}
 .pviews{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
-#paper.landscape .pviews{flex:0 0 186mm}
-#paper.portrait .pviews{flex:0 0 146mm}
+.paper.landscape .pviews{flex:0 0 186mm}
+.paper.portrait .pviews{flex:0 0 146mm}
 .pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden;cursor:move;touch-action:none}
 .pv[data-pane="cam"]{cursor:default}
 .pvin{position:absolute;inset:0;transform-origin:center center}
@@ -208,7 +234,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pv .lb.dim{border-color:#b45309;color:#92400e}
 .pv .lb.dist{background:#c2711f;border-color:#8f5010;color:#fff}
 .pside{flex:1;display:flex;flex-direction:column;gap:3mm;min-width:0}
-#paper.portrait .pside{flex:1;flex-direction:row;gap:4mm}
+.paper.portrait .pside{flex:1;flex-direction:row;gap:4mm}
 .pbox{border:.8pt solid #9ca3af;display:flex;flex-direction:column;min-height:0}
 .pbox>h4{margin:0;font-size:7pt;font-weight:700;letter-spacing:.1em;background:#e5e7eb;color:#374151;padding:1mm 2mm;border-bottom:.4pt solid #9ca3af}
 .pbox .inner{padding:1.5mm 2mm;font-size:8pt;line-height:1.55}
@@ -226,9 +252,11 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   .pv{cursor:auto !important}
   #papermodal{position:static !important;display:block !important;background:#fff !important}
   .pmscroll{overflow:visible !important;padding:0 !important;display:block !important}
-  #paper{transform:none !important;box-shadow:none !important;margin:0 !important;padding:0 !important;width:auto !important;height:auto !important}
-  #paper.landscape{height:194mm !important}
-  #paper.portrait{height:281mm !important}
+  #papers{transform:none !important;display:block !important;gap:0 !important}
+  .paper{box-shadow:none !important;margin:0 !important;padding:0 !important;width:auto !important;height:auto !important;break-after:page;page-break-after:always}
+  .paper:last-child{break-after:auto;page-break-after:auto}
+  .paper.landscape{height:194mm !important}
+  .paper.portrait{height:281mm !important}
 }
 @media (max-width:760px){
   #addpop,#namedlg{align-items:flex-end;padding:0}
@@ -243,15 +271,16 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #viewbtns{gap:4px}
   #viewbtns button{height:34px;padding:0 6px;font-size:.72rem}
   #viewbtns button.icon{width:32px}
-  #info{font-size:.68rem;top:52px;left:10px;right:auto;padding:4px 8px}
+  #info{font-size:.68rem;padding:4px 8px}
   label.f{grid-template-columns:5em 1fr auto}
 }
 </style>
 
 <div id="app">
   <div id="panel">
+    <div id="cuts"></div>
     <div id="tabs">
-      <button data-tab="list" class="on">リスト</button>
+      <button data-tab="list" class="on">オブジェクト</button>
       <button data-tab="share">共有</button>
     </div>
     <div id="sheet">
@@ -262,6 +291,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <div class="sec" data-sec="share">
         <h2>リンクで共有</h2>
         <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
+        <div class="row"><button class="btn" id="qrbtn">QRコード</button></div>
         <input type="text" id="linkbox" readonly>
         <h2>プロジェクト</h2>
         <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
@@ -272,13 +302,17 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
         <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
         <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
+        <div class="row"><button class="btn on" data-scope="one">このカットだけ</button><button class="btn" data-scope="all">全カット</button></div>
         <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
         <p class="hint">4 面とカメラ情報が A4 一枚に入ります。</p>
         <h2>画像</h2>
         <div class="row"><button class="btn" id="png">画像保存</button></div>
+        <h2>オフライン</h2>
+        <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
+        <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物モデルを含めて 10 MB ほど。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.3.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.4.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -302,6 +336,12 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <button id="addfab" data-openadd title="置くものを追加" aria-label="置くものを追加">＋</button>
     <button id="pipbtn" class="on" title="カメラの小窓" aria-label="カメラの小窓">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5h4l1.6-2h6.8L17 7.5h4v11H3z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+    </button>
+    <button id="undobtn" title="元に戻す" aria-label="元に戻す" disabled>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h11a5 5 0 0 1 0 10h-5"/><path d="M8 4 4 8l4 4"/></svg>
+    </button>
+    <button id="redobtn" title="やり直す" aria-label="やり直す" disabled>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8H9a5 5 0 0 0 0 10h5"/><path d="m16 4 4 4-4 4"/></svg>
     </button>
     <button id="gear" title="設定の開閉" aria-label="設定の開閉">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
@@ -344,7 +384,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <button class="btn" id="framereset">図の位置を戻す</button>
     <span class="pmhint">上面・側面・パースはドラッグで移動、ホイールで拡大縮小。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
   </div>
-  <div class="pmscroll"><div id="paper"></div></div>
+  <div class="pmscroll"><div id="papers"></div></div>
 </div>
 <div id="namedlg"><div class="pop">
   <div class="pophead"><strong>名前をつけて保存</strong><button id="nameclose" aria-label="閉じる">✕</button></div>
@@ -352,6 +392,13 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <input type="text" id="namein" spellcheck="false">
     <div class="row"><button class="btn primary" id="nameok">保存</button></div>
   </div>
+</div></div>
+<div id="qrdlg"><div class="pop">
+  <div class="qrtitle" id="qrtitle">このカットを開く QR コード</div>
+  <canvas id="qrcv" width="10" height="10" aria-label="共有リンクの QR コード"></canvas>
+  <div class="row"><button class="btn on" data-qrmode="edit">編集できる</button><button class="btn" data-qrmode="view">見るだけ</button></div>
+  <p class="qrnote">スマホのカメラを向けると、この配置がそのまま開きます。<br><span id="qrnote"></span></p>
+  <div class="row"><button class="btn" id="qrclose">閉じる</button></div>
 </div></div>
 <div id="shot"><img id="shotimg" alt="書き出した画像"><p id="shotname"></p><div class="row"><button class="btn" id="shotdl">保存</button><button class="btn" id="shotclose">閉じる</button></div></div>
 
@@ -410,16 +457,51 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
+  const cut = {name:'', memo:'', frames:{}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand', kind:'man', model:'asia-casual-man'},
-    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
+    {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, roll:0, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
+  return {meta:{project:'', cut:cut.name, memo:cut.memo, frames:cut.frames},
+          studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}},
+          activeCam:cut.activeCam, items:cut.items, cuts:[cut], cutIx:0};
 }
-function migrate(st){
+// ---------- カット ----------
+// 1 つの現場で C-12 と C-13 は機材が動く。スタジオと案件名は共通で、
+// 立ち位置・機材・メモ・用紙の構図だけがカットごとに変わる。
+// 動いている state は「今のカット」を今までどおり素の items / activeCam に持ち、
+// 全カットの控えを state.cuts に置く。書き出す直前に stashCut() で同期する。
+const cutName = (c, i) => (c?.name || '').trim() || `カット ${i + 1}`;
+const emptyCut = () => ({name:'', memo:'', frames:{}, activeCam:null, items:[]});
+function stashCut(){
+  const c = state.cuts[state.cutIx]; if (!c) return;
+  c.name = state.meta.cut; c.memo = state.meta.memo; c.frames = state.meta.frames;
+  c.activeCam = state.activeCam; c.items = state.items;
+}
+function packState(){                      // リンクとファイルに書き出す形
+  stashCut();
+  return {v:2, project:state.meta.project, studio:state.studio, cutIx:state.cutIx, cuts:state.cuts};
+}
+function migrate(raw){
+  // v1（カット 1 つぶんだけ）も読む
+  const st = raw.cuts ? {studio:raw.studio, cutIx:raw.cutIx|0, cuts:raw.cuts, meta:{project:raw.project || ''}}
+    : {studio:raw.studio, cutIx:0, meta:{project:raw.meta?.project || ''},
+       cuts:[{name:raw.meta?.cut || '', memo:raw.meta?.memo || '', frames:raw.meta?.frames || {},
+              activeCam:raw.activeCam, items:raw.items, dims:raw.dims}]};
   if (typeof st.studio.cove !== 'object' || !st.studio.cove) st.studio.cove = {back:!!st.studio.cove, left:false, right:false};
-  if (!st.meta || typeof st.meta !== 'object') st.meta = {project:'', cut:'', memo:''};
-  for (const k of ['project','cut','memo']) if (typeof st.meta[k] !== 'string') st.meta[k] = '';
-  if (!st.meta.frames || typeof st.meta.frames !== 'object') st.meta.frames = {};
+  if (!Array.isArray(st.cuts) || !st.cuts.length) st.cuts = [emptyCut()];
+  st.cutIx = clamp(st.cutIx, 0, st.cuts.length - 1);
+  for (const c of st.cuts){
+    for (const k of ['name','memo']) if (typeof c[k] !== 'string') c[k] = '';
+    if (!c.frames || typeof c.frames !== 'object') c.frames = {};
+    if (!Array.isArray(c.items)) c.items = [];
+    migrateItems(c, st.studio);
+  }
+  const c = st.cuts[st.cutIx];
+  st.meta.cut = c.name; st.meta.memo = c.memo; st.meta.frames = c.frames;
+  st.activeCam = c.activeCam; st.items = c.items;
+  return st;
+}
+function migrateItems(st, studio){
   for (const it of st.items){
     if (it.type === 'camera'){
       if (it.sensor === 'apsc'){ it.sensor = 'custom'; it.sensorW = 23.5; }   // links made before the format list
@@ -446,7 +528,7 @@ function migrate(st){
   if (!st.items.some(i => i.id === st.activeCam && i.type === 'camera')) st.activeCam = firstCamId(st);
   // dimension switches used to be one set on the studio; hand them to their owners
   if (st.dims){
-    if (st.studio.dim === undefined) st.studio.dim = st.dims.studio !== false;
+    if (studio.dim === undefined) studio.dim = st.dims.studio !== false;
     for (const it of st.items){
       if (it.dim === undefined) it.dim = st.dims.size !== false;
       if (it.type === 'camera'){
@@ -456,7 +538,6 @@ function migrate(st){
     }
     delete st.dims;
   }
-  return st;
 }
 const firstCamId = st => st.items.find(i => i.type === 'camera')?.id || null;
 
@@ -1527,7 +1608,7 @@ try { showGrid = localStorage.getItem('studio3d.grid') !== '0'; } catch {}
 function resize(){
   const r = viewEl.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
   renderer.setSize(W, H, false); canvas.style.width = W+'px'; canvas.style.height = H+'px';
-  layoutPip(); fitOrtho(); needRender = true;
+  layoutPip(); fitOrtho(); layoutInfo(); needRender = true;
 }
 function mainRect(){ return {x:0,y:0,w:W,h:H}; }
 function pipRect(){ return {x:pip.x, y:pip.y+24, w:pip.w, h:Math.max(1, pip.h-24)}; }
@@ -1540,6 +1621,7 @@ function layoutPip(){
   const shown = pip.open && mainView !== 'cam';
   Object.assign(pipEl.style, {left:pip.x+'px', top:pip.y+'px', width:pip.w+'px', height:pip.h+'px', display: shown ? 'block' : 'none'});
   document.getElementById('pipbtn').classList.toggle('on', pip.open);
+  layoutInfo();
   persCam.aspect = W/H; persCam.updateProjectionMatrix();
 }
 function savePip(){ try { localStorage.setItem('studio3d.pip', JSON.stringify(pip)); } catch {} }
@@ -1633,6 +1715,16 @@ function updateInfo(){
   el.textContent = t;
   document.getElementById('pipname').textContent = ci ? camName(ci) : 'カメラ';
   document.getElementById('pipinfo').textContent = ci ? `${ci.focal}mm ${ci.aspect}` : 'カメラ無し';
+  layoutInfo();
+}
+// 右上の読み値は、他のボタンや小窓に重なるくらいなら出さない。
+// 縦持ちのスマホではビューのボタンが画面幅いっぱいになるので、たいてい隠れる
+function layoutInfo(){
+  const el = document.getElementById('info'); el.classList.remove('hide');
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const over = o => { if (!o) return false; const b = o.getBoundingClientRect();
+    return b.width > 0 && r.left < b.right + 6 && b.left < r.right + 6 && r.top < b.bottom + 6 && b.top < r.bottom + 6; };
+  if (over(document.getElementById('viewbtns')) || (pip.open && over(pipEl))) el.classList.add('hide');
 }
 function equiv(ci){ const w = sensorW(ci); return Math.abs(w-36) < 0.01 ? null : Math.round(ci.focal*36/w); }
 
@@ -1843,6 +1935,8 @@ function setPipOpen(v){ pip.open = v; savePip(); layoutPip(); needRender = true;
 pipCloseBtn.addEventListener('click', e => { e.stopPropagation(); setPipOpen(false); });
 pipCloseBtn.addEventListener('pointerdown', e => e.stopPropagation());   // the bar drags the window
 pipBtn.addEventListener('click', () => setPipOpen(!pip.open));
+document.getElementById('undobtn').addEventListener('click', undo);
+document.getElementById('redobtn').addEventListener('click', redo);
 const rulerBtn = document.getElementById('ruler');
 function setDims(v){
   showDims = v; rulerBtn.classList.toggle('on', v);
@@ -2006,6 +2100,70 @@ function renameField(it, counts){
   inp.addEventListener('blur', () => commit(true));
   setTimeout(() => { inp.focus(); inp.select(); }, 0);
   return inp;
+}
+// カットの帯。押すと切り替え、右クリック（長押し）で名前・複製・削除
+function renderCuts(){
+  const el = document.getElementById('cuts'); el.innerHTML = '';
+  if (viewerMode && state.cuts.length < 2) return;
+  state.cuts.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.textContent = cutName(c, i); b.dataset.ix = i; b.classList.toggle('on', i === state.cutIx);
+    b.addEventListener('click', () => showCut(i));
+    b.addEventListener('contextmenu', e => { e.preventDefault(); showCut(i); openCutMenu(e.clientX, e.clientY); });
+    let t = null;
+    b.addEventListener('pointerdown', e => { t = setTimeout(() => { showCut(i); openCutMenu(e.clientX, e.clientY); }, 550); });
+    for (const ev of ['pointerup','pointermove','pointercancel']) b.addEventListener(ev, () => { clearTimeout(t); });
+    el.appendChild(b);
+  });
+  if (viewerMode) return;
+  const add = document.createElement('button');
+  add.className = 'add'; add.textContent = '＋'; add.title = 'カットを足す'; add.setAttribute('aria-label', add.title);
+  add.addEventListener('click', addCut);
+  el.appendChild(add);
+}
+function showCut(i){
+  if (i === state.cutIx || !state.cuts[i]) return;
+  stashCut();
+  state.cutIx = i;
+  const c = state.cuts[i];
+  state.meta.cut = c.name; state.meta.memo = c.memo; state.meta.frames = c.frames;
+  state.activeCam = c.activeCam; state.items = c.items;
+  select(null); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta();
+  layoutPip(); needRender = true; saveHash();
+  restoreModels();
+}
+// ＋ は今のカットの複製。同じセットでカメラだけ動かす、が現場のふつう
+function addCut(){
+  if (viewerMode) return;
+  stashCut();
+  const src = state.cuts[state.cutIx];
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.name = ''; copy.frames = {};
+  copy.items.forEach(it => { it.id = it.type[0] + (Date.now()%100000) + (uid++); });
+  const map = new Map(src.items.map((o, i) => [o.id, copy.items[i].id]));
+  copy.activeCam = map.get(src.activeCam) || null;
+  state.cuts.splice(state.cutIx + 1, 0, copy);
+  state.cutIx = -1;                       // showCut に切り替えさせる
+  showCut(state.cuts.indexOf(copy));
+}
+function deleteCut(i){
+  if (state.cuts.length < 2){ toast('カットは 1 つ以上必要です'); return; }
+  state.cuts.splice(i, 1);
+  const next = clamp(state.cutIx > i ? state.cutIx - 1 : state.cutIx, 0, state.cuts.length - 1);
+  state.cutIx = -1; showCut(next);
+}
+function openCutMenu(px, py){
+  const i = state.cutIx;
+  ctxEl.innerHTML = '';
+  const add = (label, cls, fn) => { const b = document.createElement('button'); b.textContent = label;
+    if (cls) b.className = cls; b.addEventListener('click', () => { closeCtx(); fn(); }); ctxEl.appendChild(b); };
+  add('名前を変更', '', () => { showTab('share', true); const el = document.getElementById('m-cut'); el.focus(); el.select(); });
+  add('複製', '', addCut);
+  add('削除', 'danger', () => deleteCut(i));
+  ctxEl.hidden = false;
+  const r = ctxEl.getBoundingClientRect();
+  ctxEl.style.left = Math.max(6, Math.min(px, innerWidth - r.width - 6)) + 'px';
+  ctxEl.style.top = Math.max(6, Math.min(py, innerHeight - r.height - 6)) + 'px';
 }
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
@@ -2629,11 +2787,197 @@ viewEl.addEventListener('drop', e => {
   filesFromDrop(dt).then(fs => { if (fs.length) importFiles(fs); });
 });
 
+// ---------- QR ----------
+// 現場では、リンクをコピーして送るより相手に読ませたほうが速い。
+// 外のサービスに配置を渡したくないので、符号化はここで完結させる。
+// バイトモード・誤り訂正 L・型 1〜40。test/run.mjs が qrcode パッケージと
+// モジュールを 1 個ずつ突き合わせて検証している。
+const QR = (() => {
+  // 型ごとの総データ語数（EC L）とブロックの分け方 [ブロック数, EC 語数/ブロック]
+  const CAP = [0,19,34,55,80,108,136,156,194,232,274,324,370,428,461,523,589,647,721,795,861,
+               932,1006,1094,1174,1276,1370,1468,1531,1631,1735,1843,1955,2071,2191,2306,2434,2566,2702,2812,2956];
+  const ECB = [null,[1,7],[1,10],[1,15],[1,20],[1,26],[2,18],[2,20],[2,24],[2,30],[4,18],[4,20],[4,24],[4,26],[4,30],
+               [6,22],[6,24],[6,28],[6,30],[7,28],[8,28],[8,28],[9,28],[9,30],[10,30],[12,26],[12,28],[12,30],[13,30],
+               [14,30],[15,30],[16,30],[17,30],[18,30],[19,30],[19,30],[20,30],[21,30],[22,30],[24,30],[25,30]];
+  const ALIGN = [[],[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],
+    [6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],
+    [6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],
+    [6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],
+    [6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],
+    [6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]];
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  for (let i = 0, x = 1; i < 255; i++){ EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11d; }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const mul = (a, b) => (a && b) ? EXP[LOG[a] + LOG[b]] : 0;
+  function rsPoly(n){                       // 生成多項式
+    let g = [1];
+    for (let i = 0; i < n; i++){
+      const ng = new Array(g.length + 1).fill(0);
+      for (let j = 0; j < g.length; j++){ ng[j] ^= g[j]; ng[j + 1] ^= mul(g[j], EXP[i]); }
+      g = ng;
+    }
+    return g;
+  }
+  function rsBytes(data, n){
+    const g = rsPoly(n), res = new Array(n).fill(0);
+    for (const d of data){
+      const f = d ^ res[0];
+      res.shift(); res.push(0);
+      if (f) for (let i = 0; i < n; i++) res[i] ^= mul(g[i + 1], f);
+    }
+    return res;
+  }
+  const BITS = new Uint8Array([0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4]);
+  const popcount = n => { let c = 0; while (n){ c += BITS[n & 15]; n >>= 4; } return c; };
+  function bch15(v){                        // 形式情報の BCH(15,5)
+    let d = v << 10;
+    for (let i = 4; i >= 0; i--) if (d & (1 << (i + 10))) d ^= 0x537 << i;
+    return ((v << 10) | d) ^ 0x5412;
+  }
+  function bch18(v){                        // 型情報の BCH(18,6)
+    let d = v << 12;
+    for (let i = 5; i >= 0; i--) if (d & (1 << (i + 12))) d ^= 0x1f25 << i;
+    return (v << 12) | d;
+  }
+  const MASK = [
+    (r,c) => (r + c) % 2 === 0, (r) => r % 2 === 0, (r,c) => c % 3 === 0, (r,c) => (r + c) % 3 === 0,
+    (r,c) => (((r >> 1) + Math.floor(c / 3)) % 2) === 0, (r,c) => ((r*c) % 2 + (r*c) % 3) === 0,
+    (r,c) => (((r*c) % 2 + (r*c) % 3) % 2) === 0, (r,c) => (((r + c) % 2 + (r*c) % 3) % 2) === 0];
+  // 空きモジュールへ書く順（右下から 2 列ずつ、上下に蛇行）
+  function place(size, res, bits){
+    let i = 0, up = true;
+    for (let right = size - 1; right > 0; right -= 2){
+      if (right === 6) right--;                     // 縦のタイミングパターンは飛ばす
+      for (let v = 0; v < size; v++){
+        const row = up ? size - 1 - v : v;
+        for (let k = 0; k < 2; k++){
+          const col = right - k;
+          if (res[row][col] !== null) continue;
+          res[row][col] = i < bits.length ? bits[i] : 0; i++;
+        }
+      }
+      up = !up;
+    }
+  }
+  function skeleton(ver){
+    const size = ver * 4 + 17;
+    const m = Array.from({length:size}, () => new Array(size).fill(null));
+    const put = (r, c, v) => { if (r >= 0 && c >= 0 && r < size && c < size) m[r][c] = v; };
+    const finder = (r0, c0) => {
+      for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++){
+        const inb = r >= 0 && r <= 6 && c >= 0 && c <= 6;
+        const on = inb && (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+        put(r0 + r, c0 + c, on ? 1 : 0);
+      }
+    };
+    finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
+    for (const r of ALIGN[ver]) for (const c of ALIGN[ver]){
+      if ((r <= 8 && c <= 8) || (r <= 8 && c >= size - 9) || (r >= size - 9 && c <= 8)) continue;
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++)
+        put(r + dr, c + dc, (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0)) ? 1 : 0);
+    }
+    for (let i = 8; i < size - 8; i++){ put(6, i, i % 2 === 0 ? 1 : 0); put(i, 6, i % 2 === 0 ? 1 : 0); }
+    put(size - 8, 8, 1);                            // 常に暗いモジュール
+    for (let i = 0; i < 9; i++){ if (i === 6) continue; put(8, i, 0); put(i, 8, 0); }  // 形式情報の席
+    for (let i = 0; i < 8; i++){ put(8, size - 1 - i, 0); put(size - 1 - i, 8, 0); }
+    if (ver >= 7) for (let i = 0; i < 18; i++){     // 型情報の席
+      put(Math.floor(i / 3), size - 11 + i % 3, 0); put(size - 11 + i % 3, Math.floor(i / 3), 0);
+    }
+    return m;
+  }
+  function penalty(m){
+    const n = m.length; let p = 0;
+    const run = get => { for (let i = 0; i < n; i++){ let len = 1;
+      for (let j = 1; j < n; j++){ if (get(i, j) === get(i, j - 1)) len++; else { if (len >= 5) p += len - 2; len = 1; } }
+      if (len >= 5) p += len - 2; } };
+    run((i, j) => m[i][j]); run((i, j) => m[j][i]);
+    for (let r = 0; r < n - 1; r++) for (let c = 0; c < n - 1; c++)
+      if (m[r][c] === m[r][c+1] && m[r][c] === m[r+1][c] && m[r][c] === m[r+1][c+1]) p += 3;
+    const pat = [1,0,1,1,1,0,1,0,0,0,0], pat2 = [0,0,0,0,1,0,1,1,1,0,1];
+    const hit = (get, i, j, q) => { for (let k = 0; k < 11; k++) if (get(i, j + k) !== q[k]) return false; return true; };
+    for (let i = 0; i < n; i++) for (let j = 0; j + 11 <= n; j++){
+      if (hit((a,b) => m[a][b], i, j, pat) || hit((a,b) => m[a][b], i, j, pat2)) p += 40;
+      if (hit((a,b) => m[b][a], i, j, pat) || hit((a,b) => m[b][a], i, j, pat2)) p += 40;
+    }
+    let dark = 0; for (const row of m) for (const v of row) dark += v;
+    p += Math.floor(Math.abs(dark * 100 / (n * n) - 50) / 5) * 10;
+    return p;
+  }
+  // text -> 0/1 の二次元配列。読めない長さなら null
+  // forceMask はテスト用（マスクを固定して参照実装と突き合わせる）
+  return function encode(text, forceMask){
+    const bytes = new TextEncoder().encode(text);
+    let ver = 0;
+    for (let v = 1; v <= 40; v++){
+      const head = 4 + (v < 10 ? 8 : 16);
+      if (bytes.length * 8 + head <= CAP[v] * 8){ ver = v; break; }
+    }
+    if (!ver) return null;
+    const total = CAP[ver], bits = [];
+    const push = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+    push(4, 4);                                     // バイトモード
+    push(bytes.length, ver < 10 ? 8 : 16);
+    for (const b of bytes) push(b, 8);
+    for (let i = 0; i < 4 && bits.length < total * 8; i++) bits.push(0);
+    while (bits.length % 8) bits.push(0);
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8){ let b = 0; for (let k = 0; k < 8; k++) b = (b << 1) | bits[i + k]; data.push(b); }
+    for (let i = 0; data.length < total; i++) data.push(i % 2 ? 0x11 : 0xec);
+    // ブロックに割って誤り訂正語を作り、インターリーブする
+    const [nb, ecLen] = ECB[ver];
+    const short = Math.floor(total / nb), extra = total % nb;
+    const blocks = []; let at = 0;
+    for (let i = 0; i < nb; i++){
+      const len = short + (i >= nb - extra ? 1 : 0);
+      const d = data.slice(at, at + len); at += len;
+      blocks.push({d, e:rsBytes(d, ecLen)});
+    }
+    const out = [];
+    for (let i = 0; i < short + 1; i++) for (const b of blocks) if (i < b.d.length) out.push(b.d[i]);
+    for (let i = 0; i < ecLen; i++) for (const b of blocks) out.push(b.e[i]);
+    const stream = [];
+    for (const b of out) for (let i = 7; i >= 0; i--) stream.push((b >> i) & 1);
+    const size = ver * 4 + 17;
+    const base = skeleton(ver);
+    const reserved = base.map(r => r.map(v => v !== null));   // 機能パターンの席
+    place(size, base, stream);
+    // 8 通りのマスクから、いちばん読みやすいものを選ぶ
+    let best = null, bestP = Infinity;
+    for (let k = 0; k < 8; k++){
+      if (forceMask != null && k !== forceMask) continue;
+      const m = base.map(r => r.slice());
+      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+        if (!reserved[r][c] && MASK[k](r, c)) m[r][c] ^= 1;
+      const fmt = bch15((1 << 3) | k);              // EC L = 01
+      for (let i = 0; i < 15; i++){                 // 縦（左上を下へ、左下を上へ）
+        const bit = (fmt >> i) & 1;
+        if (i < 6) m[i][8] = bit; else if (i < 8) m[i + 1][8] = bit; else m[size - 15 + i][8] = bit;
+      }
+      for (let i = 0; i < 15; i++){                 // 横（右上を左へ、左上へ折り返す）
+        const bit = (fmt >> i) & 1;
+        if (i < 8) m[8][size - i - 1] = bit; else if (i < 9) m[8][15 - i] = bit; else m[8][14 - i] = bit;
+      }
+      m[size - 8][8] = 1;
+      if (ver >= 7){
+        const vi = bch18(ver);
+        for (let i = 0; i < 18; i++){
+          const bit = (vi >> i) & 1;
+          m[Math.floor(i / 3)][size - 11 + i % 3] = bit;
+          m[size - 11 + i % 3][Math.floor(i / 3)] = bit;
+        }
+      }
+      const p = penalty(m);
+      if (p < bestP){ bestP = p; best = m; }
+    }
+    return best;
+  };
+})();
+
 // ---------- share ----------
 function b64u(bytes){ let s=''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 function unb64u(s){ s = s.replace(/-/g,'+').replace(/_/g,'/'); while (s.length%4) s+='='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
 async function encode(){
-  const json = JSON.stringify(state); const bytes = new TextEncoder().encode(json);
+  const json = JSON.stringify(packState()); const bytes = new TextEncoder().encode(json);
   if (typeof CompressionStream !== 'undefined'){
     const cs = new CompressionStream('deflate-raw'); const wr = cs.writable.getWriter(); wr.write(bytes); wr.close();
     const out = new Uint8Array(await new Response(cs.readable).arrayBuffer()); return 'z' + b64u(out);
@@ -2646,11 +2990,63 @@ async function decode(s){
   if (kind === 'z'){ const ds = new DecompressionStream('deflate-raw'); const wr = ds.writable.getWriter(); wr.write(body); wr.close(); bytes = new Uint8Array(await new Response(ds.readable).arrayBuffer()); }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
+// ---------- アンドゥ ----------
+// state はただの JSON なので、確定したときの丸ごとの控えを積んでいく。
+// saveHash() は「ユーザーの操作が 1 つ終わったところ」でだけ呼ばれるので、
+// スライダーを動かしている途中（live）では積まれない = 1 操作 1 手戻り。
+const UNDO_MAX = 60;
+let undoStack = [], redoStack = [], lastSnap = null, restoring = false;
+function snapshot(){ stashCut(); return JSON.stringify(state); }
+function pushUndo(){
+  if (restoring) return;
+  const now = snapshot();
+  if (lastSnap === null){ lastSnap = now; return; }
+  if (lastSnap === now) return;
+  undoStack.push(lastSnap);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  redoStack.length = 0;
+  lastSnap = now;
+  syncUndoBtns();
+}
+function applySnapshot(json){
+  const before = JSON.stringify(state.studio);
+  restoring = true;
+  try {
+    state = JSON.parse(json);
+    select(null);
+    if (JSON.stringify(state.studio) !== before) buildStudio();   // 部屋が同じならカメラを動かさない
+    rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta();
+    buildDims(); layoutPip(); needRender = true;
+    restoreModels();
+    saveHash();
+  } finally { restoring = false; }
+  syncUndoBtns();
+}
+function undo(){
+  if (!undoStack.length || viewerMode) return;
+  redoStack.push(lastSnap); lastSnap = undoStack.pop(); applySnapshot(lastSnap);
+}
+function redo(){
+  if (!redoStack.length || viewerMode) return;
+  undoStack.push(lastSnap); lastSnap = redoStack.pop(); applySnapshot(lastSnap);
+}
+function syncUndoBtns(){
+  document.getElementById('undobtn').disabled = !undoStack.length;
+  document.getElementById('redobtn').disabled = !redoStack.length;
+}
+addEventListener('keydown', e => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (k === 'y'){ e.preventDefault(); redo(); }
+});
+
 let saveT = null;
-function saveHash(){ clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':''); history.replaceState(null, '', h); document.getElementById('linkbox').value = location.href; }, 250); }
+function saveHash(){
+  pushUndo(); clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':''); history.replaceState(null, '', h); document.getElementById('linkbox').value = location.href; }, 250); }
 async function loadHash(){
   const m = location.hash.match(/s=([^&]+)/); if (!m) return false;
-  try { const st = await decode(m[1]); if (st?.studio && Array.isArray(st.items)){ state = migrate(st); return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
+  try { const st = await decode(m[1]); if (st?.studio && (Array.isArray(st.items) || Array.isArray(st.cuts))){ state = migrate(st); return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
   return false;
 }
 async function copyLink(viewOnly){
@@ -2661,7 +3057,46 @@ async function copyLink(viewOnly){
 }
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
-document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; select(null); buildStudio(); rebuildItems(); renderList(); saveHash(); } });
+// ---------- QR コード ----------
+// 現場で「そのスマホで開いてもらう」ための一枚。リンクの中身は共有リンクと同じ。
+const qrDlg = document.getElementById('qrdlg'), qrCv = document.getElementById('qrcv');
+let qrMode = 'edit';
+async function drawQR(){
+  const url = location.origin + location.pathname + location.search + '#s=' + await encode() + (qrMode === 'view' ? '&m=v' : '');
+  const note = document.getElementById('qrnote');
+  const m = QR(url);
+  if (!m){
+    qrCv.hidden = true;
+    note.textContent = 'この配置はリンクが長すぎて QR に入りません。リンクをコピーして送ってください。';
+    return;
+  }
+  qrCv.hidden = false;
+  const q = 4, n = m.length, cell = Math.max(2, Math.floor(760 / (n + q * 2)));
+  const px = (n + q * 2) * cell;
+  qrCv.width = qrCv.height = px;
+  const g = qrCv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, px, px);
+  g.fillStyle = '#000';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
+    if (m[y][x]) g.fillRect((x + q) * cell, (y + q) * cell, cell, cell);
+  note.textContent = `${url.length} 文字 / 型 ${(n - 17) / 4}`;
+}
+function openQR(){
+  qrDlg.classList.add('on');
+  document.getElementById('qrtitle').textContent = cutName(state.cuts[state.cutIx], state.cutIx) + ' を開く QR コード';
+  drawQR();
+}
+function closeQR(){ qrDlg.classList.remove('on'); }
+document.getElementById('qrbtn').addEventListener('click', openQR);
+document.getElementById('qrclose').addEventListener('click', closeQR);
+qrDlg.addEventListener('click', e => { if (e.target === qrDlg) closeQR(); });
+for (const b of qrDlg.querySelectorAll('[data-qrmode]')) b.addEventListener('click', () => {
+  qrMode = b.dataset.qrmode;
+  for (const o of qrDlg.querySelectorAll('[data-qrmode]')) o.classList.toggle('on', o === b);
+  drawQR();
+});
+addEventListener('keydown', e => { if (e.key === 'Escape' && qrDlg.classList.contains('on')) closeQR(); });
+document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; stashCut(); select(null); buildStudio(); rebuildItems(); renderCuts(); renderList(); renderMeta(); saveHash(); } });
 // ---------- handing a file to the viewer ----------
 // A plain <a download> is inert inside the claude.ai preview frame, which is where
 // this gets tried first, so a file goes through the viewer's own save when there is
@@ -2729,7 +3164,7 @@ function projectName(){
   return [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_') || 'StudioPlanner';
 }
 document.getElementById('savefile').addEventListener('click', () => {
-  saveFile(projectName() + '.json', new Blob([JSON.stringify(state, null, 1)], {type:'application/json'}), 'application/json');
+  saveFile(projectName() + '.json', new Blob([JSON.stringify(packState(), null, 1)], {type:'application/json'}), 'application/json');
 });
 document.getElementById('loadfile').addEventListener('click', () => document.getElementById('projfile').click());
 document.getElementById('projfile').addEventListener('change', async e => {
@@ -2737,10 +3172,10 @@ document.getElementById('projfile').addEventListener('change', async e => {
   if (!f) return;
   try {
     const st = JSON.parse(await f.text());
-    if (!st?.studio || !Array.isArray(st.items)) throw new Error('not a Studio Planner file');
+    if (!st?.studio || !(Array.isArray(st.items) || Array.isArray(st.cuts))) throw new Error('not a Studio Planner file');
     state = migrate(st);
     select(null);
-    buildStudio(); rebuildItems(); renderList(); renderSel(); renderMeta(); layoutPip(); saveHash(); needRender = true;
+    buildStudio(); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta(); layoutPip(); saveHash(); needRender = true;
     restoreModels();                                  // models already in this browser come back
     toast('読み込みました');
   } catch(err){ console.warn('project load failed', err); toast('このファイルは読めません'); }
@@ -2798,7 +3233,8 @@ let toastT; function toast(msg){ const t = document.getElementById('toast'); t.t
 // The dimension labels stay HTML on top of each image, so they print as text.
 let orient = 'landscape';
 try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
-const paperEl = document.getElementById('paper'), paperModal = document.getElementById('papermodal');
+const papersEl = document.getElementById('papers'), paperModal = document.getElementById('papermodal');
+let pdfScope = 'one';        // 'one' = 今のカットだけ / 'all' = 全カット
 const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
 
 // render one view off-screen at print resolution and return its labels as percentages
@@ -2863,40 +3299,68 @@ function studioRows(){
   if (lights.length) h += prow('ライト', `${lights.length} 灯`);
   return h;
 }
-function buildSheet(){
-  const land = orient === 'landscape', m = state.meta, ci = camItem();
+// 1 カット = A4 1 枚。カットを切り替えながら撮って、終わったら元へ戻す
+function withCut(i, fn){
+  const back = state.cutIx;
+  const put = j => { state.cutIx = j; const c = state.cuts[j];
+    state.meta.cut = c.name; state.meta.memo = c.memo; state.meta.frames = c.frames;
+    state.activeCam = c.activeCam; state.items = c.items;
+    rebuildItems(); buildDims(); };
+  if (i !== back){ stashCut(); put(i); }
+  try { return fn(); } finally { if (i !== back) put(back); }
+}
+function sheetPage(ci){
+  const land = orient === 'landscape', c = state.cuts[ci];
   const [cw, ch] = land ? [1092, 1038] : [1140, 852];   // 12 px/mm at the panel size, about 300 dpi
-  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam', ci ? `ファインダー（${camName(ci)}）` : 'ファインダー']]
+  const cam = camItem();
+  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam', cam ? `ファインダー（${camName(cam)}）` : 'ファインダー']]
     .map(([v, name]) => ({view:v, name, ...captureView(v, cw, ch)}));
   const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
   const panels = shots.map(sh =>
-    `<div class="pv" data-pane="${sh.view}"><div class="pvin" style="${frameCSS(sh.view)}">` +
+    `<div class="pv" data-pane="${sh.view}"><div class="pvin" style="${frameCSS(sh.view, ci)}">` +
     `<img src="${sh.url}" alt="${esc(sh.name)}" draggable="false">` +
     sh.labels.map(L => `<span class="lb ${L.cls}" style="left:${L.x.toFixed(2)}%;top:${L.y.toFixed(2)}%">${L.text}</span>`).join('') +
     `</div><span class="cap">${esc(sh.name)}</span></div>`).join('');
-  paperEl.className = orient;
-  paperEl.innerHTML =
-    `<div class="ph">
-       <div class="pj"><em>PROJECT</em>${esc(m.project || '案件名未入力')}</div>
-       ${m.cut ? `<div class="cut">${esc(m.cut)}</div>` : ''}
+  const project = state.meta.project;
+  return `<div class="paper ${orient}" data-cut="${ci}">
+     <div class="ph">
+       <div class="pj"><em>PROJECT</em>${esc(project || '案件名未入力')}</div>
+       <div class="cut">${esc(cutName(c, ci))}</div>
        <div class="meta">出力 ${esc(stamp)}<br>Studio Planner</div>
      </div>
      <div class="pbody">
        <div class="pviews">${panels}</div>
        <div class="pside">
-         <div class="pbox"><h4>${esc(ci ? camName(ci) : 'カメラ')}</h4><div class="inner">${cameraRows()}</div></div>
+         <div class="pbox"><h4>${esc(cam ? camName(cam) : 'カメラ')}</h4><div class="inner">${cameraRows()}</div></div>
          <div class="pbox"><h4>スタジオ・被写体</h4><div class="inner">${studioRows()}</div></div>
-         <div class="pbox pmemo"><h4>メモ</h4><div class="inner">${esc(m.memo || '')}</div></div>
+         <div class="pbox pmemo"><h4>メモ</h4><div class="inner">${esc(state.meta.memo || '')}</div></div>
        </div>
      </div>
-     <div class="pfoot"><span>1 マス = 1 m。寸法は概算です。</span><span>${esc(m.project || '')} ${esc(m.cut || '')}</span></div>`;
+     <div class="pfoot"><span>1 マス = 1 m。寸法は概算です。</span><span>${esc(project || '')} ${esc(cutName(c, ci))}</span></div>
+   </div>`;
+}
+// 別のカットの人物モデルはまだ取りに行っていないことがある。
+// 取り込む前に読んでおかないと、その頁だけマネキンで刷られる
+async function preloadCutModels(list){
+  const files = new Set();
+  for (const i of list) for (const it of state.cuts[i].items){
+    const f = it.type === 'person' && MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
+    if (f) files.add(f);
+  }
+  await Promise.all([...files].map(f => loadPerson(f)));
+}
+async function buildSheet(){
+  stashCut();
+  const list = pdfScope === 'all' ? state.cuts.map((_, i) => i) : [state.cutIx];
+  await preloadCutModels(list);
+  papersEl.innerHTML = list.map(i => withCut(i, () => sheetPage(i))).join('');
   pageStyle.textContent = `@page { size: A4 ${orient}; margin: 8mm; }`;
 }
-const frameOf = v => (state.meta.frames[v] ||= {s:1, x:0, y:0});
-const frameCSS = v => { const f = frameOf(v); return `transform:translate(${f.x.toFixed(2)}%,${f.y.toFixed(2)}%) scale(${f.s.toFixed(3)})`; };
-function applyFrame(v){
-  const el = paperEl.querySelector(`.pv[data-pane="${v}"] .pvin`);
-  if (el) el.style.cssText = frameCSS(v);
+const frameOf = (v, ci) => ((state.cuts[ci] || state.cuts[state.cutIx]).frames[v] ||= {s:1, x:0, y:0});
+const frameCSS = (v, ci) => { const f = frameOf(v, ci); return `transform:translate(${f.x.toFixed(2)}%,${f.y.toFixed(2)}%) scale(${f.s.toFixed(3)})`; };
+function applyFrame(v, ci){
+  const el = papersEl.querySelector(`.paper[data-cut="${ci}"] .pv[data-pane="${v}"] .pvin`);
+  if (el) el.style.cssText = frameCSS(v, ci);
 }
 // the sheet is drawn at full A4 and then scaled to fit the screen, so a drag in
 // screen pixels has to be divided by that scale before it means anything on paper
@@ -2906,49 +3370,56 @@ let paperScale = 1;
   // The finder is left alone on purpose. Panning or zooming it would show a frame
   // the camera does not actually take, which is the one error this sheet must not make.
   const pane0 = e => { const p = e.target.closest?.('.pv[data-pane]'); return p && p.dataset.pane !== 'cam' ? p : null; };
-  paperEl.addEventListener('pointerdown', e => {
+  const cutOf = pane => +(pane.closest('.paper')?.dataset.cut ?? state.cutIx);
+  papersEl.addEventListener('pointerdown', e => {
     const pane = pane0(e); if (!pane) return;
-    const v = pane.dataset.pane, box = pane.getBoundingClientRect();
+    const v = pane.dataset.pane, ci = cutOf(pane), box = pane.getBoundingClientRect();
     pane.setPointerCapture(e.pointerId);
-    drag = {v, box, x:e.clientX, y:e.clientY, f:{...frameOf(v)}};
+    drag = {v, ci, box, x:e.clientX, y:e.clientY, f:{...frameOf(v, ci)}};
     e.preventDefault();
   });
-  paperEl.addEventListener('pointermove', e => {
+  papersEl.addEventListener('pointermove', e => {
     if (!drag) return;
     // box is the panel on screen, and a translate percentage lands on the same
     // scaled size, so the page scale cancels and the ratio is all that is needed
-    const f = frameOf(drag.v);
+    const f = frameOf(drag.v, drag.ci);
     f.x = drag.f.x + (e.clientX - drag.x) / drag.box.width * 100;
     f.y = drag.f.y + (e.clientY - drag.y) / drag.box.height * 100;
-    applyFrame(drag.v);
+    applyFrame(drag.v, drag.ci);
   });
   const stop = () => { if (drag){ drag = null; saveHash(); } };
-  paperEl.addEventListener('pointerup', stop);
-  paperEl.addEventListener('pointercancel', stop);
-  paperEl.addEventListener('wheel', e => {
+  papersEl.addEventListener('pointerup', stop);
+  papersEl.addEventListener('pointercancel', stop);
+  papersEl.addEventListener('wheel', e => {
     const pane = pane0(e); if (!pane) return;
     e.preventDefault();
-    const f = frameOf(pane.dataset.pane);
+    const ci = cutOf(pane), f = frameOf(pane.dataset.pane, ci);
     f.s = clamp(f.s * (e.deltaY < 0 ? 1.12 : 0.893), 0.4, 6);
-    applyFrame(pane.dataset.pane); saveHash();
+    applyFrame(pane.dataset.pane, ci); saveHash();
   }, {passive:false});
-  paperEl.addEventListener('dblclick', e => {
+  papersEl.addEventListener('dblclick', e => {
     const pane = pane0(e); if (!pane) return;
-    state.meta.frames[pane.dataset.pane] = {s:1, x:0, y:0};
-    applyFrame(pane.dataset.pane); saveHash();
+    const ci = cutOf(pane);
+    state.cuts[ci].frames[pane.dataset.pane] = {s:1, x:0, y:0};
+    applyFrame(pane.dataset.pane, ci); saveHash();
   });
 }
 document.getElementById('framereset').addEventListener('click', () => {
-  state.meta.frames = {};
-  for (const v of ['plan','side','pers']) applyFrame(v);
+  for (const el of papersEl.querySelectorAll('.paper')){
+    const ci = +el.dataset.cut;
+    state.cuts[ci].frames = {};
+    if (ci === state.cutIx) state.meta.frames = state.cuts[ci].frames;
+    for (const v of ['plan','side','pers']) applyFrame(v, ci);
+  }
   saveHash();
 });
 function fitPaper(){
-  const box = paperEl.parentElement.getBoundingClientRect();
-  const k = Math.min(1, (box.width - 24) / Math.max(1, paperEl.offsetWidth));
+  const one = papersEl.querySelector('.paper'); if (!one) return;
+  const box = papersEl.parentElement.getBoundingClientRect();
+  const k = Math.min(1, (box.width - 24) / Math.max(1, one.offsetWidth));
   paperScale = k;
-  paperEl.style.transform = `scale(${k.toFixed(3)})`;
-  paperEl.parentElement.style.height = k < 1 ? `${paperEl.offsetHeight * k + 40}px` : '';
+  papersEl.style.transform = `scale(${k.toFixed(3)})`;
+  papersEl.parentElement.style.height = k < 1 ? `${papersEl.offsetHeight * k + 40}px` : '';
 }
 document.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('click', () => {
   orient = b.dataset.orient;
@@ -2957,7 +3428,7 @@ document.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('clic
 }));
 for (const [id, key] of [['m-project','project'], ['m-cut','cut'], ['m-memo','memo']]){
   const el = document.getElementById(id);
-  el.addEventListener('input', () => { state.meta[key] = el.value; saveHash(); });
+  el.addEventListener('input', () => { state.meta[key] = el.value; if (key === 'cut'){ stashCut(); renderCuts(); } saveHash(); });
 }
 function renderMeta(){
   document.getElementById('m-project').value = state.meta.project || '';
@@ -2965,9 +3436,13 @@ function renderMeta(){
   document.getElementById('m-memo').value = state.meta.memo || '';
   document.querySelectorAll('[data-orient]').forEach(x => x.classList.toggle('on', x.dataset.orient === orient));
 }
-document.getElementById('makepdf').addEventListener('click', () => {
-  buildSheet(); paperModal.classList.add('show'); requestAnimationFrame(fitPaper);
+document.getElementById('makepdf').addEventListener('click', async () => {
+  await buildSheet(); paperModal.classList.add('show'); requestAnimationFrame(fitPaper);
 });
+document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
+  pdfScope = b.dataset.scope;
+  document.querySelectorAll('[data-scope]').forEach(x => x.classList.toggle('on', x.dataset.scope === pdfScope));
+}));
 document.getElementById('paperclose').addEventListener('click', () => paperModal.classList.remove('show'));
 document.getElementById('doprint').addEventListener('click', () => {
   const m = state.meta, keep = document.title;
@@ -2978,18 +3453,69 @@ document.getElementById('doprint').addEventListener('click', () => {
 });
 addEventListener('resize', () => { if (paperModal.classList.contains('show')) fitPaper(); });
 
+// ---------- オフライン ----------
+// 現場は圏外のことがある。Service Worker がキャッシュを持つので、一度開いた端末は
+// そのまま開ける。人物モデルは 10 MB あるので、押した人ぶんだけ溜める。
+//
+// **プレビュー枠や file:// では登録しない。** claude.ai のプレビューには sw.js が
+// 無いので 404 になり、file:// はそもそも Service Worker を許さない。どちらも
+// 例外を投げるだけだが、コンソールが真っ赤になって別の不具合と紛らわしい。
+const canSW = 'serviceWorker' in navigator && window.top === window.self &&
+  (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+if (canSW) navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw register failed', e));
+
+const offlineBtn = document.getElementById('offlinebtn'), offlineStat = document.getElementById('offlinestat');
+function offlineFiles(){
+  const f = ['./', 'index.html', 'manifest.webmanifest', 'models/poses.json',
+             'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'ogp.png'];
+  for (const m of PEOPLE_MODELS){ f.push(`models/${m.id}.glb`); f.push(`models/thumbs/${m.id}.webp`); }
+  for (const id of ['none','stand-1','stand-2','stand-3','stand-4','stand-5','sit-chair','sit-floor','lie-up','lie-down','walk','dance'])
+    f.push(`models/thumbs/pose-${id}.webp`);
+  return f;
+}
+async function saveOffline(){
+  if (!canSW){ offlineStat.textContent = 'この開き方ではオフライン保存を使えません（https で開いてください）。'; return; }
+  offlineBtn.disabled = true;
+  try {
+    await navigator.serviceWorker.ready;
+    // 読み込み側の addon は「実際に import してみる」のがいちばん確実。
+    // GLTFLoader が何を引き連れてくるかを、こちらで数え上げなくて済む。
+    offlineStat.textContent = '読み込み部品を控えています…';
+    await Promise.allSettled([
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('three/addons/loaders/FBXLoader.js')
+    ]);
+    const files = offlineFiles();
+    let done = 0, failed = 0;
+    for (const f of files){
+      try { const r = await fetch(f, {cache:'reload'}); if (!r.ok) throw new Error(r.status); }
+      catch { failed++; }
+      done++;
+      offlineStat.textContent = `保存中… ${done} / ${files.length}`;
+    }
+    offlineStat.textContent = failed
+      ? `${files.length - failed} / ${files.length} を保存しました（${failed} 件は取れませんでした）。`
+      : 'この端末に保存しました。圏外でも開けます。';
+  } catch(e){
+    console.warn('offline save failed', e);
+    offlineStat.textContent = '保存できませんでした。通信を確かめてもう一度お試しください。';
+  } finally { offlineBtn.disabled = false; }
+}
+offlineBtn.addEventListener('click', saveOffline);
+
 // ---------- boot ----------
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }};
 (async () => {
   findDownloads();
   await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; }
   syncViewBtns();
-  buildStudio(); rebuildItems(); renderList(); renderSel(); renderMeta();
+  buildStudio(); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta();
+  lastSnap = snapshot(); syncUndoBtns();
   new ResizeObserver(resize).observe(viewEl); resize();
   document.getElementById('linkbox').value = location.href;
   frame();

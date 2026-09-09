@@ -36,11 +36,12 @@ function makeGLB(){
 const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(st)))
   .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
+const MIME = {'.html':'text/html; charset=utf-8', '.glb':'model/gltf-binary', '.json':'application/json',
+  '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml'};
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
-  if (!fs.existsSync(p)) { res.writeHead(404); res.end(); return; }
-  const type = p.endsWith('.html') ? 'text/html; charset=utf-8' : p.endsWith('.glb') ? 'model/gltf-binary' : 'text/javascript';
-  res.writeHead(200, {'content-type': type});
+  if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript'});
   res.end(fs.readFileSync(p));
 }).listen(8765);
 
@@ -53,7 +54,10 @@ const browser = await chromium.launch({
   env: { ...process.env, LANG: process.env.LANG || 'C.UTF-8' },
 });
 async function open(name, viewport, mobile = false, hash = ''){
-  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true });
+  // Service Worker はページの route を素通りして本物の CDN を取りに行くので、
+  // three をローカルへ差し替えているこの一連の確認では止めておく。
+  // オフラインそのものは最後のブロックで別に確かめる。
+  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -255,8 +259,8 @@ async function open(name, viewport, mobile = false, hash = ''){
     await t.page.click(`[data-orient="${o}"]`);
     await t.page.click('#makepdf');
     await t.page.waitForTimeout(2500);
-    const panels = await t.page.$$eval('#paper .pv img', n => n.length);
-    const labels = await t.page.$$eval('#paper .pv .lb', n => n.length);
+    const panels = await t.page.$$eval('.paper .pv img', n => n.length);
+    const labels = await t.page.$$eval('.paper .pv .lb', n => n.length);
     ok(`${o}: four panels drawn`, panels === 4, `${panels} panels, ${labels} labels`);
     ok(`${o}: dimensions kept as text`, labels > 0);
     await t.page.screenshot({ path: `${OUT}/pdf-${o}.png` });
@@ -272,36 +276,36 @@ async function open(name, viewport, mobile = false, hash = ''){
     ok(`${o}: one page`, pages === 1, `${pages} pages, ${(buf.length/1024).toFixed(0)} KB`);
     ok(`${o}: A4 at the right orientation`, wmm === want[0] && hmm === want[1], `${wmm} x ${hmm} mm`);
     if (o === 'landscape'){
-      const pane = await t.page.$('#paper .pv[data-pane="plan"]');
+      const pane = await t.page.$('.paper .pv[data-pane="plan"]');
       const b = await pane.boundingBox();
       await t.page.mouse.move(b.x + b.width/2, b.y + b.height/2);
       await t.page.mouse.down();
       await t.page.mouse.move(b.x + b.width/2 + 40, b.y + b.height/2 + 25, {steps:6});
       await t.page.mouse.up();
       await t.page.waitForTimeout(200);
-      const moved = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      const moved = await t.page.$eval('.paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
       ok('a panel can be dragged to reframe it', /translate\(-?[1-9]/.test(moved), moved);
       await t.page.mouse.wheel(0, -200); await t.page.waitForTimeout(200);
-      const zoomed = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      const zoomed = await t.page.$eval('.paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
       ok('the wheel zooms a panel', !/scale\(1\.000\)/.test(zoomed), zoomed);
       await t.page.click('#framereset'); await t.page.waitForTimeout(200);
-      const back = await t.page.$eval('#paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
+      const back = await t.page.$eval('.paper .pv[data-pane="plan"] .pvin', e => e.style.transform);
       ok('reset puts every panel back', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(back), back);
 
       // the finder must stay exactly what the camera sees, so it takes no reframing
-      const fb = await (await t.page.$('#paper .pv[data-pane="cam"]')).boundingBox();
+      const fb = await (await t.page.$('.paper .pv[data-pane="cam"]')).boundingBox();
       await t.page.mouse.move(fb.x + fb.width/2, fb.y + fb.height/2);
       await t.page.mouse.down();
       await t.page.mouse.move(fb.x + fb.width/2 + 45, fb.y + fb.height/2 + 30, {steps:6});
       await t.page.mouse.up();
       await t.page.mouse.wheel(0, -200);
       await t.page.waitForTimeout(200);
-      const fin = await t.page.$eval('#paper .pv[data-pane="cam"] .pvin', e => e.style.transform);
+      const fin = await t.page.$eval('.paper .pv[data-pane="cam"] .pvin', e => e.style.transform);
       ok('the finder cannot be reframed', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(fin), fin);
     }
     await t.page.click('#paperclose');
   }
-  const head = await t.page.$eval('#paper .ph', e => e.innerText.replace(/\n/g, ' | '));
+  const head = await t.page.$eval('.paper .ph', e => e.innerText.replace(/\n/g, ' | '));
   ok('header carries project, cut and stamp', head.includes('コスモ石油') && head.includes('C-12') && /\d{4}\/\d{2}\/\d{2}/.test(head), head);
   await t.page.waitForTimeout(500);
   await t.page.screenshot({ path: `${OUT}/pdf-after.png` });
@@ -347,7 +351,9 @@ async function open(name, viewport, mobile = false, hash = ''){
      !!picked.p && picked.p.name.includes('青山スタジオ') && picked.p.name.includes('C-3')
      && /\d{4}-\d{2}-\d{2}/.test(picked.p.name) && picked.p.name.endsWith('.json'), picked.p?.name);
   const viaPicker = JSON.parse(picked.w);
-  ok('the dialog is handed the whole scene', viaPicker.items.length === before - 1 && viaPicker.meta.cut === 'C-3');
+  ok('the dialog is handed the whole scene',
+     viaPicker.cuts?.[0].items.length === before - 1 && viaPicker.cuts[0].name === 'C-3',
+     JSON.stringify(Object.keys(viaPicker)));
 
   // a closed dialog leaves nothing behind
   await t.page.evaluate(() => {
@@ -370,7 +376,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   await dl.saveAs(file);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   ok('the typed name is used, with the extension kept', name === '下見メモ.json', `${name} (suggested ${suggested})`);
-  ok('the file holds the whole scene', saved.items.length === before - 1 && saved.meta.cut === 'C-3', `${saved.items.length} items`);
+  ok('the file holds the whole scene', saved.cuts[0].items.length === before - 1 && saved.cuts[0].name === 'C-3',
+     `${saved.cuts[0].items.length} items in ${saved.cuts.length} cut(s)`);
 
   // wipe it, then read the file back
   t.page.once('dialog', d => d.accept());
@@ -842,6 +849,179 @@ async function open(name, viewport, mobile = false, hash = ''){
      `k1=${await y('k1')} k2=${await y('k2')} k3=${await y('k3')}`);
   ok('stack run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 15. undo / redo, cuts, and the readout that gets out of the way ---------------
+{
+  const t = await open('cuts', { width: 1200, height: 800 });
+  ok('the list tab is called オブジェクト', (await t.page.textContent('[data-tab="list"]')).trim() === 'オブジェクト');
+  const nItems = () => t.page.evaluate(() => window.__sp.state().items.length);
+  const before = await nItems();
+  await t.add('[data-add="box"]');
+  ok('undo is offered once something happened', !(await t.page.$eval('#undobtn', b => b.disabled)));
+  await t.page.click('#undobtn'); await t.page.waitForTimeout(400);
+  ok('undo takes the box away', await nItems() === before, `${await nItems()} vs ${before}`);
+  await t.page.click('#redobtn'); await t.page.waitForTimeout(400);
+  ok('redo puts it back', await nItems() === before + 1);
+  await t.page.keyboard.press('Control+z'); await t.page.waitForTimeout(400);
+  ok('Ctrl+Z does the same', await nItems() === before);
+  await t.page.keyboard.press('Control+Shift+z'); await t.page.waitForTimeout(400);
+  ok('Ctrl+Shift+Z redoes', await nItems() === before + 1);
+
+  // カットは今の内容を写して増える。片方をいじってももう片方は動かない
+  await t.page.click('#cuts button.add'); await t.page.waitForTimeout(500);
+  const cuts = () => t.page.evaluate(() => window.__sp.state().cuts.length);
+  ok('a second cut appears', await cuts() === 2, String(await cuts()));
+  ok('and it carries the same things', await nItems() === before + 1);
+  await t.add('[data-add="chair"]');
+  const n2 = await nItems();
+  await t.page.click('#cuts button[data-ix="0"]'); await t.page.waitForTimeout(500);
+  ok('the first cut is untouched', await nItems() === n2 - 1, `${await nItems()} vs ${n2 - 1}`);
+  await t.tab('share');
+  await t.page.fill('#m-cut', 'C-12'); await t.page.waitForTimeout(400);
+  ok('renaming shows on the chip', (await t.page.textContent('#cuts button[data-ix="0"]')).includes('C-12'),
+     await t.page.textContent('#cuts button[data-ix="0"]'));
+  // 用紙はカットごとに 1 枚
+  await t.page.click('[data-scope="all"]');
+  await t.page.click('#makepdf'); await t.page.waitForTimeout(3500);
+  const sheets = await t.page.$$eval('.paper', n => n.length);
+  ok('全カット prints one sheet per cut', sheets === 2, `${sheets} sheets`);
+  ok('with four panels on each', await t.page.$$eval('.paper .pv img', n => n.length) === 8);
+  await t.page.click('#paperclose'); await t.page.waitForTimeout(200);
+  await t.page.click('[data-scope="one"]');
+  await t.page.click('#makepdf'); await t.page.waitForTimeout(2500);
+  ok('このカットだけ prints one', await t.page.$$eval('.paper', n => n.length) === 1);
+  await t.page.click('#paperclose'); await t.page.waitForTimeout(200);
+
+  // 共有リンクに両方のカットが乗る
+  const link = await t.page.evaluate(() => location.href);
+  const t2 = await open('cuts-shared', { width: 1200, height: 800 }, false, link.slice(link.indexOf('#')));
+  ok('both cuts survive the link', await t2.page.evaluate(() => window.__sp.state().cuts.length) === 2);
+  ok('cuts run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
+  await t2.ctx.close();
+
+  // 縦持ちのスマホでは右上の情報表示が他の UI に重なるので、そのときは消える
+  const m = await open('info-overlap', { width: 390, height: 780 }, true);
+  await m.page.waitForTimeout(600);
+  const hidden = await m.page.evaluate(() => {
+    const i = document.getElementById('info'), v = document.getElementById('viewbtns');
+    if (i.classList.contains('hide')) return true;
+    const a = i.getBoundingClientRect(), b = v.getBoundingClientRect();
+    return !(a.left < b.right + 6 && b.left < a.right + 6 && a.top < b.bottom + 6 && b.top < a.bottom + 6);
+  });
+  ok('the readout never sits on the view buttons', hidden);
+  await m.ctx.close();
+  await t.ctx.close();
+}
+
+// --- 16. QR: the hand-written encoder, module for module, and the dialog -----------
+{
+  // 自前の実装なので、参照実装（qrcode）と 1 モジュールずつ突き合わせる。
+  // マスクの選び方だけは実装ごとに差が出るので、参照実装が選んだマスクに固定して比べ、
+  // そのうえで自動選択の出力を jsQR で実際に読ませる。
+  const ref = (await import('qrcode')).default;
+  const jsQR = (await import('jsqr')).default;
+  const t = await open('qr', { width: 1200, height: 800 });
+  const texts = ['hello', 'https://mojon1.github.io/Studio-Planner/#s=zabc123',
+    'あ'.repeat(40), 'x'.repeat(300), 'y'.repeat(900), 'w'.repeat(2000)];
+  let mismatch = null;
+  for (const text of texts){
+    const r = ref.create([{data:text, mode:'byte'}], {errorCorrectionLevel:'L'});
+    const n = r.modules.size;
+    let fmt = 0;                                     // 参照実装が選んだマスクを形式情報から読む
+    for (let i = 0; i < 15; i++){ const row = i < 6 ? i : i < 8 ? i + 1 : n - 15 + i;
+      fmt |= (r.modules.data[row * n + 8] ? 1 : 0) << i; }
+    const mask = ((fmt ^ 0x5412) >> 10) & 7;
+    const mine = await t.page.evaluate(([s, k]) => window.__sp.qr(s, k), [text, mask]);
+    if (!mine || mine.length !== n){ mismatch = `${text.length} 文字: 型がちがう`; break; }
+    for (let y = 0; y < n && !mismatch; y++) for (let x = 0; x < n; x++)
+      if (mine[y][x] !== (r.modules.data[y*n+x] ? 1 : 0)){ mismatch = `${text.length} 文字 (${y},${x})`; break; }
+    if (mismatch) break;
+  }
+  ok('the QR encoder matches qrcode module for module', !mismatch, mismatch || '');
+  ok('too long for any version returns nothing',
+     await t.page.evaluate(() => window.__sp.qr('a'.repeat(3000)) === null && !!window.__sp.qr('a'.repeat(2953))));
+
+  await t.addPerson('asia-casual-man');
+  await t.tab('share');
+  await t.page.click('#qrbtn'); await t.page.waitForTimeout(600);
+  ok('the dialog opens', await t.page.$eval('#qrdlg', e => e.classList.contains('on')));
+  const read = async () => {
+    const px = await t.page.evaluate(() => { const c = document.getElementById('qrcv'), g = c.getContext('2d');
+      return {w:c.width, h:c.height, d:Array.from(g.getImageData(0,0,c.width,c.height).data)}; });
+    const got = jsQR(Uint8ClampedArray.from(px.d), px.w, px.h);
+    return got ? got.data : null;
+  };
+  const url = await read();
+  ok('and the code really reads back as the share link',
+     !!url && url.startsWith('http://localhost:8765/#s=') && !/m=v/.test(url), String(url).slice(0, 48));
+  await t.page.click('[data-qrmode="view"]'); await t.page.waitForTimeout(500);
+  const vurl = await read();
+  ok('見るだけ gives the viewer link', !!vurl && /&m=v$/.test(vurl), String(vurl).slice(-20));
+  // リンクの中身が本当にその配置か
+  const t2 = await open('qr-open', { width: 1000, height: 700 }, false, vurl.slice(vurl.indexOf('#')));
+  ok('opening it restores the scene',
+     await t2.page.evaluate(() => window.__sp.state().items.some(i => i.type === 'person')));
+  await t.page.click('#qrclose'); await t.page.waitForTimeout(200);
+  ok('and it closes', !(await t.page.$eval('#qrdlg', e => e.classList.contains('on'))));
+  ok('qr run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
+  await t2.ctx.close(); await t.ctx.close();
+}
+
+// --- 17. offline: the service worker really serves the app with the network cut ----
+{
+  // Service Worker はページの route を通らないので、この確認だけは three も
+  // 同じサーバーから配る。index.html と sw.js の CDN の宛先を差し替えて出す。
+  const CDN = 'https://cdn.jsdelivr.net/npm/three@0.170.0/';
+  const swServer = http.createServer((req, res) => {
+    const u = req.url.split('?')[0].split('#')[0];
+    if (u.startsWith('/vendor/three/')){
+      const f = path.join(NM, 'three', u.replace('/vendor/three/', ''));
+      if (!fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, {'content-type':'text/javascript'}); res.end(fs.readFileSync(f)); return;
+    }
+    const p = path.join(ROOT, u === '/' ? 'index.html' : u);
+    if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
+    let body = fs.readFileSync(p);
+    if (u === '/' || u === '/index.html' || u === '/sw.js')
+      body = Buffer.from(body.toString('utf8').split(CDN).join('/vendor/three/')
+        .replace('<link rel="stylesheet" href="https://fonts.googleapis.com', '<link rel="none" href="#'));
+    res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript', 'cache-control':'no-cache'});
+    res.end(body);
+  }).listen(8766);
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  await page.goto('http://localhost:8766/');
+  await page.waitForTimeout(1800);
+  ok('the service worker takes over', await page.evaluate(() =>
+    navigator.serviceWorker.ready.then(r => !!r.active).catch(() => false)));
+  ok('the manifest is served', await page.evaluate(async () => (await fetch('manifest.webmanifest')).status) === 200);
+  await page.click('#addfab'); await page.click('#people button[data-model="asia-casual-man"]');
+  await page.waitForTimeout(1200);
+  await page.click('[data-tab="share"]'); await page.waitForTimeout(150);
+  await page.click('#offlinebtn');
+  await page.waitForFunction(() => /保存しました|できません|使えません/.test(document.getElementById('offlinestat').textContent),
+    null, { timeout: 180000 });
+  const stat = await page.textContent('#offlinestat');
+  ok('オフラインに保存 finishes', /この端末に保存しました/.test(stat), stat);
+  const link = await page.evaluate(() => location.href);
+  await ctx.setOffline(true);
+  const off = await ctx.newPage();
+  off.on('pageerror', e => errors.push('offline pageerror: ' + e.message));
+  await off.goto(link).catch(e => errors.push('offline goto: ' + e.message));
+  await off.waitForTimeout(3500);
+  ok('the app still opens with the network cut',
+     await off.evaluate(() => !!window.__sp && window.__sp.state().items.length > 0));
+  ok('and the person model comes out of the cache', await off.evaluate(() => {
+    const it = window.__sp.state().items.find(i => i.type === 'person');
+    let skinned = 0; window.__sp.group(it.id).traverse(n => { if (n.isSkinnedMesh) skinned++; });
+    return skinned > 0;
+  }));
+  fs.writeFileSync(path.join(OUT, 'offline.png'), await off.screenshot());
+  ok('offline run clean', errors.length === 0, errors.join(' | '));
+  await ctx.close(); swServer.close();
 }
 
 await browser.close(); server.close();
