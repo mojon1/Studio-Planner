@@ -33,6 +33,32 @@ function makeGLB(){
   const bc = Buffer.alloc(8); bc.writeUInt32LE(bin.length, 0); bc.writeUInt32LE(0x004E4942, 4);
   return Buffer.concat([header, jc, js, bc, bin]);
 }
+// 同じ箱を 2 つのマテリアルで塗り分けたもの。片方の名前に glass を入れてある。
+// 書き出し側が alphaMode を立てていなくても、名前だけで窓として扱えることを見る。
+function makeGlassGLB(){
+  const verts = new Float32Array([-1,0,-0.5, 1,0,-0.5, 1,3,-0.5, -1,3,-0.5, -1,0,0.5, 1,0,0.5, 1,3,0.5, -1,3,0.5]);
+  const body = new Uint32Array([0,1,2, 0,2,3, 4,6,5, 4,7,6, 0,3,7, 0,7,4, 1,5,6, 1,6,2]);
+  const glass = new Uint32Array([3,2,6, 3,6,7, 0,4,5, 0,5,1]);
+  const vb = Buffer.from(verts.buffer), ib = Buffer.from(body.buffer), gb = Buffer.from(glass.buffer);
+  const bin = Buffer.concat([vb, ib, gb]);
+  const json = { asset:{version:'2.0'}, scene:0, scenes:[{nodes:[0]}], nodes:[{mesh:0}],
+    materials:[{name:'body_paint'}, {name:'Car_Glass', pbrMetallicRoughness:{baseColorFactor:[0.1,0.13,0.16,1]}}],
+    meshes:[{primitives:[{attributes:{POSITION:0}, indices:1, material:0}, {attributes:{POSITION:0}, indices:2, material:1}]}],
+    buffers:[{byteLength:bin.length}],
+    bufferViews:[{buffer:0,byteOffset:0,byteLength:vb.length,target:34962},
+                 {buffer:0,byteOffset:vb.length,byteLength:ib.length,target:34963},
+                 {buffer:0,byteOffset:vb.length+ib.length,byteLength:gb.length,target:34963}],
+    accessors:[{bufferView:0,componentType:5126,count:8,type:'VEC3',min:[-1,0,-0.5],max:[1,3,0.5]},
+               {bufferView:1,componentType:5125,count:body.length,type:'SCALAR'},
+               {bufferView:2,componentType:5125,count:glass.length,type:'SCALAR'}] };
+  let js = Buffer.from(JSON.stringify(json), 'utf8');
+  while (js.length % 4) js = Buffer.concat([js, Buffer.from(' ')]);
+  const header = Buffer.alloc(12); header.write('glTF', 0, 'ascii'); header.writeUInt32LE(2, 4);
+  header.writeUInt32LE(12 + 8 + js.length + 8 + bin.length, 8);
+  const jc = Buffer.alloc(8); jc.writeUInt32LE(js.length, 0); jc.writeUInt32LE(0x4E4F534A, 4);
+  const bc = Buffer.alloc(8); bc.writeUInt32LE(bin.length, 0); bc.writeUInt32LE(0x004E4942, 4);
+  return Buffer.concat([header, jc, js, bc, bin]);
+}
 const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(st)))
   .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
@@ -1079,6 +1105,49 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t2.page.waitForTimeout(2000);
   const mig = await t2.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'car');
     return {kind: it.kind, d: it.d, h: it.h}; });
+  // 車内からガラス越しに撮る。窓がガラスになっていないモデルは、その絵から外す
+  const inCar = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4,cove:{back:true,left:true,right:true}},
+    activeCam:'c1', items:[
+      {id:'v1',type:'car',x:0,z:0.6,rot:0,kind:'sedan',w:1.80,d:4.70,h:1.45},
+      {id:'g1',type:'chroma',x:0,z:-2.6,rot:0,color:'#1fb24a',w:6,h:3.2,drape:1.5},
+      {id:'c1',type:'camera',x:-0.38,z:1.3,y:1.15,rot:180,pitch:0,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const t3 = await open('in-car', { width: 1100, height: 760 }, false, '#s=' + encodeState(inCar));
+  await t3.page.waitForTimeout(3000);
+  await t3.page.click('[data-view="cam"]'); await t3.page.waitForTimeout(1200);
+  const mid = await t3.page.evaluate(() => {
+    const c = document.querySelector('#view canvas'), g = c.getContext('webgl2') || c.getContext('webgl');
+    const px = new Uint8Array(4);
+    g.readPixels(Math.round(c.width/2), Math.round(c.height/2), 1, 1, g.RGBA, g.UNSIGNED_BYTE, px);
+    return [...px];
+  });
+  ok('a camera inside the car sees the green screen, not the inside of a shell',
+     mid[1] > 70 && mid[1] > mid[0] * 1.6 && mid[1] > mid[2] * 1.6, `rgb ${mid.slice(0,3).join(',')}`);
+  await t3.page.screenshot({ path: `${OUT}/in-car.png` });
+  await t3.page.click('#items .itemrow[data-kind="car"] > button.name'); await t3.page.waitForTimeout(300);
+  ok('and the panel says why the car drops out',
+     (await t3.page.textContent('#selbody')).includes('ガラスになっていません'));
+
+  // 名前に glass の入ったマテリアルは、書き出し側が alphaMode を立てていなくても透過にする
+  const gglb = `${OUT}/glass-box.glb`; fs.writeFileSync(gglb, makeGlassGLB());
+  const t4 = await open('glass', { width: 1100, height: 760 });
+  await t4.page.click('#addfab');
+  await t4.page.setInputFiles('#file', gglb);
+  await t4.page.waitForTimeout(2500);
+  const mats = await t4.page.evaluate(() => {
+    const m = window.__sp.state().items.find(i => i.type === 'model');
+    const out = [];
+    window.__sp.group(m.id).traverse(n => { if (n.isMesh)
+      for (const x of (Array.isArray(n.material) ? n.material : [n.material]))
+        if (x) out.push({name:x.name, t:x.transparent, o:+x.opacity.toFixed(2), dw:x.depthWrite}); });
+    return out;
+  });
+  const glassMat = mats.find(m => /glass/i.test(m.name)), bodyMat = mats.find(m => !/glass/i.test(m.name));
+  ok('a material named glass becomes see-through',
+     !!glassMat && glassMat.t && glassMat.o < 0.5 && glassMat.dw === false, JSON.stringify(glassMat));
+  ok('and the body next to it is left alone', !!bodyMat && !bodyMat.t, JSON.stringify(bodyMat));
+  ok('glass run clean', t3.errors.length === 0 && t4.errors.length === 0, [...t3.errors, ...t4.errors].join(' | '));
+  await t4.ctx.close(); await t3.ctx.close();
+
   ok('an old ワゴン opens as a sedan at the size it was saved with',
      mig.kind === 'sedan' && mig.d === 4.8 && mig.h === 1.55, JSON.stringify(mig));
   await t2.page.screenshot({ path: `${OUT}/car.png` });

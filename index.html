@@ -319,7 +319,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.5.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.5.1<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -1683,7 +1683,10 @@ function renderView(view, rect, isMain){
     // for this one draw and put back immediately, so picking still finds it.
     const self = itemObjs.get(ci.id)?.group, wasVisible = self?.visible;
     if (self) self.visible = false;
+    const shells = shellsAround(ci);               // 中に入っている殻だけの物（車など）
+    for (const g of shells) g.visible = false;
     renderer.render(scene, shotCam);
+    for (const g of shells) g.visible = true;
     if (self) self.visible = wasVisible;
   } else {
     const cam = viewCam(view);
@@ -1692,6 +1695,24 @@ function renderView(view, rect, isMain){
     renderer.render(scene, cam);
     if (isMain && !capturing) drawLabels(view, cam, rect);
   }
+}
+// 車の中にカメラを置いて、ガラス越しにグリーンバックを撮る——現場ではふつうにある。
+// モデルの窓がガラスになっていれば、そのまま窓から外が見える。なっていない
+// 殻だけのモデルだと**画面が真っ黒になるだけ**なので、そのカメラの絵からだけ外す。
+// 三脚を自分の絵から外しているのと同じ理屈。ガラスの入ったモデルが来たら
+// この規則はひとりでに効かなくなる。
+const SHELLS = new Set(['car', 'model']);
+function shellsAround(ci){
+  const eye = standHeight(ci) + ci.y, out = [];
+  for (const it of state.items){
+    if (it === ci || it.hidden || !SHELLS.has(it.type)) continue;
+    const base = standHeight(it);
+    if (eye < base || eye > base + (it.h || 0)) continue;
+    if (!overTop(ci, it)) continue;
+    const g = itemObjs.get(it.id)?.group;
+    if (g && g.visible && !hasGlass(g)) out.push(g);
+  }
+  return out;
 }
 const viewCam = v => v==='plan'?planCam : v==='side'?sideCam : v==='front'?frontCam : v==='pers'?persCam : shotCam;
 function mainCam(){ return viewCam(mainView); }
@@ -2343,6 +2364,8 @@ function renderSel(){
       `<img src="models/thumbs/car-${c.id}.webp" alt="" width="200" height="140"><small>${esc(c.label)}</small></button>`).join('') + `</div>`;
     h += `<p class="hint">車種を選ぶとその車の実寸が入ります。実際の車に合わせたいときは下の数字で。</p>`;
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
+    { const g = itemObjs.get(it.id)?.group;
+      if (g && !hasGlass(g)) h += `<p class="hint">このモデルは窓がガラスになっていません。車内にカメラを置いたときは、ファインダーの絵からこの車を外します。</p>`; }
     if (carModel(it) && builtIn.get(carModel(it)) === 'fail')
       h += `<p class="hint">車のモデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}実寸の箱で表示しています。</p>`;
   } else if (it.type === 'chair'){
@@ -2656,9 +2679,37 @@ async function parseModel(buf, ext, assets){
       obj = new FBXLoader(manager).parse(buf, '');
     }
     await new Promise(r => setTimeout(r, 0));       // let queued texture loads settle
+    markGlass(obj);
     return {obj, json, missing:[...missing], used:[...used], failed:[...failed]};
   } finally { setTimeout(revoke, 20000); }          // textures decode asynchronously
 }
+// 車内からガラス越しに撮る、は現場でふつうにある画。そのためには窓が
+// 「透過するマテリアル」になっている必要がある。書き出し側が
+//   ・マテリアル名に glass / window / ガラス などを入れてくれている
+//   ・または alphaMode を BLEND にして不透明度を落としてくれている
+// のどちらかなら、こちらで窓として扱う。**名前でしか判別できない。**
+// 形やテクスチャの色から窓を当てるのは試したが、実素材では車体・タイヤ・
+// グリルと混ざって分けられなかった（焼き込みの陰影で明暗が当てにならない）。
+const GLASS_RE = /(glass|window|windshield|windscreen|ガラス|窓)/i;
+function markGlass(obj){
+  obj.traverse(n => {
+    if (!n.isMesh && !n.isSkinnedMesh) return;
+    for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+      if (!m || m.userData.glass) continue;
+      const named = GLASS_RE.test(m.name || '');
+      if (!named && !(m.transparent && m.opacity < 0.9)) continue;
+      m.userData.glass = true;
+      m.transparent = true;
+      if (named && m.opacity >= 1) m.opacity = 0.28;   // 素材側で薄くしてあるならその値を尊重する
+      m.depthWrite = false;                            // 中から外が見えないと意味がない
+      m.side = THREE.DoubleSide;
+      if (named && m.isMeshStandardMaterial){ m.roughness = Math.min(m.roughness ?? 0.5, 0.12); m.metalness = Math.min(m.metalness ?? 0, 0.1); }
+      m.needsUpdate = true;
+    }
+  });
+}
+const hasGlass = o => { let g = false; o.traverse(n => { if (n.isMesh || n.isSkinnedMesh)
+  for (const m of (Array.isArray(n.material) ? n.material : [n.material])) if (m?.userData.glass) g = true; }); return g; };
 // how much of the model actually arrived, so the panel can say so plainly.
 // any texture-valued property counts: a fixed list of map names misses the rest.
 // the glTF side is counted too, so "no texture" and "the texture never reached
