@@ -1191,7 +1191,16 @@ function buildMirror(it){
     marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h), new THREE.MeshBasicMaterial({color:COLORS.mirror, transparent:true, opacity:0.45}));
     marker.rotation.x = -Math.PI/2; marker.position.y = 0.007; marker.userData.plan = true;
   }
-  refl.userData.reflector = true; g.add(refl); g.add(marker);
+  refl.userData.reflector = true;
+  // 映り込みは実際に置いた物だけ。寸法リボンや撮影範囲、マニピュレータは
+  // 図面の上書きであって現場には無いので、鏡の中には出さない
+  const draw = refl.onBeforeRender;
+  refl.onBeforeRender = function(...a){
+    const off = [dimGroup, measGroup, frustumGroup, gizmo].filter(o => o.visible);
+    for (const o of off) o.visible = false;
+    try { draw.apply(this, a); } finally { for (const o of off) o.visible = true; }
+  };
+  g.add(refl); g.add(marker);
   return g;
 }
 function buildChroma(it){
@@ -1319,7 +1328,8 @@ function renderView(view, rect, isMain){
   const ci = camItem();
   itemsGroup.traverse(n => {
     if (n.userData.plan) n.visible = view !== 'cam';
-    if (n.userData.reflector) n.visible = view === 'cam';
+    // パースでも映り込む。1 枚につきシーンをもう 1 度描くので、置いた枚数ぶん重くなる
+    if (n.userData.reflector) n.visible = view === 'cam' || view === 'pers';
   });
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
