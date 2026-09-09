@@ -466,8 +466,13 @@ let labels = [];
 const gizmo = new THREE.Group(); scene.add(gizmo); gizmo.visible = false;
 const gizRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 10, 72), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
 gizRing.rotation.x = Math.PI/2; gizRing.renderOrder = 8; gizmo.add(gizRing);
-const gizHit = new THREE.Mesh(new THREE.RingGeometry(0.62, 1.55, 48), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
-gizHit.rotation.x = -Math.PI/2; gizHit.userData.gizmo = true; gizmo.add(gizHit);
+// 当たり判定は見た目どおりに。リングは半径 1 に描いてあるので、回転はその前後の帯だけ。
+// 以前は外周 1.55 まで拾っていて、円のかなり外を押しても回ってしまった。
+const gizInvisible = () => new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide});
+const gizRot = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.16, 48), gizInvisible());
+gizRot.rotation.x = -Math.PI/2; gizRot.userData.gizmo = true; gizmo.add(gizRot);
+const gizMove = new THREE.Mesh(new THREE.CircleGeometry(0.86, 40), gizInvisible());
+gizMove.rotation.x = -Math.PI/2; gizMove.userData.gizmo = true; gizmo.add(gizMove);
 const gizKnob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false}));
 gizKnob.renderOrder = 9; gizKnob.position.set(0,0,1); gizmo.add(gizKnob);
 const gizArrow = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 12), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
@@ -1194,11 +1199,21 @@ function buildMirror(it){
   refl.userData.reflector = true;
   // 映り込みは実際に置いた物だけ。寸法リボンや撮影範囲、マニピュレータは
   // 図面の上書きであって現場には無いので、鏡の中には出さない
+  // パースでは視点の外側にある壁を半透明にしているが、鏡の仮想カメラは別の位置から
+  // 見ている。そのまま描くと、鏡が半透明の壁を透かして外の暗い空間を映してしまう。
+  // 映り込みの間だけ壁を元の不透明さに戻す。
   const draw = refl.onBeforeRender;
   refl.onBeforeRender = function(...a){
     const off = [dimGroup, measGroup, frustumGroup, gizmo].filter(o => o.visible);
     for (const o of off) o.visible = false;
-    try { draw.apply(this, a); } finally { for (const o of off) o.visible = true; }
+    const walls = studioGroup.children.filter(n => n.userData.sides && n.material);
+    const was = walls.map(n => [n.visible, n.material.opacity, n.material.depthWrite]);
+    for (const n of walls){ n.visible = true; n.material.opacity = 1; n.material.depthWrite = true; }
+    try { draw.apply(this, a); }
+    finally {
+      for (const o of off) o.visible = true;
+      walls.forEach((n, i) => { n.visible = was[i][0]; n.material.opacity = was[i][1]; n.material.depthWrite = was[i][2]; });
+    }
   };
   g.add(refl); g.add(marker);
   return g;
@@ -1411,14 +1426,17 @@ function floorHit(x,y){
 function pick(x,y){
   if (mainView === 'cam') return null;
   ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
-  if (sel() && !sel().hidden && !viewerMode){ gizmo.updateMatrixWorld(true); const h = ray.intersectObject(gizHit); if (h.length) return {gizmo:true}; }
+  const s = sel();
+  if (s && !s.hidden && !viewerMode){
+    gizmo.updateMatrixWorld(true);
+    if (ray.intersectObject(gizRot).length) return {rotate:true};    // リングとその前後
+    if (ray.intersectObject(gizMove).length) return {move:true};     // リングの内側
+  }
+  // 選択はジオメトリに当たったときだけ。以前は床を 0.45 m 以内で拾っていたので、
+  // 何も無いところを押しても近くの物が選ばれた
   const hits = ray.intersectObjects(itemsGroup.children.filter(g => g.visible), true);
   for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
-  if (mainView === 'side') return null;
-  const p = floorHit(x,y); if (!p) return null;
-  let best = null, bd = 0.45;
-  for (const it of state.items){ if (it.hidden) continue; const d = Math.hypot(it.x-p.x, it.z-p.z); if (d < bd){ bd = d; best = it; } }
-  return best ? {id:best.id} : null;
+  return null;
 }
 canvas.addEventListener('pointerdown', e => {
   const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -1427,8 +1445,14 @@ canvas.addEventListener('pointerdown', e => {
   if (mainView === 'cam'){ const ci = camItem(); drag = ci && !viewerMode ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
   if (viewerMode){ drag = {pan:true}; return; }
   const hit = pick(x,y);
-  if (hit?.gizmo){ drag = {rotate:true}; return; }
-  if (hit?.id){ select(hit.id); if (mainView === 'side'){ drag = {pan:true}; return; } const it = sel(); const p = floorHit(x,y); if (!p){ drag = {pan:true}; return; } drag = {move:true, ox: it.x - p.x, oz: it.z - p.z}; return; }
+  if (hit?.rotate){ drag = {rotate:true}; return; }
+  const grab = it => {
+    if (mainView === 'side'){ drag = {pan:true}; return; }
+    const p = floorHit(x,y);
+    drag = p ? {move:true, ox: it.x - p.x, oz: it.z - p.z} : {pan:true};
+  };
+  if (hit?.move){ grab(sel()); return; }
+  if (hit?.id){ select(hit.id); grab(sel()); return; }
   drag = {pan:true, maybeDeselect:true};
 });
 canvas.addEventListener('pointermove', e => {
@@ -2502,7 +2526,7 @@ addEventListener('resize', () => { if (paperModal.classList.contains('show')) fi
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, state: () => state, group: id => itemObjs.get(id)?.group || null};
+window.__sp = {THREE, renderer, scene, gizmo, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null};
 (async () => {
   findDownloads();
   await loadHash();

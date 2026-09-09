@@ -108,11 +108,34 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#items .itemrow:nth-child(2) > button:first-child');
   await t.page.waitForTimeout(300);
   const before = await t.page.inputValue('[data-range="rot"]');
-  const c = await t.page.$eval('#view', e => { const r = e.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; });
-  await t.page.mouse.move(c.x + 62, c.y); await t.page.mouse.down();
-  await t.page.mouse.move(c.x + 40, c.y - 45, {steps:6}); await t.page.mouse.move(c.x, c.y - 62, {steps:6}); await t.page.mouse.up();
+  // リングは世界座標で置かれている。画面のどこに来ているかを投影して求める
+  const ring = await t.page.evaluate(() => {
+    const sp = window.__sp, g = sp.gizmo, cam = sp.camera(), V = sp.THREE.Vector3;
+    const r = document.getElementById('view').getBoundingClientRect();
+    const toS = p => { const q = p.clone().project(cam); return {x: r.x + (q.x+1)/2*r.width, y: r.y + (1-q.y)/2*r.height}; };
+    const c = new V().setFromMatrixPosition(g.matrixWorld);
+    return {c: toS(c), e: toS(new V(1,0,0).applyMatrix4(g.matrixWorld)), far: toS(new V(2.2,0,0).applyMatrix4(g.matrixWorld))};
+  });
+  const rad = Math.hypot(ring.e.x - ring.c.x, ring.e.y - ring.c.y);
+  await t.page.mouse.move(ring.e.x, ring.e.y); await t.page.mouse.down();
+  await t.page.mouse.move(ring.c.x + rad*0.7, ring.c.y - rad*0.7, {steps:6});
+  await t.page.mouse.move(ring.c.x, ring.c.y - rad, {steps:6}); await t.page.mouse.up();
   await t.page.waitForTimeout(250);
   ok('ring drag turns the item', (await t.page.inputValue('[data-range="rot"]')) !== before, `${before} -> ${await t.page.inputValue('[data-range="rot"]')}`);
+
+  // リングのはるか外は、もう回転にならない（以前は半径の 1.5 倍まで拾っていた）
+  const rotOf = () => t.page.evaluate(() => {
+    const it = window.__sp.state().items.find(i => i.type === 'person');
+    return {rot: it.rot, x: +it.x.toFixed(3), z: +it.z.toFixed(3)};
+  });
+  const spun = await rotOf();
+  await t.page.mouse.move(ring.far.x, ring.far.y); await t.page.mouse.down();
+  await t.page.mouse.move(ring.far.x + 30, ring.far.y - 40, {steps:5}); await t.page.mouse.up();
+  await t.page.waitForTimeout(250);
+  const after = await rotOf();
+  ok('far outside the ring neither turns nor moves it',
+     after.rot === spun.rot && after.x === spun.x && after.z === spun.z,
+     `${JSON.stringify(spun)} -> ${JSON.stringify(after)}`);
   await t.page.click('#pipbtn');
 
   // typing an exact number into a slider readout
