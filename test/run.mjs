@@ -67,18 +67,19 @@ async function open(name, viewport, mobile = false, hash = ''){
   await page.goto('http://localhost:8765/' + hash);
   await page.waitForTimeout(1500);
   const add = async sel => { await page.click('#addfab'); await page.click(sel); await page.waitForTimeout(350); };
+  const addPerson = async id => { await page.click('#addfab'); await page.click(`#people button[data-model="${id}"]`); await page.waitForTimeout(500); };
   const tab = async n => { await page.click(`[data-tab="${n}"]`); await page.waitForTimeout(150); };
-  return { name, ctx, page, errors, add, tab };
+  return { name, ctx, page, errors, add, addPerson, tab };
 }
 
 // --- 1. desktop: place things, drive the manipulator, check the sensor panel ----------
 {
   const t = await open('desktop', { width: 1500, height: 950 });
-  for (const p of ['0','1','2','3']) await t.add(`[data-person="${p}"]`);
+  for (const m of ['asia-casual-man','asia-casual-woman','af-business-man','us-casual-woman']) await t.addPerson(m);
   for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
   const rows = await t.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()));
   ok('all presets placed', rows.length === 13, `${rows.length} rows`);
-  ok('人 labelled by body and age', rows.some(r => r.startsWith('男の子')) && rows.some(r => r.startsWith('女性')));
+  ok('人 labelled by kind', rows.some(r => r.startsWith('男性')) && rows.some(r => r.startsWith('女性')));
 
   // a second camera becomes the active one
   await t.add('[data-add="camera"]');
@@ -396,7 +397,10 @@ async function open(name, viewport, mobile = false, hash = ''){
   const box = await measure();
   ok('the model is scaled to the height that is set', Math.abs(box.h - 1.7) < 0.02, `${box.h} m tall, feet at ${box.minY}`);
 
-  // ポーズ一覧。全部そろっていて、選ぶとその姿勢で描かれる
+  // ポーズ一覧は畳んである。開くまでサムネイルは出ない
+  ok('the pose list starts folded', await t.page.$$eval('[data-pose]', b => b.length) === 0);
+  await t.page.click('[data-poseopen]');
+  await t.page.waitForTimeout(400);
   const poses = await t.page.$$eval('[data-pose]', b => b.map(x => x.dataset.pose));
   ok('every pose is offered, plus the plain one', poses.length === 12 && poses[0] === 'none', poses.join(', '));
   const poseThumbs = await t.page.$$eval('.poses img', i => i.map(x => x.naturalWidth));
@@ -404,6 +408,7 @@ async function open(name, viewport, mobile = false, hash = ''){
 
   await t.page.click('[data-pose="sit-chair"]');
   await t.page.waitForTimeout(700);
+  ok('and it stays open while trying poses', await t.page.$$eval('[data-pose]', b => b.length) === 12);
   const sit = await measure();
   ok('sitting lowers the figure but keeps the model',
      sit.h > 1.0 && sit.h < 1.45 && await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').model) !== null,
@@ -462,11 +467,27 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('and she is drawn at that height', Math.abs(herH - 1.58) < 0.02, `${herH} m`);
   await t.page.screenshot({ path: `${OUT}/cast.png` });
 
-  // a mannequin is still a mannequin
-  await t.page.click('#addfab');
-  await t.page.click('[data-person="2"]');
-  await t.page.waitForTimeout(700);
-  ok('a mannequin carries no model', await t.page.evaluate(() => window.__sp.state().items.at(-1).model) === null);
+  ok('the + panel no longer offers mannequins', await t.page.$$eval('[data-person]', b => b.length) === 0);
+
+  // 箱の上には乗れる
+  await t.add('[data-add="box"]');
+  const who = await t.page.evaluate(() => {
+    const st = window.__sp.state(), box = st.items.at(-1), p = st.items.find(i => i.type === 'person');
+    box.x = 2; box.z = 2; box.h = 0.6;
+    p.x = 2; p.z = 2;                       // 箱の真上へ
+    return p.id;
+  });
+  await t.page.click('#items .itemrow > button:first-child >> nth=1');   // 人に戻る
+  await t.page.waitForTimeout(300);
+  await setHeight('1.70');                   // 置き直させる（setProp -> rebuildItem -> restack）
+  const onBox = await t.page.evaluate(id => +window.__sp.group(id).position.y.toFixed(3), who);
+  ok('a person on a box stands on top of it', Math.abs(onBox - 0.6) < 0.002, String(onBox));
+  await t.page.evaluate(() => { const p = window.__sp.state().items.find(i => i.type === 'person'); p.x = -2; p.z = -2; });
+  await setHeight('1.71');
+  const offBox = await t.page.evaluate(id => +window.__sp.group(id).position.y.toFixed(3), who);
+  ok('and back on the floor when it steps off', Math.abs(offBox) < 0.002, String(offBox));
+  await t.page.screenshot({ path: `${OUT}/on-box.png` });
+
   ok('person run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 

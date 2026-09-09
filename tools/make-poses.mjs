@@ -40,7 +40,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-const JOINTS = ['Hips','Spine','Spine1','Spine2','Neck','Head','LeftShoulder','LeftArm','LeftForeArm','LeftHand',
+const JOINTS = ['Hips','Spine','Spine1','Spine2','Neck','Head','HeadTop_End','LeftShoulder','LeftArm','LeftForeArm','LeftHand',
   'RightShoulder','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase',
   'RightUpLeg','RightLeg','RightFoot','RightToeBase'];
 const MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
@@ -48,66 +48,95 @@ const MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck
   RightShoulder:'R_Clavicle', RightArm:'R_Upperarm', RightForeArm:'R_Forearm', RightHand:'R_Hand',
   LeftUpLeg:'L_Thigh', LeftLeg:'L_Calf', LeftFoot:'L_Foot', LeftToeBase:'L_ToeBase',
   RightUpLeg:'R_Thigh', RightLeg:'R_Calf', RightFoot:'R_Foot', RightToeBase:'R_ToeBase'};
-const CHILD_OF = {Spine:'Hips', Spine1:'Spine', Spine2:'Spine1', Neck:'Spine2', Head:'Neck',
+const CHILD_OF = {Spine:'Hips', Spine1:'Spine', Spine2:'Spine1', Neck:'Spine2', Head:'Neck', HeadTop_End:'Head',
   LeftShoulder:'Spine2', LeftArm:'LeftShoulder', LeftForeArm:'LeftArm', LeftHand:'LeftForeArm',
   RightShoulder:'Spine2', RightArm:'RightShoulder', RightForeArm:'RightArm', RightHand:'RightForeArm',
   LeftUpLeg:'Hips', LeftLeg:'LeftUpLeg', LeftFoot:'LeftLeg', LeftToeBase:'LeftFoot',
   RightUpLeg:'Hips', RightLeg:'RightUpLeg', RightFoot:'RightLeg', RightToeBase:'RightFoot'};
-const PRIMARY = {Hips:'Spine', Spine2:'Neck'};
-const ORDER2 = ['Hips','Spine','Spine1','Spine2','Neck','LeftShoulder','LeftArm','LeftForeArm',
+const PRIMARY = {Hips:'Spine', Spine2:'Neck', Head:'HeadTop_End'};
+const ORDER2 = ['Hips','Spine','Spine1','Spine2','Neck','Head','LeftShoulder','LeftArm','LeftForeArm',
   'RightShoulder','RightArm','RightForeArm','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
 const V = THREE.Vector3, Q = THREE.Quaternion;
 const byName = (r, n) => { let f = null; r.traverse(o => { if (!f && o.name === n) f = o; }); return f; };
 
 window.__read = async file => {
   const fbx = await new FBXLoader().loadAsync('/s/' + encodeURIComponent(file));
-  // Mixamo の書き出しは姿勢が 1 フレームのアニメーションに入っている。
-  // C4D 経由のものは骨に焼かれている。どちらでも同じ結果になるようにする。
-  if (fbx.animations.length){
-    const m = new THREE.AnimationMixer(fbx);
-    m.clipAction(fbx.animations[0]).play();
-    m.setTime(0);
-  }
   fbx.updateMatrixWorld(true);
   const bones = []; fbx.traverse(o => { if (o.isBone) bones.push(o.name); });
   const hips = bones.find(n => /Hips$/.test(n));
   if (!hips) throw new Error('Hips が見つからない: ' + file);
   const prefix = hips.replace(/Hips$/, '');
-  const pos = {};
-  for (const j of JOINTS){ const b = byName(fbx, prefix + j); if (b) pos[j] = b.getWorldPosition(new V()); }
-  const miss = JOINTS.filter(j => !pos[j]);
-  if (miss.length) throw new Error('骨が足りない: ' + miss.join(','));
-  // 腰を原点に、腰から首までを 1 に正規化する。向きしか使わないので大きさは本来自由だが、
-  // 数字が揃っていたほうが後で読める
-  const o = pos.Hips.clone(), k = 1 / Math.max(1e-6, pos.Neck.distanceTo(pos.Hips));
-  return JOINTS.map(j => pos[j].clone().sub(o).multiplyScalar(k).toArray().map(v => +v.toFixed(4)));
+  const grab = () => {
+    fbx.updateMatrixWorld(true);
+    const pos = {};
+    for (const j of JOINTS){ const b = byName(fbx, prefix + j); if (b) pos[j] = b.getWorldPosition(new V()); }
+    const miss = JOINTS.filter(j => !pos[j]);
+    if (miss.length) throw new Error('骨が足りない: ' + miss.join(','));
+    // 腰を原点に、腰から首までを 1 に正規化する。向きしか使わないので大きさは本来自由だが、
+    // 数字が揃っていたほうが後で読める
+    const o = pos.Hips.clone(), k = 1 / Math.max(1e-6, pos.Neck.distanceTo(pos.Hips));
+    return JOINTS.map(j => pos[j].clone().sub(o).multiplyScalar(k).toArray().map(v => +v.toFixed(4)));
+  };
+  // 読んだままの骨は T ポーズ（バインド姿勢）。姿勢そのものではなく
+  // 「素の姿勢からどれだけ回ったか」を出すために、両方を持ち帰る。
+  const rest = grab();
+  // Mixamo の書き出しは姿勢が 1 フレームのアニメーションに入っている。
+  // C4D 経由のものは骨に焼かれていて、その場合 pose は rest と同じになってしまう。
+  const baked = !fbx.animations.length;
+  if (!baked){
+    const m = new THREE.AnimationMixer(fbx);
+    m.clipAction(fbx.animations[0]).play();
+    m.setTime(0);
+  }
+  return {rest, pose: grab(), baked};
 };
 
-// --- 向き合わせ（index.html の applyPose と同じもの） ---
-function applyPose(root, flat){
-  const src = {};
-  JOINTS.forEach((j, i) => { src[j] = new V().fromArray(flat[i]); });
+// --- 向き合わせ（index.html の applyPose と同じもの。片方を直したら両方直す） ---
+// 腕以外は「素の姿勢からどれだけ回ったか」で合わせる。絶対の向きで合わせると、
+// 2 つのリグで骨の置き方が違うところ（足首・首）がそのままズレになる。
+// 腕だけは絶対で合わせる。Mixamo は T ポーズ、Tripo は A ポーズで、素の姿勢が
+// 同じ意味を持たないため、差分にすると腕が 45 度余計に下がる。
+const ABSOLUTE = new Set(['LeftShoulder','LeftArm','LeftForeArm','RightShoulder','RightArm','RightForeArm']);
+const frame = (up, side) => {
+  const y = up.clone().normalize();
+  const x = side.clone().projectOnPlane(y).normalize();
+  return new THREE.Matrix4().makeBasis(x, y, new V().crossVectors(x, y).normalize());
+};
+function applyPose(root, flat, restFlat){
+  const src = {}, rst = {};
+  JOINTS.forEach((j, i) => { src[j] = new V().fromArray(flat[i]); if (restFlat) rst[j] = new V().fromArray(restFlat[i]); });
   const tb = {}; for (const [m, t] of Object.entries(MAP)) tb[m] = byName(root, t);
+  const dir = (o, a, b) => o[b] && o[a] ? o[b].clone().sub(o[a]) : null;
+  const kidOf = m => PRIMARY[m] || Object.keys(CHILD_OF).find(k => CHILD_OF[k] === m);
+  // 目標の向きは「この体の素の向きに、参照元が素から回ったぶんをかけたもの」。
+  // 素の向きは親を回す前に控えておく。回した後の値を使うと親の回転を二重に数える。
+  root.updateMatrixWorld(true);
+  const tgtRest = {};
+  for (const m of ORDER2) if (tb[m]) tgtRest[m] = new V(0,1,0).applyQuaternion(tb[m].getWorldQuaternion(new Q())).normalize();
   for (const m of ORDER2){
     const bone = tb[m]; if (!bone) continue;
-    const kid = PRIMARY[m] || Object.keys(CHILD_OF).find(k => CHILD_OF[k] === m);
-    if (!kid || !src[m] || !src[kid]) continue;
-    const want = src[kid].clone().sub(src[m]);
-    if (want.lengthSq() < 1e-9) continue;
+    const kid = kidOf(m);
+    const posed = dir(src, m, kid);
+    if (!kid || !posed || posed.lengthSq() < 1e-9) continue;
     const curW = bone.getWorldQuaternion(new Q());
     const have = new V(0,1,0).applyQuaternion(curW).normalize();
-    let q = new Q().setFromUnitVectors(have, want.clone().normalize()).multiply(curW);
-    if (m === 'Hips' && tb.LeftUpLeg && tb.RightUpLeg){        // 腰は左右の軸も合わせないと向きが決まらない
-      const axis = want.clone().normalize();
-      const proj = v => v.clone().projectOnPlane(axis).normalize();
-      const localLR = tb.LeftUpLeg.getWorldPosition(new V()).sub(tb.RightUpLeg.getWorldPosition(new V()))
-        .applyQuaternion(curW.clone().invert());
-      const a = proj(localLR.clone().applyQuaternion(q)), b = proj(src.LeftUpLeg.clone().sub(src.RightUpLeg));
-      if (a.lengthSq() > 1e-6 && b.lengthSq() > 1e-6){
-        let ang = Math.acos(THREE.MathUtils.clamp(a.dot(b), -1, 1));
-        if (a.clone().cross(b).dot(axis) < 0) ang = -ang;
-        q = new Q().setFromAxisAngle(axis, ang).multiply(q);
+    const restDir = restFlat ? dir(rst, m, kid) : null;
+    let q;
+    if (m === 'Hips' && restDir){
+      // 腰は上下だけでは向きが決まらない。左右の軸も使って姿勢ごと回す。
+      // 連鎖の根なので curW はまだ素の向きのまま
+      const lr = o => o.LeftUpLeg.clone().sub(o.RightUpLeg);
+      const R = new THREE.Matrix4().multiplyMatrices(frame(posed, lr(src)), frame(restDir, lr(rst)).transpose());
+      q = new Q().setFromRotationMatrix(R).multiply(curW);
+    } else {
+      let want;
+      if (restDir && !ABSOLUTE.has(m)){
+        const R = new Q().setFromUnitVectors(restDir.clone().normalize(), posed.clone().normalize());
+        want = tgtRest[m].clone().applyQuaternion(R);
+      } else {
+        want = posed.clone().normalize();
       }
+      q = new Q().setFromUnitVectors(have, want.normalize()).multiply(curW);
     }
     bone.quaternion.copy(bone.parent.getWorldQuaternion(new Q()).invert().multiply(q));
     bone.updateMatrixWorld(true);
@@ -118,26 +147,45 @@ function applyPose(root, flat){
 const base = (await new GLTFLoader().loadAsync('/m/' + ${JSON.stringify(THUMB_MODEL)})).scene;
 const r = new THREE.WebGLRenderer({canvas:document.getElementById('c'), antialias:true, alpha:true, preserveDrawingBuffer:true});
 r.setClearAlpha(0);
-window.__shoot = flat => {
+// Box3.setFromObject は骨の変形を見ない。ポーズを付けた体の外形は
+// SkinnedMesh.computeBoundingBox() を通さないと取れない（index.html の posedBox と同じ）
+function posedBox(root){
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3(), tmp = new THREE.Box3();
+  root.traverse(n => {
+    if (!n.isMesh && !n.isSkinnedMesh) return;
+    let local;
+    if (n.isSkinnedMesh && n.computeBoundingBox){ n.computeBoundingBox(); local = n.boundingBox; }
+    if (!local){ if (!n.geometry.boundingBox) n.geometry.computeBoundingBox(); local = n.geometry.boundingBox; }
+    if (local) box.union(tmp.copy(local).applyMatrix4(n.matrixWorld));
+  });
+  return box;
+}
+window.__shoot = (restFlat, flat) => {
   const sc = new THREE.Scene();
   sc.add(new THREE.HemisphereLight(0xffffff, 0xaaaaaa, 1.6));
   const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.set(1.2, 2.4, 3); sc.add(dl);
   const o = skeletonClone(base);
   o.updateMatrixWorld(true);
-  if (flat) applyPose(o, flat);
-  const bb = new THREE.Box3().setFromObject(o);
+  if (flat) applyPose(o, flat, restFlat);
+  const bb = posedBox(o);
   o.position.y -= bb.min.y;
   sc.add(o);
-  o.updateMatrixWorld(true);
-  const b2 = new THREE.Box3().setFromObject(o);
-  const c = b2.getCenter(new V()), s = b2.getSize(new V());
-  const reach = Math.max(s.x, s.y, s.z) * 1.15 + 0.1;
-  const cam = new THREE.PerspectiveCamera(26, ${TW}/${TH}, 0.05, 50);
-  cam.position.set(c.x + reach*0.55, c.y + s.y*0.15, c.z + reach*2.5);
+  const b2 = posedBox(o);
+  // 寝ている姿勢は奥行き方向に長い。縦横の大きさで寄せると小さく写るので、
+  // 外接球の半径から距離を出して、どの姿勢でも同じ大きさに収める
+  const c = b2.getCenter(new V());
+  const rad = b2.getBoundingSphere(new THREE.Sphere()).radius;
+  const fov = 26;
+  const cam = new THREE.PerspectiveCamera(fov, ${TW}/${TH}, 0.05, 50);
+  const dist = rad / Math.sin(fov*Math.PI/360) * 1.02;
+  const dirv = new V(0.5, 0.28, 1).normalize();
+  cam.position.copy(c).addScaledVector(dirv, dist);
   cam.lookAt(c.x, c.y, c.z);
   r.render(sc, cam);
   return document.getElementById('c').toDataURL('image/webp', 0.82);
 };
+window.JOINTS_OUT = JOINTS;
 window.__ready = true;
 </script>`;
 const server = http.createServer((q,s)=>{
@@ -156,23 +204,27 @@ await p.goto('http://localhost:8778/');
 await p.waitForFunction(() => window.__ready, null, {timeout:60000});
 
 fs.mkdirSync(THUMBS, { recursive: true });
-const out = {version:1, joints:null, poses:[]};
-const got = {};
+const out = {version:2, joints:null, rest:null, poses:[]};
+const got = {}; let restRef = null;
 for (const f of files){
   const key = f.replace(/\.fbx$/i, '');
   const meta = NAMES[key];
   if (!meta) { console.log(`skip  ${f}`); continue; }
-  const flat = await p.evaluate(n => window.__read(n), f);
-  got[meta.id] = {id: meta.id, label: meta.label, p: flat};
-  const url = await p.evaluate(fl => window.__shoot(fl), flat);
+  const {rest, pose, baked} = await p.evaluate(n => window.__read(n), f);
+  if (!restRef) restRef = rest;
+  else if (JSON.stringify(rest) !== JSON.stringify(restRef)) console.log(`      ! ${f} のバインド姿勢が他と違う`);
+  if (baked) console.log(`      ! ${f} はアニメーションが無い。素の姿勢が取れないので差分にできない`);
+  got[meta.id] = {id: meta.id, label: meta.label, p: pose};
+  const url = await p.evaluate(([r, pz]) => window.__shoot(r, pz), [restRef, pose]);
   const png = path.join(THUMBS, `pose-${meta.id}.webp`);
   fs.writeFileSync(png, Buffer.from(url.split(',')[1], 'base64'));
   console.log(`ok    ${f}  -> ${meta.id} (${(fs.statSync(png).size/1024).toFixed(1)} KB)`);
 }
 // 素の姿勢のサムネイルも 1 枚
-const rest = await p.evaluate(() => window.__shoot(null));
-fs.writeFileSync(path.join(THUMBS, 'pose-none.webp'), Buffer.from(rest.split(',')[1], 'base64'));
-out.joints = await p.evaluate(() => ['Hips','Spine','Spine1','Spine2','Neck','Head','LeftShoulder','LeftArm','LeftForeArm','LeftHand','RightShoulder','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase','RightUpLeg','RightLeg','RightFoot','RightToeBase']);
+const plain = await p.evaluate(() => window.__shoot(null, null));
+fs.writeFileSync(path.join(THUMBS, 'pose-none.webp'), Buffer.from(plain.split(',')[1], 'base64'));
+out.joints = await p.evaluate(() => window.JOINTS_OUT);
+out.rest = restRef;
 out.poses = ORDER.filter(id => got[id]).map(id => got[id]);
 const dst = path.join(MODELS, 'poses.json');
 fs.writeFileSync(dst, JSON.stringify(out));

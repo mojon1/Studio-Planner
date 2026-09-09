@@ -132,6 +132,12 @@ body.viewer #addfab{display:none}
 .people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
 .people button.on{border-color:var(--accent);background:var(--accent-bg)}
 .poses{grid-template-columns:repeat(3,1fr)}
+.disc{display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:0;padding:16px 0 8px;cursor:pointer;
+  color:var(--muted);font:inherit;font-weight:700;font-size:.8rem;letter-spacing:.08em}
+.disc small{margin-left:auto;color:var(--ink2);font-weight:500;letter-spacing:0;font-size:.82rem}
+.disc b{color:var(--ink2);font-size:.9rem;transition:transform .15s}
+.disc[aria-expanded="true"] b{transform:rotate(180deg)}
+.disc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #namedlg .pop{width:min(420px,100%)}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -283,13 +289,6 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   <div class="popbody">
     <h2>人</h2>
     <div class="people" id="people"></div>
-    <h2>マネキン</h2>
-    <div class="row">
-      <button class="btn" data-add="person" data-person="0">男性</button>
-      <button class="btn" data-add="person" data-person="1">女性</button>
-      <button class="btn" data-add="person" data-person="2">男の子</button>
-      <button class="btn" data-add="person" data-person="3">女の子</button>
-    </div>
     <h2>小道具</h2>
     <div class="row">
       <button class="btn" data-add="car">車</button>
@@ -685,7 +684,7 @@ function itemLabels(view){
     else if (it.type === 'mirror'){ if (it.kind !== 'wall') continue; top = it.h; txt = sides(it.w, it.h); }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
-    out.push({p:new V3(it.x, top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side']});
+    out.push({p:new V3(it.x, standHeight(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side']});
   }
   return out;
 }
@@ -789,6 +788,7 @@ const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
 // 回転は入っていない。骨の長さも初期姿勢も関係なくなるので、この 1 ファイルを
 // 11 体すべてで共通に使える。作り方は tools/make-poses.mjs。
 let POSES = null, posesReq = null;
+let poseOpen = false;                 // 開いたままにしておくと、続けて何個か試せる
 function loadPoses(){
   return posesReq ||= fetch('models/poses.json').then(r => r.ok ? r.json() : null)
     .then(j => { POSES = j; renderSel(); return j; })
@@ -801,48 +801,66 @@ const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02',
   RightShoulder:'R_Clavicle', RightArm:'R_Upperarm', RightForeArm:'R_Forearm', RightHand:'R_Hand',
   LeftUpLeg:'L_Thigh', LeftLeg:'L_Calf', LeftFoot:'L_Foot', LeftToeBase:'L_ToeBase',
   RightUpLeg:'R_Thigh', RightLeg:'R_Calf', RightFoot:'R_Foot', RightToeBase:'R_ToeBase'};
-const POSE_CHILD = {Spine:'Hips', Spine1:'Spine', Spine2:'Spine1', Neck:'Spine2', Head:'Neck',
+const POSE_CHILD = {Spine:'Hips', Spine1:'Spine', Spine2:'Spine1', Neck:'Spine2', Head:'Neck', HeadTop_End:'Head',
   LeftShoulder:'Spine2', LeftArm:'LeftShoulder', LeftForeArm:'LeftArm', LeftHand:'LeftForeArm',
   RightShoulder:'Spine2', RightArm:'RightShoulder', RightForeArm:'RightArm', RightHand:'RightForeArm',
   LeftUpLeg:'Hips', LeftLeg:'LeftUpLeg', LeftFoot:'LeftLeg', LeftToeBase:'LeftFoot',
   RightUpLeg:'Hips', RightLeg:'RightUpLeg', RightFoot:'RightLeg', RightToeBase:'RightFoot'};
-const POSE_PRIMARY = {Hips:'Spine', Spine2:'Neck'};   // 枝分かれする骨は、どの子で向きを決めるか
-const POSE_ORDER = ['Hips','Spine','Spine1','Spine2','Neck','LeftShoulder','LeftArm','LeftForeArm',
+const POSE_PRIMARY = {Hips:'Spine', Spine2:'Neck', Head:'HeadTop_End'};   // 枝分かれする骨は、どの子で向きを決めるか
+const POSE_ORDER = ['Hips','Spine','Spine1','Spine2','Neck','Head','LeftShoulder','LeftArm','LeftForeArm',
   'RightShoulder','RightArm','RightForeArm','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
-// 回転を写すのではなく、骨から子へ向かう向きを合わせる。参照元の素の姿勢が要らず、
-// 初期姿勢の違うリグどうしでも通る。tools/make-poses.mjs にも同じものがある。
+// 腕以外は「素の姿勢からどれだけ回ったか」で合わせる。絶対の向きで合わせると、2 つのリグで
+// 骨の置き方が違うところがそのままズレになる。実際、Tripo の足首→つま先は水平なのに
+// Mixamo は 39 度下向きで、全ポーズがつま先立ちになった。首も Mixamo は構造上 17 度前傾。
+// 腕だけは絶対で合わせる。Mixamo は T ポーズ、Tripo は A ポーズで素の姿勢が同じ意味を
+// 持たないため、差分にすると腕が 45 度余計に下がる。
+const POSE_ABS = new Set(['LeftShoulder','LeftArm','LeftForeArm','RightShoulder','RightArm','RightForeArm']);
+const poseFrame = (up, side) => {
+  const y = up.clone().normalize();
+  const x = side.clone().projectOnPlane(y).normalize();
+  return new THREE.Matrix4().makeBasis(x, y, new V3().crossVectors(x, y).normalize());
+};
+// tools/make-poses.mjs にも同じものがある。片方を直したら両方直すこと。
 function applyPose(root, pose){
-  const src = {}, boneOf = {};
-  POSES.joints.forEach((j, i) => { src[j] = new V3().fromArray(pose.p[i]); });
-  root.traverse(o => { if (o.isBone) boneOf[o.name] = o; });
+  const src = {}, rst = {};
+  POSES.joints.forEach((j, i) => { src[j] = new V3().fromArray(pose.p[i]); rst[j] = new V3().fromArray(POSES.rest[i]); });
+  const boneOf = {}; root.traverse(o => { if (o.isBone) boneOf[o.name] = o; });
   const tb = {}; for (const [m, t] of Object.entries(POSE_MAP)) tb[m] = boneOf[t];
-  const wq = o => o.getWorldQuaternion(new THREE.Quaternion());
-  const wp = o => o.getWorldPosition(new V3());
+  const Q = THREE.Quaternion;
+  const wq = o => o.getWorldQuaternion(new Q());
+  const dir = (o, x, y) => o[x] && o[y] ? o[y].clone().sub(o[x]) : null;
+  const kidOf = m => POSE_PRIMARY[m] || Object.keys(POSE_CHILD).find(k => POSE_CHILD[k] === m);
+  // 目標は「この体の素の向きに、参照元が素から回ったぶんをかけたもの」。素の向きは
+  // 親を回す前に控える。回した後の値を使うと親の回転を二重に数えて体が折れる。
+  root.updateMatrixWorld(true);
+  const tgtRest = {};
+  for (const m of POSE_ORDER) if (tb[m]) tgtRest[m] = new V3(0,1,0).applyQuaternion(wq(tb[m])).normalize();
   for (const m of POSE_ORDER){
     const bone = tb[m]; if (!bone) continue;
-    const kid = POSE_PRIMARY[m] || Object.keys(POSE_CHILD).find(k => POSE_CHILD[k] === m);
-    if (!kid || !src[m] || !src[kid]) continue;
-    const want = src[kid].clone().sub(src[m]);
-    if (want.lengthSq() < 1e-9) continue;
+    const kid = kidOf(m);
+    const posed = dir(src, m, kid), restDir = dir(rst, m, kid);
+    if (!kid || !posed || posed.lengthSq() < 1e-9) continue;
     const cur = wq(bone);
     const have = new V3(0,1,0).applyQuaternion(cur).normalize();
-    let q = new THREE.Quaternion().setFromUnitVectors(have, want.clone().normalize()).multiply(cur);
-    if (m === 'Hips' && tb.LeftUpLeg && tb.RightUpLeg){    // 腰は左右の軸も合わせないと体の向きが決まらない
-      const axis = want.clone().normalize();
-      const proj = v => v.clone().projectOnPlane(axis).normalize();
-      const lr = wp(tb.LeftUpLeg).sub(wp(tb.RightUpLeg)).applyQuaternion(cur.clone().invert());
-      const a = proj(lr.applyQuaternion(q)), b = proj(src.LeftUpLeg.clone().sub(src.RightUpLeg));
-      if (a.lengthSq() > 1e-6 && b.lengthSq() > 1e-6){
-        let ang = Math.acos(clamp(a.dot(b), -1, 1));
-        if (a.clone().cross(b).dot(axis) < 0) ang = -ang;
-        q = new THREE.Quaternion().setFromAxisAngle(axis, ang).multiply(q);
-      }
+    let q;
+    if (m === 'Hips' && restDir){
+      // 腰は上下だけでは向きが決まらない。左右の軸も使って姿勢ごと回す。
+      // 連鎖の根なので cur はまだ素の向きのまま
+      const lr = o => o.LeftUpLeg.clone().sub(o.RightUpLeg);
+      const R = new THREE.Matrix4().multiplyMatrices(poseFrame(posed, lr(src)), poseFrame(restDir, lr(rst)).transpose());
+      q = new Q().setFromRotationMatrix(R).multiply(cur);
+    } else {
+      const want = restDir && !POSE_ABS.has(m)
+        ? tgtRest[m].clone().applyQuaternion(new Q().setFromUnitVectors(restDir.normalize(), posed.clone().normalize()))
+        : posed.clone().normalize();
+      q = new Q().setFromUnitVectors(have, want.normalize()).multiply(cur);
     }
     bone.quaternion.copy(wq(bone.parent).invert().multiply(q));
     bone.updateMatrixWorld(true);
   }
   root.updateMatrixWorld(true);
 }
+
 const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
 const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
 async function loadPerson(file){
@@ -857,7 +875,7 @@ async function loadPerson(file){
   for (const it of state.items) if (it.type === 'person' && personModel(it)) rebuildItem(it);
   renderSel(); needRender = true;
 }
-// the file is modelled 1 m tall, so one number turns it into whatever height is set
+
 // Box3.setFromObject はスキニングを見ない。ジオメトリの箱を行列で移すだけなので、
 // 骨を回しても外形が変わらず、座らせても身長ぶんの高さのままになる。
 // SkinnedMesh.computeBoundingBox() は骨を通してから測ってくれるので、そちらを使う。
@@ -1187,6 +1205,25 @@ function buildChroma(it){
   const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:col})); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; marker.userData.plan = true; g.add(marker);
   return g;
 }
+// 箱の上には乗れる。上から見て箱の中に入っていれば、その天面の高さに載る。
+// 箱そのものは積まない（どちらが上か決められる材料が無い）
+function standHeight(it){
+  let y = 0;
+  for (const o of state.items){
+    if (o === it || o.type !== 'box' || o.hidden) continue;
+    const r = THREE.MathUtils.degToRad(o.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+    const dx = it.x - o.x, dz = it.z - o.z;
+    if (Math.abs(dx*c - dz*sn) <= o.w/2 && Math.abs(dx*sn + dz*c) <= o.d/2) y = Math.max(y, o.h);
+  }
+  return it.type === 'box' ? 0 : y;
+}
+// 箱が動いたり大きさが変わったりすると、上に乗っているものの高さも変わる
+function restack(){
+  for (const it of state.items){
+    const o = itemObjs.get(it.id);
+    if (o) o.group.position.y = standHeight(it);
+  }
+}
 function rebuildItems(){
   itemsGroup.clear();
   for (const o of itemObjs.values()) disposeGroup(o.group);
@@ -1196,6 +1233,7 @@ function rebuildItems(){
     g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
     itemsGroup.add(g); itemObjs.set(it.id, {group:g});
   }
+  restack();
   const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
   updateSelectionVisuals();
 }
@@ -1206,11 +1244,13 @@ function rebuildItem(it){
   const g = (BUILDERS[it.type] || buildBox)(it);
   g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
   itemsGroup.remove(o.group); disposeGroup(o.group); itemsGroup.add(g); o.group = g;
+  restack();
   updateSelectionVisuals();
 }
 function updateItemTransform(it){
   const o = itemObjs.get(it.id); if (!o) return;
-  o.group.position.set(it.x,0,it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
+  o.group.position.set(it.x, standHeight(it), it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
+  if (it.type === 'box') restack();          // 箱が動けば、その上のものも上げ下げする
   if (it.type === 'camera') buildFrustum(it);
   updateSelectionVisuals();
 }
@@ -1222,7 +1262,7 @@ function updateSelectionVisuals(){
   gizmo.visible = !!it && !it.hidden && !viewerMode;
   buildMeasures();
   if (!it) return;
-  gizmo.position.set(it.x, 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
+  gizmo.position.set(it.x, standHeight(it) + 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
 }
 const sel = () => state.items.find(i => i.id === selectedId) || null;
 // several cameras can stand in the room; one of them is the one being looked through
@@ -1646,10 +1686,14 @@ function renderSel(){
     if (personModel(it)){
       loadPoses();
       if (POSES){
-        const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
-          `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
-        h += `<h2>ポーズ</h2><div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
-          POSES.poses.map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
+        const now = poseById(it.posture)?.label || '素の姿勢';
+        h += `<button class="disc" data-poseopen aria-expanded="${poseOpen}">ポーズ<small>${esc(now)}</small><b>⌄</b></button>`;
+        if (poseOpen){
+          const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
+            `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
+          h += `<div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
+            POSES.poses.map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
+        }
       }
     } else {
       h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
@@ -1724,6 +1768,7 @@ function renderSel(){
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>削除</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
+  el.querySelector('[data-poseopen]')?.addEventListener('click', () => { poseOpen = !poseOpen; renderSel(); });
   el.querySelectorAll('[data-pose]').forEach(b => b.addEventListener('click', () => {
     setProp(it, 'posture', b.dataset.pose === 'none' ? null : b.dataset.pose);
   }));
