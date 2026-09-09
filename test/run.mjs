@@ -811,6 +811,39 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 14. stacking: apple boxes on each other, things on tables ---------------------
+{
+  const K = (id, x, z, kind) => { const S = {flat:[0.45,0.30,0.15], side:[0.45,0.15,0.30], end:[0.30,0.15,0.45]}[kind];
+    return {id, type:'koma', x, z, rot:0, kind, w:S[0], d:S[1], h:S[2], color:'#d8c4a0'}; };
+  const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:6,d:5,h:3.2,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
+    K('k1', -1, 0, 'flat'), K('k2', -1, 0, 'flat'), K('k3', -1, 0, 'side'),
+    {id:'t1',type:'table',x:1,z:0,rot:0,w:1.2,d:0.7,h:0.72,color:'#c8a882'},
+    K('k4', 1, 0, 'flat'),
+    {id:'p1',type:'person',x:1,z:0,rot:0,height:1.72,pose:'stand',kind:'man',model:'asia-casual-man',posture:null},
+    {id:'k5', type:'koma', x:2.4, z:0, rot:0, kind:'flat', w:0.45, d:0.30, h:0.15, color:'#3d4148'},
+    {id:'c1',type:'camera',x:0,z:2.2,y:1.4,rot:180,pitch:-8,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const t = await open('stack', { width: 1200, height: 800 }, false, '#s=' + encodeState(scene));
+  await t.page.waitForTimeout(1200);
+  const y = id => t.page.evaluate(i => +window.__sp.group(i).position.y.toFixed(3), id);
+  ok('apple boxes stack, later ones on top', await y('k1') === 0 && await y('k2') === 0.15 && await y('k3') === 0.3,
+     `${await y('k1')} / ${await y('k2')} / ${await y('k3')}`);
+  ok('a table carries what is put on it', await y('k4') === 0.72, String(await y('k4')));
+  ok('and the person rides both', await y('p1') === 0.87, String(await y('p1')));
+  ok('the old dark default becomes plywood',
+     await t.page.evaluate(() => window.__sp.state().items.find(i => i.id === 'k5').color) === '#d8c4a0');
+  // つまみで並べ替えると上下が入れ替わる
+  const grip = await t.page.locator('#items .itemrow[data-id="k1"] .grip').boundingBox();
+  const last = await t.page.locator('#items .itemrow[data-id="k3"]').boundingBox();
+  await t.page.mouse.move(grip.x + 6, grip.y + grip.height/2); await t.page.mouse.down();
+  await t.page.mouse.move(last.x + 6, last.y + last.height - 2, { steps: 8 }); await t.page.mouse.up();
+  await t.page.waitForTimeout(500);
+  ok('reordering the list restacks them',
+     await y('k2') === 0 && await y('k3') === 0.15 && await y('k1') === 0.45,
+     `k1=${await y('k1')} k2=${await y('k2')} k3=${await y('k3')}`);
+  ok('stack run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

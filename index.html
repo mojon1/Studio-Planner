@@ -436,7 +436,10 @@ function migrate(st){
     if (it.type === 'person' && it.posture === undefined) it.posture = null;
     if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
     if (it.type === 'camera' && typeof it.roll !== 'number') it.roll = 0;
-    if (it.type === 'koma') Object.assign(it, komaDims(it.kind));   // 標準寸法は常に引き直す
+    if (it.type === 'koma'){
+      Object.assign(it, komaDims(it.kind));                     // 標準寸法は常に引き直す
+      if (it.color === '#3d4148') it.color = '#d8c4a0';         // 最初に出した濃い既定色から合板の色へ
+    }
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -1149,11 +1152,11 @@ function buildBox(it){
 // 箱馬。300 × 450 × 150 mm は業界の標準寸法なので、大きさは持たせない。
 // 現場では平・横・縦の 3 通りに置くので、そこだけ切り替えられる。
 // 形は本物どおり、長手の 2 面が開いた箱（天板・地板・妻板 2 枚・長手の桟）。
-const KOMA = {L:0.45, W:0.30, T:0.15, t:0.018};
+const KOMA = {L:0.45, W:0.30, T:0.15, t:0.013};
 const KOMA_LAY = [['flat','平 15 cm'], ['side','横 30 cm'], ['end','縦 45 cm']];
 // 置き方ごとに、箱の 3 辺（長手 L・厚み T・幅 W）をどの世界軸に向けるか
 const KOMA_AXIS = {flat:['x','y','z'], side:['x','z','y'], end:['y','z','x']};
-// 外形 w × d × h。当たり判定も「箱の上に乗る」もこれを見る
+// 外形 w × d × h。当たり判定も「上に乗る」もこれを見る
 const KOMA_SIZE = {flat:[KOMA.L, KOMA.W, KOMA.T], side:[KOMA.L, KOMA.T, KOMA.W], end:[KOMA.W, KOMA.T, KOMA.L]};
 const komaSize = it => KOMA_SIZE[it.kind] || KOMA_SIZE.flat;
 const komaDims = kind => { const [w, d, h] = KOMA_SIZE[kind] || KOMA_SIZE.flat; return {w, d, h}; };
@@ -1162,20 +1165,26 @@ function buildKoma(it){
   const {L, W, T, t} = KOMA;
   const ax = KOMA_AXIS[it.kind] || KOMA_AXIS.flat;
   const map = (l, tt, w) => { const o = {x:0, y:0, z:0}; o[ax[0]] = l; o[ax[1]] = tt; o[ax[2]] = w; return o; };
-  const wood = mat(it.color || '#3d4148', {roughness:0.85});
-  const panel = (sl, st, sw, pl, pt, pw) => {
+  const wood = mat(it.color || '#d8c4a0', {roughness:0.9});
+  const panel = (sl, st, sw, pl, pt, pw, inner) => {
     const S = map(sl, st, sw), P = map(pl, pt, pw);
     const geo = new THREE.BoxGeometry(S.x, S.y, S.z);
     const m = shadowed(new THREE.Mesh(geo, wood)); m.position.set(P.x, P.y, P.z); box.add(m);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0x15171b, transparent:true, opacity:0.35}));
+    if (inner) return;                        // 中の板に稜線を描くと、外板と重なって透けて見える
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0x6b5a41, transparent:true, opacity:0.4}));
     e.position.copy(m.position); box.add(e);
   };
-  panel(L, t, W, 0,  T/2 - t/2, 0);                                        // 天板
-  panel(L, t, W, 0, -T/2 + t/2, 0);                                        // 地板
-  for (const s of [-1, 1]) panel(t, T - 2*t, W, s*(L/2 - t/2), 0, 0);      // 妻板
-  for (const s of [-1, 1]) panel(L - 2*t, t*1.4, t, 0, -T/2 + t + t*0.7, s*(W/2 - t/2));   // 地板を挟む桟だけ
+  // 六面とも合板で塞いだ箱。天板だけが 2 枚に割れていて、手をかける溝が長手に走る。
+  // 地板は少し上げてあり、側板と妻板の下端が脚になる（写真の裾の段差）
+  const slot = 0.014, wA = 0.160, wB = W - slot - wA;
+  panel(L, t, wA, 0, T/2 - t/2, -W/2 + wA/2);                      // 天板 広いほう
+  panel(L, t, wB, 0, T/2 - t/2,  W/2 - wB/2);                      // 天板 狭いほう
+  for (const s of [-1, 1]) panel(L, T, t, 0, 0, s*(W/2 - t/2));    // 側板（長手）
+  for (const s of [-1, 1]) panel(t, T, W - 2*t, s*(L/2 - t/2), 0, 0);  // 妻板
+  panel(L - 2*t, t, W - 2*t, 0, -T/2 + t*1.9, 0, true);            // 地板。裾を脚として残す
+  panel(t, T - 2*t, W - 2*t, 0, t/2, 0, true);                     // 中の仕切り。溝から覗く
   box.updateMatrixWorld(true);
-  box.position.y = -new THREE.Box3().setFromObject(box).min.y;             // どの置き方でも底を床へ
+  box.position.y = -new THREE.Box3().setFromObject(box).min.y;     // どの置き方でも底を床へ
   g.add(box);
   const [bw, bd] = komaSize(it);
   g.add(planeMarker(bw, bd, COLORS.koma));
@@ -1357,17 +1366,32 @@ function buildChroma(it){
   const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:col})); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; marker.userData.plan = true; g.add(marker);
   return g;
 }
-// 箱の上には乗れる。上から見て箱の中に入っていれば、その天面の高さに載る。
-// 箱そのものは積まない（どちらが上か決められる材料が無い）
+// 台の上には乗れる。上から見てその天面の中に入っていれば、天面の高さに載る。
+// 台に乗せられるのは箱・箱馬・テーブル。布は掛けるものなので何にも乗らない。
+// **台どうしを積むときだけ、上下をリストの並び順で決める**（後から置いたものが上）。
+// これが無いと、重なった 2 つが互いに相手の上に乗ろうとして高さが決まらない。
+// 人やカメラは台ではないので、その制約は要らない（どの台にでも乗る）。
+const SUPPORTS = new Set(['box', 'koma', 'table']);
+function overTop(o, u){
+  const r = THREE.MathUtils.degToRad(u.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+  const dx = o.x - u.x, dz = o.z - u.z;
+  return Math.abs(dx*c - dz*sn) <= u.w/2 && Math.abs(dx*sn + dz*c) <= u.d/2;
+}
 function standHeight(it){
-  let y = 0;
-  for (const o of state.items){
-    if (o === it || (o.type !== 'box' && o.type !== 'koma') || o.hidden) continue;
-    const r = THREE.MathUtils.degToRad(o.rot || 0), c = Math.cos(r), sn = Math.sin(r);
-    const dx = it.x - o.x, dz = it.z - o.z;
-    if (Math.abs(dx*c - dz*sn) <= o.w/2 && Math.abs(dx*sn + dz*c) <= o.d/2) y = Math.max(y, o.h);
-  }
-  return (it.type === 'box' || it.type === 'koma' || it.type === 'chroma') ? 0 : y;   // 台どうしは積まない。布は掛けるものなので乗らない
+  const top = new Map();                              // 台ごとの天面の高さ
+  const base = (o, ordered) => {
+    if (o.type === 'chroma') return 0;
+    let y = 0;
+    for (const u of state.items){
+      if (u === o){ if (ordered) break; continue; }    // 台は自分より前の台にだけ
+      if (!top.has(u.id)) continue;
+      if (overTop(o, u)) y = Math.max(y, top.get(u.id));
+    }
+    return y;
+  };
+  for (const u of state.items)
+    if (SUPPORTS.has(u.type) && !u.hidden) top.set(u.id, base(u, true) + u.h);
+  return top.has(it.id) ? top.get(it.id) - it.h : base(it, false);
 }
 // 箱が動いたり大きさが変わったりすると、上に乗っているものの高さも変わる
 function restack(){
@@ -1405,7 +1429,7 @@ function rebuildItem(it){
 function updateItemTransform(it){
   const o = itemObjs.get(it.id); if (!o) return;
   o.group.position.set(it.x, standHeight(it), it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
-  if (it.type === 'box' || it.type === 'koma') restack();   // 台が動けば、その上のものも上げ下げする
+  if (SUPPORTS.has(it.type)) restack();      // 台が動けば、その上のものも上げ下げする
   if (it.type === 'camera') buildFrustum(it);
   updateSelectionVisuals();
 }
@@ -1934,7 +1958,7 @@ function addItem(type, opt){
   else if (type === 'chair') it = {id, type, x:0, z:0, rot:0, w:0.45, d:0.48, h:0.85, seatH:0.42, color:'#a58256'};
   else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
-  else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#3d4148'};
+  else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   else it = {id, type, x:0, z:0.5, rot:0, kind:'floor', w:3, h:2};
   // drop it next to what is already there rather than on top of it
@@ -2069,7 +2093,8 @@ function endReorder(e){
   state.items.splice(from, 1);
   const anchor = state.items.findIndex(i => i.id === t.row.dataset.id);
   state.items.splice(anchor < 0 ? state.items.length : anchor + (t.before ? 0 : 1), 0, it);
-  renderList(); renderSel(); saveHash();
+  restack(); updateSelectionVisuals();          // 並び順は台どうしの上下でもある
+  renderList(); renderSel(); needRender = true; saveHash();
 }
 
 // select
@@ -2125,7 +2150,7 @@ function renderSel(){
     // 300 × 450 × 150 mm は業界の標準寸法。変えられないほうが図面として正しい
     h += `<h2>置き方</h2>` + btns('kind', KOMA_LAY.map(([k, label]) => [k, label]), it.kind);
     h += `<p class="hint">300 × 450 × 150 mm。標準寸法なので大きさは変わりません。</p>`;
-    h += colors(PROP_SWATCHES, it.color || '#3d4148');
+    h += colors(PROP_SWATCHES, it.color || '#d8c4a0');
   } else if (it.type === 'model'){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
