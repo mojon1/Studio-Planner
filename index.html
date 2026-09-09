@@ -130,6 +130,8 @@ body.viewer #addfab{display:none}
 .people button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .people img{width:100%;height:auto;display:block;pointer-events:none}
 .people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
+.people button.on{border-color:var(--accent);background:var(--accent-bg)}
+.poses{grid-template-columns:repeat(3,1fr)}
 #namedlg .pop{width:min(420px,100%)}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -402,6 +404,7 @@ function migrate(st){
     // and there used to be exactly one model, worn by every adult male
     if (it.type === 'person' && it.model === undefined) it.model = it.kind === 'man' ? 'asia-casual-man' : null;
     if (it.type === 'person' && it.model && !MODEL_BY_ID[it.model]) it.model = null;
+    if (it.type === 'person' && it.posture === undefined) it.posture = null;
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -673,8 +676,10 @@ function itemLabels(view){
     if (view !== 'side') continue;
     let top, txt;
     if (it.type === 'person'){
+      // 座ったり寝たりすると頭の高さが変わる。ラベルは実際に描いた高さの上に出す
+      const drawn = itemObjs.get(it.id)?.group.userData.top;
       const R = personRig(it);
-      top = it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height;
+      top = drawn || (it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height);
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
     else if (it.type === 'mirror'){ if (it.kind !== 'wall') continue; top = it.h; txt = sides(it.w, it.h); }
@@ -779,6 +784,65 @@ const PEOPLE_MODELS = [
   {id:'us-casual-woman',     kind:'woman', wear:'カジュアル', label:'欧米系 女性 カジュアル'},
 ];
 const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
+
+// ポーズは別リグ（Mixamo など）から起こしたもの。書き出してあるのは関節の位置だけで、
+// 回転は入っていない。骨の長さも初期姿勢も関係なくなるので、この 1 ファイルを
+// 11 体すべてで共通に使える。作り方は tools/make-poses.mjs。
+let POSES = null, posesReq = null;
+function loadPoses(){
+  return posesReq ||= fetch('models/poses.json').then(r => r.ok ? r.json() : null)
+    .then(j => { POSES = j; renderSel(); return j; })
+    .catch(e => { console.warn('poses failed', e); return null; });
+}
+const poseById = id => POSES?.poses.find(p => p.id === id) || null;
+// 骨の対応。ひねり用の骨（*Twist*）は動かさず、そのままにする
+const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
+  LeftShoulder:'L_Clavicle', LeftArm:'L_Upperarm', LeftForeArm:'L_Forearm', LeftHand:'L_Hand',
+  RightShoulder:'R_Clavicle', RightArm:'R_Upperarm', RightForeArm:'R_Forearm', RightHand:'R_Hand',
+  LeftUpLeg:'L_Thigh', LeftLeg:'L_Calf', LeftFoot:'L_Foot', LeftToeBase:'L_ToeBase',
+  RightUpLeg:'R_Thigh', RightLeg:'R_Calf', RightFoot:'R_Foot', RightToeBase:'R_ToeBase'};
+const POSE_CHILD = {Spine:'Hips', Spine1:'Spine', Spine2:'Spine1', Neck:'Spine2', Head:'Neck',
+  LeftShoulder:'Spine2', LeftArm:'LeftShoulder', LeftForeArm:'LeftArm', LeftHand:'LeftForeArm',
+  RightShoulder:'Spine2', RightArm:'RightShoulder', RightForeArm:'RightArm', RightHand:'RightForeArm',
+  LeftUpLeg:'Hips', LeftLeg:'LeftUpLeg', LeftFoot:'LeftLeg', LeftToeBase:'LeftFoot',
+  RightUpLeg:'Hips', RightLeg:'RightUpLeg', RightFoot:'RightLeg', RightToeBase:'RightFoot'};
+const POSE_PRIMARY = {Hips:'Spine', Spine2:'Neck'};   // 枝分かれする骨は、どの子で向きを決めるか
+const POSE_ORDER = ['Hips','Spine','Spine1','Spine2','Neck','LeftShoulder','LeftArm','LeftForeArm',
+  'RightShoulder','RightArm','RightForeArm','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
+// 回転を写すのではなく、骨から子へ向かう向きを合わせる。参照元の素の姿勢が要らず、
+// 初期姿勢の違うリグどうしでも通る。tools/make-poses.mjs にも同じものがある。
+function applyPose(root, pose){
+  const src = {}, boneOf = {};
+  POSES.joints.forEach((j, i) => { src[j] = new V3().fromArray(pose.p[i]); });
+  root.traverse(o => { if (o.isBone) boneOf[o.name] = o; });
+  const tb = {}; for (const [m, t] of Object.entries(POSE_MAP)) tb[m] = boneOf[t];
+  const wq = o => o.getWorldQuaternion(new THREE.Quaternion());
+  const wp = o => o.getWorldPosition(new V3());
+  for (const m of POSE_ORDER){
+    const bone = tb[m]; if (!bone) continue;
+    const kid = POSE_PRIMARY[m] || Object.keys(POSE_CHILD).find(k => POSE_CHILD[k] === m);
+    if (!kid || !src[m] || !src[kid]) continue;
+    const want = src[kid].clone().sub(src[m]);
+    if (want.lengthSq() < 1e-9) continue;
+    const cur = wq(bone);
+    const have = new V3(0,1,0).applyQuaternion(cur).normalize();
+    let q = new THREE.Quaternion().setFromUnitVectors(have, want.clone().normalize()).multiply(cur);
+    if (m === 'Hips' && tb.LeftUpLeg && tb.RightUpLeg){    // 腰は左右の軸も合わせないと体の向きが決まらない
+      const axis = want.clone().normalize();
+      const proj = v => v.clone().projectOnPlane(axis).normalize();
+      const lr = wp(tb.LeftUpLeg).sub(wp(tb.RightUpLeg)).applyQuaternion(cur.clone().invert());
+      const a = proj(lr.applyQuaternion(q)), b = proj(src.LeftUpLeg.clone().sub(src.RightUpLeg));
+      if (a.lengthSq() > 1e-6 && b.lengthSq() > 1e-6){
+        let ang = Math.acos(clamp(a.dot(b), -1, 1));
+        if (a.clone().cross(b).dot(axis) < 0) ang = -ang;
+        q = new THREE.Quaternion().setFromAxisAngle(axis, ang).multiply(q);
+      }
+    }
+    bone.quaternion.copy(wq(bone.parent).invert().multiply(q));
+    bone.updateMatrixWorld(true);
+  }
+  root.updateMatrixWorld(true);
+}
 const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
 const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
 async function loadPerson(file){
@@ -794,14 +858,35 @@ async function loadPerson(file){
   renderSel(); needRender = true;
 }
 // the file is modelled 1 m tall, so one number turns it into whatever height is set
+// Box3.setFromObject はスキニングを見ない。ジオメトリの箱を行列で移すだけなので、
+// 骨を回しても外形が変わらず、座らせても身長ぶんの高さのままになる。
+// SkinnedMesh.computeBoundingBox() は骨を通してから測ってくれるので、そちらを使う。
+function posedBox(root){
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3(), tmp = new THREE.Box3();
+  root.traverse(n => {
+    if (!n.isMesh && !n.isSkinnedMesh) return;
+    let local;
+    if (n.isSkinnedMesh && n.computeBoundingBox){ n.computeBoundingBox(); local = n.boundingBox; }
+    if (!local){ if (!n.geometry.boundingBox) n.geometry.computeBoundingBox(); local = n.geometry.boundingBox; }
+    if (local) box.union(tmp.copy(local).applyMatrix4(n.matrixWorld));
+  });
+  return box;
+}
+const restH = new WeakMap();
 function buildRealPerson(it, src){
   const g = new THREE.Group();
   const inst = skeletonClone(src);
   inst.updateMatrixWorld(true);
-  const bb = new THREE.Box3().setFromObject(inst);
-  const k = bb.max.y - bb.min.y > 1e-4 ? it.height / (bb.max.y - bb.min.y) : 1;
+  // 縮尺は「立ったときの身長」から出す。座った姿勢の外形から出すと、座った人が
+  // 身長ぶんの高さまで引き伸ばされて別人の大きさになる
+  if (!restH.has(src)){ const b = posedBox(src); restH.set(src, b.max.y - b.min.y); }
+  const k = restH.get(src) > 1e-4 ? it.height / restH.get(src) : 1;
   inst.scale.setScalar(k);
-  inst.position.set(-(bb.min.x + bb.max.x)/2*k, -bb.min.y*k, -(bb.min.z + bb.max.z)/2*k);
+  const pose = it.posture && POSES ? poseById(it.posture) : null;
+  if (pose) applyPose(inst, pose);
+  const bb = posedBox(inst);
+  inst.position.set(-(bb.min.x + bb.max.x)/2, -bb.min.y, -(bb.min.z + bb.max.z)/2);
   inst.traverse(n => {
     if (!n.isMesh && !n.isSkinnedMesh) return;
     n.castShadow = true; n.receiveShadow = true; n.frustumCulled = false;
@@ -811,12 +896,13 @@ function buildRealPerson(it, src){
     }
   });
   g.add(inst);
-  g.add(footDisc(Math.max(0.28, (bb.max.x - bb.min.x)*k*0.7), COLORS.person));
+  g.add(footDisc(Math.max(0.28, Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z)*0.55), COLORS.person));
+  g.userData.top = bb.max.y - bb.min.y;      // 寸法ラベルは実際に描いた高さの上に出す
   return g;
 }
 function buildPerson(it){
   // only the standing pose exists as a scan; sitting and lying stay with the mannequin
-  const file = it.pose === 'stand' ? personModel(it) : null;
+  const file = personModel(it);
   if (file){
     const src = realPeople.get(file);
     if (src && src !== 'loading' && src !== 'fail') return buildRealPerson(it, src);
@@ -1463,7 +1549,7 @@ document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click',
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
-  if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', model:opt?.model || null, height:opt?.height || 1.72, pose:'stand'};
+  if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', model:opt?.model || null, height:opt?.height || 1.72, pose:'stand', posture:null};
   else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
@@ -1507,7 +1593,7 @@ function renderList(){
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
     const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
     const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
-    const sub = it.type==='person' ? `${fmt(it.height)} m・${{stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
+    const sub = it.type==='person' ? `${fmt(it.height)} m・${poseById(it.posture)?.label || {stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
       : it.type==='camera' ? `${it.focal}mm ${it.aspect}${it.id === state.activeCam ? '・表示中' : ''}`
       : it.type==='light' ? `高さ ${it.y} m`
       : it.type==='chroma' ? dims('w','h')
@@ -1557,7 +1643,17 @@ function renderSel(){
   if (it.hidden) h += `<p class="hint">隠し中。目のマークで戻せます。</p>`;
   if (it.type === 'person'){
     h += range('height','身長',0.70,2.10,0.01,it.height,'m');
-    h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+    if (personModel(it)){
+      loadPoses();
+      if (POSES){
+        const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
+          `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
+        h += `<h2>ポーズ</h2><div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
+          POSES.poses.map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
+      }
+    } else {
+      h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
+    }
     // the only thing worth saying is when the model could not be fetched at all
     if (personModel(it) && realPeople.get(personModel(it)) === 'fail')
       h += `<p class="hint">人物モデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}</p>`;
@@ -1628,6 +1724,9 @@ function renderSel(){
   h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>削除</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
+  el.querySelectorAll('[data-pose]').forEach(b => b.addEventListener('click', () => {
+    setProp(it, 'posture', b.dataset.pose === 'none' ? null : b.dataset.pose);
+  }));
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
     it[k] = k === 'dimCam' ? it.dimCam !== true : !dimOn(it, k);   // this one starts off

@@ -387,21 +387,39 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.screenshot({ path: `${OUT}/person-real.png` });
 
   // the scan is 1 m tall in the file; the height slider still has to rule
+  // Box3.setFromObject は骨の変形を見ないので、アプリが測った値（userData.top）を読む
   const measure = () => t.page.evaluate(() => {
     const sp = window.__sp, g = sp.group(sp.state().items.find(i => i.type === 'person').id);
     const b = new sp.THREE.Box3().setFromObject(g);
-    return {h: +(b.max.y - b.min.y).toFixed(3), minY: +b.min.y.toFixed(3)};
+    return {h: +(g.userData.top ?? (b.max.y - b.min.y)).toFixed(3), minY: +b.min.y.toFixed(3)};
   });
   const box = await measure();
   ok('the model is scaled to the height that is set', Math.abs(box.h - 1.7) < 0.02, `${box.h} m tall, feet at ${box.minY}`);
 
-  await t.page.click('[data-set="pose"][data-val="sit"]');
-  await t.page.waitForTimeout(400);
-  const sit = await measure();
-  ok('sitting falls back to the mannequin', sit.h < 1.4, `${sit.h} m`);
+  // ポーズ一覧。全部そろっていて、選ぶとその姿勢で描かれる
+  const poses = await t.page.$$eval('[data-pose]', b => b.map(x => x.dataset.pose));
+  ok('every pose is offered, plus the plain one', poses.length === 12 && poses[0] === 'none', poses.join(', '));
+  const poseThumbs = await t.page.$$eval('.poses img', i => i.map(x => x.naturalWidth));
+  ok('the pose thumbnails load', poseThumbs.length === 12 && poseThumbs.every(w => w === 200), poseThumbs.join(','));
 
-  await t.page.click('[data-set="pose"][data-val="stand"]');
-  await t.page.waitForTimeout(600);
+  await t.page.click('[data-pose="sit-chair"]');
+  await t.page.waitForTimeout(700);
+  const sit = await measure();
+  ok('sitting lowers the figure but keeps the model',
+     sit.h > 1.0 && sit.h < 1.45 && await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').model) !== null,
+     `${sit.h} m`);
+  ok('and the list says which pose', (await t.page.textContent('#items .itemrow >> nth=1')).includes('椅子'));
+  await t.page.screenshot({ path: `${OUT}/pose-sit.png` });
+
+  await t.page.click('[data-pose="lie-up"]');
+  await t.page.waitForTimeout(700);
+  const lie = await measure();
+  ok('lying down is flat and still on the floor', lie.h < 0.6 && Math.abs(lie.minY) < 0.01, `${lie.h} m, minY ${lie.minY}`);
+
+  await t.page.click('[data-pose="none"]');
+  await t.page.waitForTimeout(700);
+  const back = await measure();
+  ok('the plain pose gives the height back', Math.abs(back.h - 1.7) < 0.02, `${back.h} m`);
 
   // shrinking someone used to turn them into a child and drop the model
   const setHeight = async v => {                    // through the readout, as a person would
