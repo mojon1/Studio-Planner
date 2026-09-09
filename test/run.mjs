@@ -423,18 +423,25 @@ async function open(name, viewport, mobile = false, hash = ''){
   const box = await measure();
   ok('the model is scaled to the height that is set', Math.abs(box.h - 1.7) < 0.02, `${box.h} m tall, feet at ${box.minY}`);
 
-  // ポーズ一覧は畳んである。開くまでサムネイルは出ない
-  ok('the pose list starts folded', await t.page.$$eval('[data-pose]', b => b.length) === 0);
-  await t.page.click('[data-poseopen]');
-  await t.page.waitForTimeout(400);
+  // ポーズ一覧は畳まない。畳むと在ることに気づかれなかった
+  await t.page.waitForTimeout(600);
   const poses = await t.page.$$eval('[data-pose]', b => b.map(x => x.dataset.pose));
-  ok('every pose is offered, plus the plain one', poses.length === 12 && poses[0] === 'none', poses.join(', '));
+  ok('the pose list is open from the start, with the plain stance first',
+     poses.length === 8 && poses[0] === 'none', poses.join(', '));
+  ok('the ones taken out of the list stay out',
+     !poses.some(p => ['stand-1','stand-4','walk','dance'].includes(p)), poses.join(', '));
+  ok('and there is nothing left to unfold', await t.page.$$eval('.disc', b => b.length) === 0);
+  ok('the pose list sits at the bottom, under the direction slider',
+     await t.page.$eval('#selbody', el => {
+       const kids = [...el.children];
+       return kids.findIndex(k => k.classList.contains('poses')) === kids.length - 1
+           && kids[kids.length - 2].textContent.includes('ポーズ');
+     }));
   const poseThumbs = await t.page.$$eval('.poses img', i => i.map(x => x.naturalWidth));
-  ok('the pose thumbnails load', poseThumbs.length === 12 && poseThumbs.every(w => w === 200), poseThumbs.join(','));
+  ok('the pose thumbnails load', poseThumbs.length === 8 && poseThumbs.every(w => w === 200), poseThumbs.join(','));
 
   await t.page.click('[data-pose="sit-chair"]');
   await t.page.waitForTimeout(700);
-  ok('and it stays open while trying poses', await t.page.$$eval('[data-pose]', b => b.length) === 12);
   const sit = await measure();
   ok('sitting lowers the figure but keeps the model',
      sit.h > 1.0 && sit.h < 1.45 && await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').model) !== null,

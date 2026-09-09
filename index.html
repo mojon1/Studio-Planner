@@ -152,12 +152,6 @@ body.viewer #addfab{display:none}
 .people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
 .people button.on{border-color:var(--accent);background:var(--accent-bg)}
 .poses{grid-template-columns:repeat(3,1fr)}
-.disc{display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:0;padding:16px 0 8px;cursor:pointer;
-  color:var(--muted);font:inherit;font-weight:700;font-size:.8rem;letter-spacing:.08em}
-.disc small{margin-left:auto;color:var(--ink2);font-weight:500;letter-spacing:0;font-size:.82rem}
-.disc b{color:var(--ink2);font-size:.9rem;transition:transform .15s}
-.disc[aria-expanded="true"] b{transform:rotate(180deg)}
-.disc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #namedlg .pop{width:min(420px,100%)}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -832,13 +826,15 @@ const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
 // 回転は入っていない。骨の長さも初期姿勢も関係なくなるので、この 1 ファイルを
 // 11 体すべてで共通に使える。作り方は tools/make-poses.mjs。
 let POSES = null, posesReq = null;
-let poseOpen = false;                 // 開いたままにしておくと、続けて何個か試せる
 function loadPoses(){
   return posesReq ||= fetch('models/poses.json').then(r => r.ok ? r.json() : null)
     .then(j => { POSES = j; renderSel(); return j; })
     .catch(e => { console.warn('poses failed', e); return null; });
 }
 const poseById = id => POSES?.poses.find(p => p.id === id) || null;
+// 一覧には出さないが models/poses.json からは消さない。古い共有リンクが
+// この ID を指していることがあり、消すとその人だけ素の姿勢に戻ってしまう
+const POSE_HIDDEN = new Set(['stand-1', 'stand-4', 'walk', 'dance']);
 // 骨の対応。ひねり用の骨（*Twist*）は動かさず、そのままにする
 const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
   LeftShoulder:'L_Clavicle', LeftArm:'L_Upperarm', LeftForeArm:'L_Forearm', LeftHand:'L_Hand',
@@ -1960,19 +1956,8 @@ function renderSel(){
   if (it.hidden) h += `<p class="hint">隠し中。目のマークで戻せます。</p>`;
   if (it.type === 'person'){
     h += range('height','身長',0.70,2.10,0.01,it.height,'m');
-    if (personModel(it)){
-      loadPoses();
-      if (POSES){
-        const now = poseById(it.posture)?.label || '素の姿勢';
-        h += `<button class="disc" data-poseopen aria-expanded="${poseOpen}">ポーズ<small>${esc(now)}</small><b>⌄</b></button>`;
-        if (poseOpen){
-          const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
-            `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
-          h += `<div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
-            POSES.poses.map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
-        }
-      }
-    } else {
+    if (personModel(it)) loadPoses();     // 一覧はパネルのいちばん下
+    else {
       h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
     }
     // the only thing worth saying is when the model could not be fetched at all
@@ -2042,9 +2027,14 @@ function renderSel(){
                             : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
   h += range('rot','向き',-180,180,1,rotShown(it),'°');
   if (it.type === 'camera') h += `<p class="hint">0° で奥向き。</p>`;
+  if (it.type === 'person' && personModel(it) && POSES){
+    const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
+      `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
+    h += `<h2>ポーズ</h2><div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
+      POSES.poses.filter(p => !POSE_HIDDEN.has(p.id)).map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
+  }
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
-  el.querySelector('[data-poseopen]')?.addEventListener('click', () => { poseOpen = !poseOpen; renderSel(); });
   el.querySelectorAll('[data-pose]').forEach(b => b.addEventListener('click', () => {
     setProp(it, 'posture', b.dataset.pose === 'none' ? null : b.dataset.pose);
   }));

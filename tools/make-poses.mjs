@@ -16,13 +16,15 @@ const NM = path.join(ROOT, 'test', 'node_modules');
 const THUMB_MODEL = 'us-casual-man.glb';       // サムネイルはこの 1 体で撮る
 const TW = 200, TH = 200;
 
-// ファイル名 -> 出す名前と並び順。ここに無いものは無視する
+// ファイル名 -> 出す名前と並び順。ここに無いものは無視する。
+// stand-1 / stand-4 / walk / dance はアプリの一覧に出さない（index.html の
+// POSE_HIDDEN）。データは古い共有リンクのために残してあるので、消さないこと。
 const NAMES = {
   'Male Standing Pose':        {id:'stand-1',  label:'立つ'},
-  'Male Standing Pose (1)':    {id:'stand-2',  label:'立つ 2'},
-  'Male Standing Pose (2)':    {id:'stand-3',  label:'立つ 3'},
+  'Male Standing Pose (1)':    {id:'stand-2',  label:'立つ 1'},
+  'Male Standing Pose (2)':    {id:'stand-3',  label:'立つ 2'},
   'Female Standing Pose':      {id:'stand-4',  label:'立つ 4'},
-  'Female Standing Pose (1)':  {id:'stand-5',  label:'立つ 5'},
+  'Female Standing Pose (1)':  {id:'stand-5',  label:'立つ 3'},
   'Male Locomotion Pose':      {id:'walk',     label:'歩く'},
   'Male Sitting Pose':         {id:'sit-chair',label:'椅子'},
   'Male Sitting Pose (1)':     {id:'sit-floor',label:'床に座る'},
