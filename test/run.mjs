@@ -252,6 +252,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.add('[data-add="chroma"]');
   await t.tab('share');
   await t.page.fill('#m-project', 'コスモ石油 CM 30秒');
+  await t.tab('cut');                                  // カット名とメモはカットタブへ移した
   await t.page.fill('#m-cut', 'C-12');
   await t.page.fill('#m-memo', '演者は白ホリ手前 2m。\nレフ板は下手から。');
   for (const o of ['landscape','portrait']){
@@ -329,8 +330,10 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.add('[data-add="mirror"]');
   await t.tab('share');
   await t.page.fill('#m-project', '青山スタジオ 下見');
+  await t.tab('cut');
   await t.page.fill('#m-cut', 'C-3');
   await t.page.waitForTimeout(200);
+  await t.tab('share');
   const before = await t.page.$$eval('#items .itemrow', n => n.length);
 
   // desktop Chrome path: the real save dialog, stubbed so headless can watch it
@@ -389,7 +392,9 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForTimeout(600);
   const after = await t.page.$$eval('#items .itemrow', n => n.length);
   ok('load brings every object back', after === before, `${after} rows, was ${before}`);
+  await t.tab('cut');
   ok('load brings the meta back', await t.page.inputValue('#m-cut') === 'C-3');
+  await t.tab('share');
 
   await t.page.setInputFiles('#projfile', path.join(HERE, 'package.json'));
   await t.page.waitForTimeout(400);
@@ -854,7 +859,9 @@ async function open(name, viewport, mobile = false, hash = ''){
 // --- 15. undo / redo, cuts, and the readout that gets out of the way ---------------
 {
   const t = await open('cuts', { width: 1200, height: 800 });
-  ok('the list tab is called オブジェクト', (await t.page.textContent('[data-tab="list"]')).trim() === 'オブジェクト');
+  ok('three tabs, カット in the middle',
+     (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/共有',
+     await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/')));
   const nItems = () => t.page.evaluate(() => window.__sp.state().items.length);
   const before = await nItems();
   await t.add('[data-add="box"]');
@@ -869,18 +876,29 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('Ctrl+Shift+Z redoes', await nItems() === before + 1);
 
   // カットは今の内容を写して増える。片方をいじってももう片方は動かない
-  await t.page.click('#cuts button.add'); await t.page.waitForTimeout(500);
+  await t.tab('cut');
+  await t.page.click('#addcut'); await t.page.waitForTimeout(500);
   const cuts = () => t.page.evaluate(() => window.__sp.state().cuts.length);
   ok('a second cut appears', await cuts() === 2, String(await cuts()));
   ok('and it carries the same things', await nItems() === before + 1);
   await t.add('[data-add="chair"]');
   const n2 = await nItems();
-  await t.page.click('#cuts button[data-ix="0"]'); await t.page.waitForTimeout(500);
+  await t.tab('cut');
+  await t.page.click('#cuts .itemrow[data-ix="0"] > button.name'); await t.page.waitForTimeout(500);
   ok('the first cut is untouched', await nItems() === n2 - 1, `${await nItems()} vs ${n2 - 1}`);
-  await t.tab('share');
   await t.page.fill('#m-cut', 'C-12'); await t.page.waitForTimeout(400);
-  ok('renaming shows on the chip', (await t.page.textContent('#cuts button[data-ix="0"]')).includes('C-12'),
-     await t.page.textContent('#cuts button[data-ix="0"]'));
+  const rowName = i => t.page.textContent(`#cuts .itemrow[data-ix="${i}"] > button.name`);
+  ok('renaming shows in the cut list', (await rowName(0)).includes('C-12'), await rowName(0));
+  // つまみで並べ替えると PDF の頁の順も変わる
+  const g0 = await t.page.locator('#cuts .itemrow[data-ix="0"] .grip').boundingBox();
+  const r1 = await t.page.locator('#cuts .itemrow[data-ix="1"]').boundingBox();
+  await t.page.mouse.move(g0.x + 6, g0.y + g0.height/2); await t.page.mouse.down();
+  await t.page.mouse.move(r1.x + 6, r1.y + r1.height - 2, { steps: 8 }); await t.page.mouse.up();
+  await t.page.waitForTimeout(400);
+  ok('cuts can be reordered', (await rowName(1)).includes('C-12'), `${await rowName(0)} | ${await rowName(1)}`);
+  ok('and the one being shown stays shown',
+     await t.page.$eval('#cuts .itemrow[data-ix="1"] > button.name', e => e.classList.contains('on')));
+  await t.tab('share');
   // 用紙はカットごとに 1 枚
   await t.page.click('[data-scope="all"]');
   await t.page.click('#makepdf'); await t.page.waitForTimeout(3500);
@@ -1022,6 +1040,50 @@ async function open(name, viewport, mobile = false, hash = ''){
   fs.writeFileSync(path.join(OUT, 'offline.png'), await off.screenshot());
   ok('offline run clean', errors.length === 0, errors.join(' | '));
   await ctx.close(); swServer.close();
+}
+
+// --- 18. the car is a real model now, not a stack of blocks ------------------------
+{
+  const t = await open('car', { width: 1200, height: 800 });
+  await t.add('[data-add="car"]');
+  await t.page.waitForTimeout(2500);
+  const car = await t.page.evaluate(() => {
+    const it = window.__sp.state().items.find(i => i.type === 'car');
+    const g = window.__sp.group(it.id);
+    let tris = 0;
+    g.traverse(n => { if (n.isMesh) tris += (n.geometry.index ? n.geometry.index.count : n.geometry.attributes.position.count) / 3; });
+    const b = new window.__sp.THREE.Box3().setFromObject(g);
+    return {kind: it.kind, w: it.w, d: it.d, h: it.h, tris: Math.round(tris),
+      size: [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z].map(v => +v.toFixed(3)), minY: +b.min.y.toFixed(4)};
+  });
+  ok('a car comes in as a sedan at 1.8 x 4.7 x 1.45 m',
+     car.kind === 'sedan' && car.w === 1.8 && car.d === 4.7 && car.h === 1.45, JSON.stringify(car));
+  ok('and it is the scanned model, not primitives', car.tris > 5000, `${car.tris} triangles`);
+  ok('drawn at exactly the dimensions on the panel',
+     car.size[0] === 1.8 && car.size[1] === 1.45 && car.size[2] === 4.7 && car.minY === 0, JSON.stringify(car.size));
+  await t.page.click('#items .itemrow[data-kind="car"] > button.name');
+  await t.page.waitForTimeout(400);
+  const thumbs = await t.page.$$eval('.cars img', n => n.map(x => x.naturalWidth));
+  ok('the car models are offered as thumbnails', thumbs.length >= 2 && thumbs.every(w => w > 0), JSON.stringify(thumbs));
+  ok('no block-car kinds are left', !(await t.page.$('[data-set="kind"][data-val="wagon"]')));
+  await t.page.click('[data-set="kind"][data-val="modern"]');
+  await t.page.waitForTimeout(2000);
+  const two = await t.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'car');
+    return {kind: it.kind, w: it.w, d: it.d, h: it.h}; });
+  ok('picking a model brings that car\u2019s real size', two.kind === 'modern' && two.d === 4.75, JSON.stringify(two));
+  // 古いリンクの「ワゴン」は、実物が入るまでセダンで置く。寸法はリンクのまま
+  const old = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}},
+    activeCam:'c1', items:[{id:'v1',type:'car',x:0,z:0,rot:0,kind:'wagon',w:1.80,d:4.80,h:1.55,color:'#b9c0cc'},
+      {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const t2 = await open('car-legacy', { width: 1000, height: 700 }, false, '#s=' + encodeState(old));
+  await t2.page.waitForTimeout(2000);
+  const mig = await t2.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'car');
+    return {kind: it.kind, d: it.d, h: it.h}; });
+  ok('an old ワゴン opens as a sedan at the size it was saved with',
+     mig.kind === 'sedan' && mig.d === 4.8 && mig.h === 1.55, JSON.stringify(mig));
+  await t2.page.screenshot({ path: `${OUT}/car.png` });
+  ok('car run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
+  await t2.ctx.close(); await t.ctx.close();
 }
 
 await browser.close(); server.close();

@@ -49,13 +49,11 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
 #tabs,#sheet{zoom:.78}
-#cuts{zoom:.78;display:flex;gap:6px;align-items:center;padding:8px 10px 0;overflow-x:auto;flex:none;scrollbar-width:none}
-#cuts::-webkit-scrollbar{display:none}
-#cuts button{flex:none;height:34px;padding:0 12px;border:1px solid var(--rule);background:var(--btn);color:var(--ink2);
-  border-radius:17px;font:inherit;font-size:.86rem;font-weight:500;cursor:pointer;white-space:nowrap}
-#cuts button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
-#cuts button.add{width:34px;padding:0;font-size:1.1rem;color:var(--ink2)}
-body.viewer #cuts{display:none}
+/* 見るだけリンクはパネルごと消えるので、カットの切り替えだけ画面の下に出す */
+#viewercuts{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+#viewercuts button{height:34px;padding:0 12px;border:0;border-radius:17px;background:rgba(20,22,26,.75);color:#fff;
+  font:inherit;font-size:.86rem;font-weight:500;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px)}
+#viewercuts button.on{background:var(--accent);font-weight:700}
 #tabs{display:flex;border-bottom:1px solid var(--rule);flex:none}
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
@@ -172,6 +170,7 @@ body.viewer #addfab{display:none}
 .people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
 .people button.on{border-color:var(--accent);background:var(--accent-bg)}
 .poses{grid-template-columns:repeat(3,1fr)}
+.cars{grid-template-columns:repeat(2,1fr)}
 #namedlg .pop{width:min(420px,100%)}
 #qrdlg{position:fixed;inset:0;background:rgba(10,12,16,.72);z-index:24;display:none;align-items:center;justify-content:center;padding:16px}
 #qrdlg.on{display:flex}
@@ -278,15 +277,24 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 
 <div id="app">
   <div id="panel">
-    <div id="cuts"></div>
     <div id="tabs">
       <button data-tab="list" class="on">オブジェクト</button>
+      <button data-tab="cut">カット</button>
       <button data-tab="share">共有</button>
     </div>
     <div id="sheet">
       <div class="sec on" data-sec="list">
         <div class="list" id="items"></div>
         <div id="selbody"></div>
+      </div>
+      <div class="sec" data-sec="cut">
+        <div class="list" id="cuts"></div>
+        <div class="row"><button class="btn" id="addcut">カットを追加</button></div>
+        <p class="hint">今のカットをそのまま写して増やします。同じセットでカメラだけ動かす、が現場のふつうです。つまみを掴むと並べ替えられます。</p>
+        <h2>このカット</h2>
+        <label class="f2"><span>カット名</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
+        <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
+        <p class="hint">名前とメモは PDF の頭に入ります。</p>
       </div>
       <div class="sec" data-sec="share">
         <h2>リンクで共有</h2>
@@ -299,8 +307,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint">取り込んだ 3D モデルの実体はこの端末に残ります。別の PC で開くと実寸の箱になります。</p>
         <h2>PDF</h2>
         <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
-        <label class="f2"><span>カット</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
-        <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
+        <p class="hint">カット名とメモは「カット」タブにあります。</p>
         <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
         <div class="row"><button class="btn on" data-scope="one">このカットだけ</button><button class="btn" data-scope="all">全カット</button></div>
         <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
@@ -309,10 +316,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="png">画像保存</button></div>
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
-        <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物モデルを含めて 10 MB ほど。</p>
+        <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.4.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.5.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -346,7 +353,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <button id="gear" title="設定の開閉" aria-label="設定の開閉">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
     </button>
-    <div id="viewerbar"><button class="btn primary" id="edit">この配置を編集する</button></div>
+    <div id="viewerbar"><div id="viewercuts"></div><button class="btn primary" id="edit">この配置を編集する</button></div>
     <div id="toast"></div>
   </div>
 </div>
@@ -517,6 +524,9 @@ function migrateItems(st, studio){
     if (it.type === 'person' && it.model && !MODEL_BY_ID[it.model]) it.model = null;
     if (it.type === 'person' && it.posture === undefined) it.posture = null;
     if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
+    // 積み木の車は廃止。ワゴン・バン・軽は実物のモデルが入るまでセダンで置く。
+    // 寸法はリンクの値をそのまま使うので、図面の大きさは変わらない
+    if (it.type === 'car' && !CAR_BY_ID[it.kind]) it.kind = 'sedan';
     if (it.type === 'camera' && typeof it.roll !== 'number') it.roll = 0;
     if (it.type === 'koma'){
       Object.assign(it, komaDims(it.kind));                     // 標準寸法は常に引き直す
@@ -1033,17 +1043,20 @@ function applyPose(root, pose){
 }
 
 const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
-const realPeople = new Map();                       // file -> Object3D | 'loading' | 'fail'
-async function loadPerson(file){
-  if (realPeople.has(file)) return;
-  realPeople.set(file, 'loading');
+// 同梱のモデル（人物・車）は使う人だけが取りに行く。人だけだったころの
+// realPeople を車と共有しているので、種類を足すときは modelFile() に 1 行足す。
+const builtIn = new Map();                          // file -> Object3D | 'loading' | 'fail'
+const modelFile = it => it.type === 'person' ? personModel(it) : it.type === 'car' ? carModel(it) : null;
+async function loadBuiltIn(file){
+  if (builtIn.has(file)) return;
+  builtIn.set(file, 'loading');
   try {
     const r = await fetch(file);
     if (!r.ok) throw new Error(r.status + ' ' + file);
     const {obj} = await parseModel(await r.arrayBuffer(), 'glb', {});
-    realPeople.set(file, obj);
-  } catch(e){ console.warn('person model failed', e); realPeople.set(file, 'fail'); }
-  for (const it of state.items) if (it.type === 'person' && personModel(it)) rebuildItem(it);
+    builtIn.set(file, obj);
+  } catch(e){ console.warn('built-in model failed', e); builtIn.set(file, 'fail'); }
+  for (const it of state.items) if (modelFile(it) === file) rebuildItem(it);
   renderSel(); needRender = true;
 }
 
@@ -1093,9 +1106,9 @@ function buildPerson(it){
   // only the standing pose exists as a scan; sitting and lying stay with the mannequin
   const file = personModel(it);
   if (file){
-    const src = realPeople.get(file);
+    const src = builtIn.get(file);
     if (src && src !== 'loading' && src !== 'fail') return buildRealPerson(it, src);
-    if (!realPeople.has(file)) loadPerson(file);
+    if (!builtIn.has(file)) loadBuiltIn(file);
   }
   const g = new THREE.Group(), R = personRig(it), c = mat(COLORS.person, {roughness:0.85});
   const H = R.H, hh = R.hh, sit = it.pose === 'sit';
@@ -1150,42 +1163,44 @@ function buildPerson(it){
 }
 
 // --- props -----------------------------------------------------------------
-// side profiles run front to rear, normalised 0..1 in length and height
-const CAR_BODY = {
-  sedan: [[0,.24],[.02,.50],[.14,.58],[.32,.62],[.86,.62],[.97,.56],[1,.42],[1,.24]],
-  wagon: [[0,.24],[.02,.50],[.14,.58],[.32,.62],[.92,.62],[1,.56],[1,.24]],
-  van:   [[0,.20],[.02,.46],[.10,.54],[.92,.56],[1,.50],[1,.20]],
-  kei:   [[0,.22],[.03,.48],[.16,.54],[.88,.56],[1,.48],[1,.22]],
-};
-const CAR_CABIN = {
-  sedan: [[.30,.60],[.42,.95],[.64,1],[.80,.66],[.84,.60]],
-  wagon: [[.30,.60],[.42,.95],[.88,.99],[.93,.62]],
-  van:   [[.08,.52],[.16,.95],[.93,.99],[.96,.56]],
-  kei:   [[.16,.52],[.26,.94],[.86,.97],[.90,.56]],
-};
-const CAR_SIZES = {sedan:[4.7,1.80,1.45], wagon:[4.8,1.80,1.55], van:[5.0,1.90,2.15], kei:[3.4,1.48,1.70]};
-function extrudeProfile(pts, L, Hh, width, m, closeBottom){
-  const s = new THREE.Shape();
-  pts.forEach(([u,v], i) => i ? s.lineTo(u*L - L/2, v*Hh) : s.moveTo(u*L - L/2, v*Hh));
-  if (closeBottom) s.lineTo(pts[0][0]*L - L/2, pts[0][1]*Hh);
-  s.closePath();
-  const geo = new THREE.ExtrudeGeometry(s, {depth:width, bevelEnabled:true, bevelSize:0.02, bevelThickness:0.02, bevelSegments:2});
-  geo.translate(0, 0, -width/2);
-  return shadowed(new THREE.Mesh(geo, m));
-}
+// 車は実物を写した GLB。全長 1 m・車首 +Z・接地 y=0 に揃えて置いてある。
+// 図面としては平面の大きさが命なので、モデルは実車の w × d × h へそのまま
+// 合わせる（比率は元データと少しずれるが、footprint が正しいほうが現場で効く）。
+// **積み木の車は廃止した。** 古いリンクの「ワゴン・バン・軽」は、実物のモデルが
+// 入るまでセダンで置く。寸法はリンクに入っている値をそのまま使うので図は狂わない。
+const CAR_MODELS = [
+  {id:'sedan',  label:'セダン', size:[1.80, 4.70, 1.45]},
+  {id:'modern', label:'モダン', size:[1.82, 4.75, 1.44]},
+];
+const CAR_BY_ID = Object.fromEntries(CAR_MODELS.map(c => [c.id, c]));
+const carModel = it => CAR_BY_ID[it.kind] ? `models/car-${it.kind}.glb` : null;
+const carSize = kind => (CAR_BY_ID[kind] || CAR_MODELS[0]).size;
 function buildCar(it){
-  const g = new THREE.Group(), car = new THREE.Group();
-  const L = it.d, W = it.w, Hh = it.h;              // built nose-along-+X, then turned to face +Z
-  const paint = mat(it.color || '#b9c0cc', {roughness:0.45, metalness:0.15});
-  const glass = mat(0x30363f, {roughness:0.25, metalness:0.35});
-  car.add(extrudeProfile(CAR_BODY[it.kind] || CAR_BODY.sedan, L, Hh, W*0.96, paint, true));
-  car.add(extrudeProfile(CAR_CABIN[it.kind] || CAR_CABIN.sedan, L, Hh, W*0.84, glass, true));
-  const wr = Hh * 0.22;
-  for (const x of [L*0.32, -L*0.30]) for (const s of [-1, 1]){
-    const t = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, W*0.10, 16), mat(0x22262c)));
-    t.rotation.x = Math.PI/2; t.position.set(x, wr, s*W*0.44); car.add(t);
+  const g = new THREE.Group();
+  const file = carModel(it), src = file ? builtIn.get(file) : null;
+  if (file && !builtIn.has(file)) loadBuiltIn(file);
+  if (src && src !== 'loading' && src !== 'fail'){
+    const inst = src.clone(true);
+    inst.updateMatrixWorld(true);
+    const s0 = new THREE.Vector3(); new THREE.Box3().setFromObject(inst).getSize(s0);
+    inst.scale.set(s0.x > 1e-6 ? it.w/s0.x : 1, s0.y > 1e-6 ? it.h/s0.y : 1, s0.z > 1e-6 ? it.d/s0.z : 1);
+    inst.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(inst);
+    inst.position.set(-(b.min.x + b.max.x)/2, -b.min.y, -(b.min.z + b.max.z)/2);
+    inst.traverse(n => {
+      if (!n.isMesh) return;
+      n.castShadow = true; n.receiveShadow = true;
+      for (const m of (Array.isArray(n.material) ? n.material : [n.material])){
+        if (!m?.isMeshStandardMaterial || m.envMap) continue;
+        m.envMap = modelEnv(); m.envMapIntensity = 1; m.needsUpdate = true;
+      }
+    });
+    g.add(inst);
+  } else {
+    // 読み終わるまで（プレビュー枠では最後まで）は実寸の箱で場所だけ取っておく
+    const box = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h*0.62, it.d), mat(COLORS.car, {roughness:0.6})));
+    box.position.y = it.h*0.31; g.add(box);
   }
-  car.rotation.y = -Math.PI/2; g.add(car);
   g.add(planeMarker(it.w, it.d, COLORS.car));
   return g;
 }
@@ -2048,7 +2063,7 @@ function addItem(type, opt){
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
   // 白ホリの R は最大 1 m。奥壁ぎわに出すと布が壁に埋まるので、少し手前に置く
   else if (type === 'chroma') it = {id, type, x:0, z:-d/2+1.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
-  else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
+  else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:carSize('sedan')[0], d:carSize('sedan')[1], h:carSize('sedan')[2]};
   else if (type === 'chair') it = {id, type, x:0, z:0, rot:0, w:0.45, d:0.48, h:0.85, seatH:0.42, color:'#a58256'};
   else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
@@ -2075,6 +2090,7 @@ const SVG = (d, w=20) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fi
 const LOCK_ON  = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>');
 const LOCK_OFF = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.6-1.7"/>');
 const TRASH    = SVG('<path d="M4 6.5h16"/><path d="M9.5 6.5V4h5v2.5"/><path d="M6.5 6.5 7.4 20h9.2l.9-13.5"/><path d="M10 10v6.5M14 10v6.5"/>');
+const COPY     = SVG('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>');
 const GRIP     = SVG('<circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/>', 16);
 // 自分でつけた名前があればそれを、無ければ種類と通し番号を
 const autoName = (it, counts) => it.type === 'camera' ? camName(it)
@@ -2102,24 +2118,51 @@ function renameField(it, counts){
   return inp;
 }
 // カットの帯。押すと切り替え、右クリック（長押し）で名前・複製・削除
+// カットは「オブジェクト」と同じ形の一覧。行を押すと切り替わる。
+// 見るだけリンクではパネルごと消えるので、そのときだけ画面の下にチップを出す。
 function renderCuts(){
   const el = document.getElementById('cuts'); el.innerHTML = '';
-  if (viewerMode && state.cuts.length < 2) return;
+  state.cuts.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'itemrow'; row.dataset.ix = i; row.dataset.id = String(i);
+    const b = document.createElement('button'); b.className = 'name';
+    b.classList.toggle('on', i === state.cutIx);
+    const n = (i === state.cutIx ? state.items : c.items).length;   // 今のカットの写しは古いことがある
+    b.innerHTML = `<span>${esc(cutName(c, i))}</span><small>${n} 点</small>`;
+    b.addEventListener('click', () => { showCut(i); showTab('cut'); });
+    row.addEventListener('contextmenu', e => { e.preventDefault(); showCut(i); openCutMenu(e.clientX, e.clientY); });
+    const icon = (cls, title, html, fn) => {
+      const x = document.createElement('button'); x.className = cls; x.title = title; x.setAttribute('aria-label', title);
+      x.innerHTML = html; x.addEventListener('click', fn); return x;
+    };
+    const grip = document.createElement('span'); grip.className = 'grip'; grip.innerHTML = GRIP;
+    grip.title = 'ドラッグで並べ替え'; grip.setAttribute('aria-label', grip.title);
+    grip.addEventListener('pointerdown', e => startReorder(e, {id:String(i)}, {el, apply:moveCut}));
+    const copy = icon('ico', 'このカットを複製', COPY, () => { showCut(i); addCut(); });
+    const del = icon('ico trash', 'このカットを削除', TRASH, () => deleteCut(i));
+    row.prepend(grip); row.append(b, copy, del); el.appendChild(row);
+  });
+  renderViewerCuts();
+}
+function renderViewerCuts(){
+  const el = document.getElementById('viewercuts'); el.innerHTML = '';
+  if (!viewerMode || state.cuts.length < 2) return;
   state.cuts.forEach((c, i) => {
     const b = document.createElement('button');
     b.textContent = cutName(c, i); b.dataset.ix = i; b.classList.toggle('on', i === state.cutIx);
     b.addEventListener('click', () => showCut(i));
-    b.addEventListener('contextmenu', e => { e.preventDefault(); showCut(i); openCutMenu(e.clientX, e.clientY); });
-    let t = null;
-    b.addEventListener('pointerdown', e => { t = setTimeout(() => { showCut(i); openCutMenu(e.clientX, e.clientY); }, 550); });
-    for (const ev of ['pointerup','pointermove','pointercancel']) b.addEventListener(ev, () => { clearTimeout(t); });
     el.appendChild(b);
   });
-  if (viewerMode) return;
-  const add = document.createElement('button');
-  add.className = 'add'; add.textContent = '＋'; add.title = 'カットを足す'; add.setAttribute('aria-label', add.title);
-  add.addEventListener('click', addCut);
-  el.appendChild(add);
+}
+// 並べ替えは PDF の頁の順でもある
+function moveCut(from, toId, before){
+  const cur = state.cuts[state.cutIx], moved = state.cuts[+from.id], anchor = state.cuts[+toId];
+  if (!moved || !anchor || moved === anchor) return;
+  state.cuts.splice(state.cuts.indexOf(moved), 1);
+  const at = state.cuts.indexOf(anchor);
+  state.cuts.splice(at < 0 ? state.cuts.length : at + (before ? 0 : 1), 0, moved);
+  state.cutIx = state.cuts.indexOf(cur);
+  renderCuts(); saveHash();
 }
 function showCut(i){
   if (i === state.cutIx || !state.cuts[i]) return;
@@ -2157,7 +2200,7 @@ function openCutMenu(px, py){
   ctxEl.innerHTML = '';
   const add = (label, cls, fn) => { const b = document.createElement('button'); b.textContent = label;
     if (cls) b.className = cls; b.addEventListener('click', () => { closeCtx(); fn(); }); ctxEl.appendChild(b); };
-  add('名前を変更', '', () => { showTab('share', true); const el = document.getElementById('m-cut'); el.focus(); el.select(); });
+  add('名前を変更', '', () => { showTab('cut', true); const el = document.getElementById('m-cut'); el.focus(); el.select(); });
   add('複製', '', addCut);
   add('削除', 'danger', () => deleteCut(i));
   ctxEl.hidden = false;
@@ -2209,12 +2252,13 @@ function renderList(){
 // ---------- list: drag to reorder ----------
 // つまみを掴んで上下。並び順は「カメラ 1／カメラ 2」の番号にもそのまま出る
 let reorder = null;
-function startReorder(e, it){
+// opts で一覧を差し替えられる（オブジェクトの一覧とカットの一覧で同じものを使う）
+function startReorder(e, it, opts){
   if (viewerMode) return;
   e.preventDefault(); e.stopPropagation();
-  const el = document.getElementById('items');
+  const el = opts?.el || document.getElementById('items');
   const row = e.currentTarget.parentElement;
-  reorder = {it, row, el, moved:false};
+  reorder = {it, row, el, moved:false, apply: opts?.apply || moveItem};
   row.classList.add('dragging');
   e.currentTarget.setPointerCapture(e.pointerId);
   e.currentTarget.addEventListener('pointermove', moveReorder);
@@ -2239,7 +2283,7 @@ function moveReorder(e){
 }
 function endReorder(e){
   if (!reorder) return;
-  const {it, el} = reorder;
+  const {it, el, apply} = reorder;
   const t = reorder.moved ? reorderTarget(e.clientY) : null;
   for (const r of el.querySelectorAll('.itemrow')) r.classList.remove('dropbefore','dropafter','dragging');
   e.currentTarget.removeEventListener('pointermove', moveReorder);
@@ -2247,10 +2291,13 @@ function endReorder(e){
   e.currentTarget.removeEventListener('pointercancel', endReorder);
   reorder = null;
   if (!t || t.row.dataset.id === it.id) return;
+  apply(it, t.row.dataset.id, t.before);
+}
+function moveItem(it, toId, before){
   const from = state.items.indexOf(it);
   state.items.splice(from, 1);
-  const anchor = state.items.findIndex(i => i.id === t.row.dataset.id);
-  state.items.splice(anchor < 0 ? state.items.length : anchor + (t.before ? 0 : 1), 0, it);
+  const anchor = state.items.findIndex(i => i.id === toId);
+  state.items.splice(anchor < 0 ? state.items.length : anchor + (before ? 0 : 1), 0, it);
   restack(); updateSelectionVisuals();          // 並び順は台どうしの上下でもある
   renderList(); renderSel(); needRender = true; saveHash();
 }
@@ -2287,12 +2334,17 @@ function renderSel(){
       h += btns('pose', [['stand','立つ'],['sit','座る'],['lie','寝る']], it.pose);
     }
     // the only thing worth saying is when the model could not be fetched at all
-    if (personModel(it) && realPeople.get(personModel(it)) === 'fail')
+    if (personModel(it) && builtIn.get(personModel(it)) === 'fail')
       h += `<p class="hint">人物モデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}</p>`;
   } else if (it.type === 'car'){
-    h += btns('kind', [['sedan','セダン'],['wagon','ワゴン'],['van','バン'],['kei','軽']], it.kind);
+    // 車種はサムネイルで選ぶ。名前より絵のほうが速い（人物モデルと同じ考え）
+    h += `<h2>車種</h2><div class="people cars">` + CAR_MODELS.map(c =>
+      `<button data-set="kind" data-val="${c.id}" class="${it.kind === c.id ? 'on' : ''}" title="${esc(c.label)}" aria-label="${esc(c.label)}">` +
+      `<img src="models/thumbs/car-${c.id}.webp" alt="" width="200" height="140"><small>${esc(c.label)}</small></button>`).join('') + `</div>`;
+    h += `<p class="hint">車種を選ぶとその車の実寸が入ります。実際の車に合わせたいときは下の数字で。</p>`;
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
-    h += colors(PROP_SWATCHES, it.color || '#b9c0cc');
+    if (carModel(it) && builtIn.get(carModel(it)) === 'fail')
+      h += `<p class="hint">車のモデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}実寸の箱で表示しています。</p>`;
   } else if (it.type === 'chair'){
     h += range('seatH','座面高',0.20,0.90,0.01,it.seatH,'m') + range('h','背もたれ上端',0.25,1.40,0.01,it.h,'m');
     h += range('w','幅',0.30,1.20,0.01,it.w,'m') + range('d','奥行',0.30,1.20,0.01,it.d,'m');
@@ -2491,6 +2543,7 @@ function setProp(it, k, v, live=false){
   if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
   else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
   else if (k === 'kind' && it.type === 'koma'){ it.kind = v; Object.assign(it, komaDims(v)); }
+  else if (k === 'kind' && it.type === 'car'){ it.kind = v; [it.w, it.d, it.h] = carSize(v); }
   else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
@@ -3055,6 +3108,7 @@ async function copyLink(viewOnly){
   try { await navigator.clipboard.writeText(url); toast(viewOnly ? '見るだけリンクをコピーしました' : 'リンクをコピーしました'); }
   catch { document.getElementById('linkbox').value = url; document.getElementById('linkbox').select(); toast('下の欄から手でコピーしてください'); }
 }
+document.getElementById('addcut').addEventListener('click', addCut);
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
 // ---------- QR コード ----------
@@ -3339,15 +3393,15 @@ function sheetPage(ci){
      <div class="pfoot"><span>1 マス = 1 m。寸法は概算です。</span><span>${esc(project || '')} ${esc(cutName(c, ci))}</span></div>
    </div>`;
 }
-// 別のカットの人物モデルはまだ取りに行っていないことがある。
-// 取り込む前に読んでおかないと、その頁だけマネキンで刷られる
+// 別のカットの人物・車モデルはまだ取りに行っていないことがある。
+// 刷る前に読んでおかないと、その頁だけマネキンや箱で刷られる
 async function preloadCutModels(list){
   const files = new Set();
   for (const i of list) for (const it of state.cuts[i].items){
-    const f = it.type === 'person' && MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
+    const f = modelFile(it);
     if (f) files.add(f);
   }
-  await Promise.all([...files].map(f => loadPerson(f)));
+  await Promise.all([...files].map(f => loadBuiltIn(f)));
 }
 async function buildSheet(){
   stashCut();
@@ -3455,7 +3509,7 @@ addEventListener('resize', () => { if (paperModal.classList.contains('show')) fi
 
 // ---------- オフライン ----------
 // 現場は圏外のことがある。Service Worker がキャッシュを持つので、一度開いた端末は
-// そのまま開ける。人物モデルは 10 MB あるので、押した人ぶんだけ溜める。
+// そのまま開ける。人物と車のモデルは 12 MB あるので、押した人ぶんだけ溜める。
 //
 // **プレビュー枠や file:// では登録しない。** claude.ai のプレビューには sw.js が
 // 無いので 404 になり、file:// はそもそも Service Worker を許さない。どちらも
@@ -3469,6 +3523,7 @@ function offlineFiles(){
   const f = ['./', 'index.html', 'manifest.webmanifest', 'models/poses.json',
              'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'ogp.png'];
   for (const m of PEOPLE_MODELS){ f.push(`models/${m.id}.glb`); f.push(`models/thumbs/${m.id}.webp`); }
+  for (const c of CAR_MODELS){ f.push(`models/car-${c.id}.glb`); f.push(`models/thumbs/car-${c.id}.webp`); }
   for (const id of ['none','stand-1','stand-2','stand-3','stand-4','stand-5','sit-chair','sit-floor','lie-up','lie-down','walk','dance'])
     f.push(`models/thumbs/pose-${id}.webp`);
   return f;
