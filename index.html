@@ -90,11 +90,25 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .dims label{font-size:.8rem;color:var(--ink2)}
 .list{display:flex;flex-direction:column;gap:6px}
 .itemrow{display:flex;gap:6px;align-items:stretch}
-.itemrow>button:first-child{flex:1;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer;text-align:left;min-width:0}
-.itemrow>button:first-child.on{border-color:var(--accent);background:var(--accent-bg)}
+.itemrow>button.name{flex:1;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer;text-align:left;min-width:0}
+.itemrow>button.name.on{border-color:var(--accent);background:var(--accent-bg)}
+.itemrow>button.name>span,.itemrow>button.name>small{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.itemrow>button.name>small{margin-left:8px}
 .itemrow .eye{flex:0 0 44px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-.itemrow.hidden-item>button:first-child{opacity:.45}
+.itemrow.hidden-item>button.name{opacity:.45}
 .itemrow.hidden-item .eye{color:var(--muted)}
+.itemrow .ico{flex:0 0 36px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.itemrow .ico.on{color:var(--accent);border-color:var(--accent)}
+.itemrow .ico.trash:hover{color:var(--danger)}
+.itemrow .grip{flex:0 0 20px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.itemrow.dragging{opacity:.5}
+.itemrow.dropbefore{box-shadow:0 -3px 0 -1px var(--accent)}
+.itemrow.dropafter{box-shadow:0 3px 0 -1px var(--accent)}
+.itemrow.locked-item>button.name{border-style:dashed}
+#ctx{position:fixed;z-index:60;min-width:150px;background:var(--panel);border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:6px;display:flex;flex-direction:column;gap:2px}
+#ctx button{min-height:42px;padding:0 14px;border:0;background:transparent;color:var(--ink);font:inherit;text-align:left;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:10px}
+#ctx button:hover{background:var(--btn)}
+#ctx button.danger{color:var(--danger)}
 .list .sw{width:12px;height:12px;border-radius:50%;margin-right:10px;flex:none;display:inline-block}
 .list small{color:var(--muted);font-size:.78rem}
 #viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3}
@@ -284,6 +298,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <div id="toast"></div>
   </div>
 </div>
+<div id="ctx" hidden></div>
 <div id="addpop"><div class="pop">
   <div class="pophead"><strong>置くものを選ぶ</strong><button id="addclose" aria-label="閉じる">✕</button></div>
   <div class="popbody">
@@ -404,6 +419,7 @@ function migrate(st){
     if (it.type === 'person' && it.model === undefined) it.model = it.kind === 'man' ? 'asia-casual-man' : null;
     if (it.type === 'person' && it.model && !MODEL_BY_ID[it.model]) it.model = null;
     if (it.type === 'person' && it.posture === undefined) it.posture = null;
+    if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -464,6 +480,7 @@ let labels = [];
 
 // manipulator: rotate ring + forward knob + wide invisible hit ring
 const gizmo = new THREE.Group(); scene.add(gizmo); gizmo.visible = false;
+const handleGroup = new THREE.Group(); scene.add(handleGroup);   // 背景布と鏡の辺をつまむ四角
 const gizRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.045, 10, 72), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
 gizRing.rotation.x = Math.PI/2; gizRing.renderOrder = 8; gizmo.add(gizRing);
 // 当たり判定は見た目どおりに。リングは半径 1 に描いてあるので、回転はその前後の帯だけ。
@@ -499,7 +516,10 @@ for (const [color, scale, order] of [[0xffffff, 1.28, 9], [0xe29a44, 1, 10]]){
 
 const matWall = new THREE.MeshStandardMaterial({color:0xf2f2f0, roughness:0.95, side:THREE.DoubleSide});
 const matFloor = new THREE.MeshStandardMaterial({color:0xdcdcd8, roughness:0.9, side:THREE.DoubleSide});
-const matCeil = new THREE.MeshStandardMaterial({color:0x8d8f94, roughness:1}); // faces down only, so it never hides the room from above
+// 下向きにしか面が無いので、上から見た部屋は隠さない。天井裏は太陽もヘミの空側も
+// 当たらず真っ黒になる。直接見ることはほとんど無いが、床鏡はそれを映すので
+// 「鏡が部分的に映らない」ように見えていた。自発光を少し持たせて灰色に保つ。
+const matCeil = new THREE.MeshStandardMaterial({color:0xc4c7cc, roughness:1, emissive:0x55585e});
 
 // parametric patch (u,v in 0..1) -> Mesh
 function patch(fn, nu, nv, material){
@@ -548,8 +568,8 @@ function buildStudio(){
   const pts = [];
   for (let x = -Math.floor(w/2); x <= w/2; x++) pts.push(new V(x,0.003,-d/2), new V(x,0.003,d/2));
   for (let z = -Math.floor(d/2); z <= d/2; z++) pts.push(new V(-w/2,0.003,z), new V(w/2,0.003,z));
-  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6})); grid.userData.noHit = true; studioGroup.add(grid);
-  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new V(-w/2,0.004,-d/2),new V(w/2,0.004,-d/2),new V(w/2,0.004,d/2),new V(-w/2,0.004,d/2)]), new THREE.LineBasicMaterial({color:0x333})); edge.userData.noHit = true; studioGroup.add(edge);
+  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6})); grid.userData.noHit = true; grid.userData.ground = true; studioGroup.add(grid);
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new V(-w/2,0.004,-d/2),new V(w/2,0.004,-d/2),new V(w/2,0.004,d/2),new V(-w/2,0.004,d/2)]), new THREE.LineBasicMaterial({color:0x333})); edge.userData.noHit = true; edge.userData.ground = true; studioGroup.add(edge);
   sun.position.set(w*0.4, h*1.5, d*0.6); sun.target.position.set(0,0,0);
   const sc = sun.shadow.camera; const m = Math.max(w,d);
   sc.left = -m; sc.right = m; sc.top = m; sc.bottom = -m; sc.near = 0.5; sc.far = m*4; sc.updateProjectionMatrix();
@@ -652,7 +672,7 @@ const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind =
 // a reflector is read as a panel, so its two edges are named by which is longer
 const sides = (a, b) => `長辺 ${num(Math.max(a,b))} × 短辺 ${num(Math.min(a,b))} m`;
 // a drawing with several things in it needs to say which one each number belongs to
-const MIRROR_NAME = {water:'水面', floor:'床鏡', wall:'鏡'};
+const MIRROR_NAME = {floor:'床鏡', wall:'鏡'};
 function itemName(it){
   if (it.type === 'camera') return camName(it);
   if (it.type === 'person') return personLabel(it);
@@ -1177,13 +1197,13 @@ function buildLight(it){
   g.add(wedge(0.6, 4, 0xe8c547, 0.2));
   return g;
 }
+const REFLECT_BG = new THREE.Color(0xdfe2e7);
 function buildMirror(it){
   const g = new THREE.Group();
-  const tint = it.kind === 'water' ? 0x5f7d8c : 0xc9c9c9;
   const res = 1024 * Math.min(devicePixelRatio,2) / 2;
   let refl, marker;
   if (it.kind === 'wall'){
-    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:tint});
+    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:0xc9c9c9});
     refl.position.set(0, it.h/2 + 0.01, 0);
     const frame = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w+0.06, it.h+0.06, 0.04), mat(0x333))); frame.position.set(0,it.h/2+0.01,-0.03); g.add(frame);
     marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS.mirror}));
@@ -1191,7 +1211,7 @@ function buildMirror(it){
     const dir = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.5), new THREE.MeshBasicMaterial({color:COLORS.mirror, transparent:true, opacity:0.25}));
     dir.rotation.x = -Math.PI/2; dir.position.set(0,0.005,0.3); dir.userData.plan = true; g.add(dir);
   } else {
-    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:tint});
+    refl = new Reflector(new THREE.PlaneGeometry(it.w, it.h), {clipBias:0.003, textureWidth:res, textureHeight:res, color:0xc9c9c9});
     refl.rotation.x = -Math.PI/2; refl.position.y = 0.01;
     marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h), new THREE.MeshBasicMaterial({color:COLORS.mirror, transparent:true, opacity:0.45}));
     marker.rotation.x = -Math.PI/2; marker.position.y = 0.007; marker.userData.plan = true;
@@ -1202,15 +1222,27 @@ function buildMirror(it){
   // パースでは視点の外側にある壁を半透明にしているが、鏡の仮想カメラは別の位置から
   // 見ている。そのまま描くと、鏡が半透明の壁を透かして外の暗い空間を映してしまう。
   // 映り込みの間だけ壁を元の不透明さに戻す。
+  // 手前の壁は無い（無いと中が見えない）ので、そちらを向いた鏡は何も無い方向を映す。
+  // アプリの暗い地色をそのまま映すと「鏡が真っ黒＝映っていない」に見えるため、
+  // 映り込みの間だけ地色を明るいスタジオ色にしておく。
   const draw = refl.onBeforeRender;
   refl.onBeforeRender = function(...a){
-    const off = [dimGroup, measGroup, frustumGroup, gizmo].filter(o => o.visible);
+    const off = [dimGroup, measGroup, frustumGroup, gizmo, handleGroup].filter(o => o.visible);
     for (const o of off) o.visible = false;
     const walls = studioGroup.children.filter(n => n.userData.sides && n.material);
     const was = walls.map(n => [n.visible, n.material.opacity, n.material.depthWrite]);
     for (const n of walls){ n.visible = true; n.material.opacity = 1; n.material.depthWrite = true; }
+    // 床鏡は床の 1 cm 上にある。Reflector の斜め near クリップではその 1 cm を
+    // 切り分けられず、鏡が床の裏側（光の当たらない面＝真っ黒）を映していた。
+    // 床鏡のあいだだけ床と grid を外す。壁鏡は床を映してよいのでそのまま。
+    const ground = it.kind === 'floor'
+      ? studioGroup.children.filter(n => n.visible && (n.userData.ground || n.userData.sides?.[0] === 'floor')) : [];
+    for (const n of ground) n.visible = false;
+    const bg = scene.background; scene.background = REFLECT_BG;
     try { draw.apply(this, a); }
     finally {
+      scene.background = bg;
+      for (const n of ground) n.visible = true;
       for (const o of off) o.visible = true;
       walls.forEach((n, i) => { n.visible = was[i][0]; n.material.opacity = was[i][1]; n.material.depthWrite = was[i][2]; });
     }
@@ -1283,10 +1315,40 @@ function updateItemTransform(it){
 const GIZMO_R = 0.9;
 function updateSelectionVisuals(){
   const it = sel();
-  gizmo.visible = !!it && !it.hidden && !viewerMode;
-  buildMeasures();
+  gizmo.visible = !!it && !it.hidden && !it.locked && !viewerMode;
+  buildMeasures(); updateHandles();
   if (!it) return;
   gizmo.position.set(it.x, standHeight(it) + 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
+}
+// ---------- 背景布・鏡は辺をつまんで大きさを変える ----------
+// スライダーでも変えられるが、現場では「もう少し広く」を figure の横で示したい
+const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]}};
+const handleGeo = new THREE.BoxGeometry(0.13, 0.13, 0.13);
+const handleMat = new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false});
+function edgeHandles(it){
+  if (!it || it.hidden || it.locked || viewerMode) return [];
+  const wx = [{k:'w', ax:'x', s:1, p:[it.w/2, 0.02, 0]}, {k:'w', ax:'x', s:-1, p:[-it.w/2, 0.02, 0]}];
+  if (it.type === 'mirror')
+    return it.kind === 'floor'
+      ? wx.concat([{k:'h', ax:'z', s:1, p:[0, 0.02, it.h/2]}, {k:'h', ax:'z', s:-1, p:[0, 0.02, -it.h/2]}])
+      : wx.concat([{k:'h', ax:'y', s:1, p:[0, it.h, 0]}]);
+  if (it.type === 'chroma')
+    return wx.concat([{k:'h', ax:'y', s:1, p:[0, it.h, 0]},
+                      {k:'drape', ax:'z', s:1, p:[0, 0.02, Math.max(it.drape || 0, 0.2)]}]);
+  return [];
+}
+function handleWorld(it, h){
+  const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+  const base = itemObjs.get(it.id)?.group.position.y || 0;
+  return new THREE.Vector3(it.x + h.p[0]*c + h.p[2]*sn, base + h.p[1], it.z - h.p[0]*sn + h.p[2]*c);
+}
+function updateHandles(){
+  handleGroup.clear();
+  const it = sel();
+  for (const h of edgeHandles(it)){
+    const m = new THREE.Mesh(handleGeo, handleMat); m.renderOrder = 11;
+    m.position.copy(handleWorld(it, h)); handleGroup.add(m);
+  }
 }
 const sel = () => state.items.find(i => i.id === selectedId) || null;
 // several cameras can stand in the room; one of them is the one being looked through
@@ -1351,7 +1413,8 @@ function renderView(view, rect, isMain){
   for (const g of [dimGroup, measGroup]) g.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
   frustumGroup.visible = view !== 'cam' && !frustumGroup.userData.hidden;
   const showSel = isMain && !capturing && view !== 'cam';
-  const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !viewerMode;
+  const s = sel(); gizmo.visible = showSel && !!s && !s.hidden && !s.locked && !viewerMode;
+  handleGroup.visible = showSel;
   renderer.setScissorTest(true);
   if (view === 'cam'){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
@@ -1423,19 +1486,48 @@ function floorHit(x,y){
   ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
   const p = new THREE.Vector3(); return ray.ray.intersectPlane(floorPlane, p) ? p : null;
 }
+// マニピュレータの当たり判定はレイを飛ばさずに計算で出す。極薄の円板へ真上から
+// レイを向けると three の三角形判定が浮動小数で取りこぼすことがあり、上面ビューでは
+// リングも中心の円もほとんど反応しなかった（中心ちょうどだけ拾う状態）。
+const gizPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+function gizmoR(x, y){
+  ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
+  gizPlane.constant = -gizmo.position.y;
+  const p = new THREE.Vector3();
+  if (!ray.ray.intersectPlane(gizPlane, p)) return Infinity;
+  return Math.hypot(p.x - gizmo.position.x, p.z - gizmo.position.z) / GIZMO_R;
+}
+// つまみは画面上の距離で拾う。世界の大きさで判定すると、パースの奥にある辺が
+// 指より小さくなって掴めない
+function handleAt(x, y){
+  const it = sel(); const hs = edgeHandles(it);
+  if (!hs.length || mainView === 'cam') return null;
+  const cam = mainCam(), r = mainRect(); let best = null;
+  for (const h of hs){
+    const v = handleWorld(it, h).project(cam);
+    if (v.z > 1) continue;
+    const d = Math.hypot((v.x+1)/2*r.w - x, (1-v.y)/2*r.h - y);
+    if (d < 22 && (!best || d < best.d)) best = {d, h};
+  }
+  return best ? {handle:best.h} : null;
+}
 function pick(x,y){
   if (mainView === 'cam') return null;
-  ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
+  const hh = handleAt(x, y); if (hh) return hh;
   const s = sel();
-  if (s && !s.hidden && !viewerMode){
-    gizmo.updateMatrixWorld(true);
-    if (ray.intersectObject(gizRot).length) return {rotate:true};    // リングとその前後
-    if (ray.intersectObject(gizMove).length) return {move:true};     // リングの内側
+  if (s && !s.hidden && !s.locked && !viewerMode && mainView !== 'side'){
+    const r = gizmoR(x, y);
+    if (r <= 0.86) return {move:true};                     // リングの内側
+    if (r <= 1.16) return {rotate:true};                   // リングとその前後
   }
-  // 選択はジオメトリに当たったときだけ。以前は床を 0.45 m 以内で拾っていたので、
-  // 何も無いところを押しても近くの物が選ばれた
+  // 選択はジオメトリに当たったときだけ。輪郭線（LineSegments）は Line.threshold の
+  // 1 m をまとっているので、拾うと箱のかなり外を押しても選ばれてしまう。
+  ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
   const hits = ray.intersectObjects(itemsGroup.children.filter(g => g.visible), true);
-  for (const h of hits){ let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id}; }
+  for (const h of hits){
+    if (h.object.isLine || h.object.isPoints || h.object.userData.noHit) continue;
+    let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id};
+  }
   return null;
 }
 canvas.addEventListener('pointerdown', e => {
@@ -1445,9 +1537,11 @@ canvas.addEventListener('pointerdown', e => {
   if (mainView === 'cam'){ const ci = camItem(); drag = ci && !viewerMode ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
   if (viewerMode){ drag = {pan:true}; return; }
   const hit = pick(x,y);
+  if (hit?.id || hit?.move || hit?.rotate) armLongPress(hit.id || selectedId, e);
+  if (hit?.handle){ drag = startHandle(hit.handle); return; }
   if (hit?.rotate){ drag = {rotate:true}; return; }
   const grab = it => {
-    if (mainView === 'side'){ drag = {pan:true}; return; }
+    if (mainView === 'side' || it.locked){ drag = {pan:true}; return; }
     const p = floorHit(x,y);
     drag = p ? {move:true, ox: it.x - p.x, oz: it.z - p.z} : {pan:true};
   };
@@ -1455,10 +1549,26 @@ canvas.addEventListener('pointerdown', e => {
   if (hit?.id){ select(hit.id); grab(sel()); return; }
   drag = {pan:true, maybeDeselect:true};
 });
+// 長押しでも右クリックと同じメニュー。指を 8px 以上動かしたらただのドラッグ
+let lpT = null, lpAt = null;
+function armLongPress(id, e){
+  cancelLongPress();
+  if (!id || viewerMode || pointers.size > 1) return;
+  lpAt = {x:e.clientX, y:e.clientY};
+  lpT = setTimeout(() => { lpT = null; drag = null; pointers.clear(); openCtx(id, lpAt.x, lpAt.y); }, 550);
+}
+function cancelLongPress(){ if (lpT){ clearTimeout(lpT); lpT = null; } }
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault(); cancelLongPress();
+  const r = canvas.getBoundingClientRect(); const h = pick(e.clientX - r.left, e.clientY - r.top);
+  const id = h?.id || ((h?.move || h?.rotate) ? selectedId : null);
+  if (id) openCtx(id, e.clientX, e.clientY); else closeCtx();
+});
 canvas.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
   const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
   const pt = pointers.get(e.pointerId); const dx = x - pt.x, dy = y - pt.y; pt.x = x; pt.y = y;
+  if (lpAt && Math.hypot(e.clientX - lpAt.x, e.clientY - lpAt.y) > 8) cancelLongPress();
   if (pinch && pointers.size === 2){
     const [a,b] = [...pointers.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y); const k = d/pinch.d0;
     if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
@@ -1468,6 +1578,7 @@ canvas.addEventListener('pointermove', e => {
   }
   if (!drag) return;
   if (drag.look){ lookDrag(dx, dy); return; }
+  if (drag.handle){ dragHandle(drag, x, y); return; }
   if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
   if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); needRender = true; return; }
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
@@ -1478,17 +1589,50 @@ canvas.addEventListener('pointermove', e => {
 });
 function lookDrag(dx, dy){ const ci = camItem(); if (!ci) return; ci.rot = norm(ci.rot - dx*0.15); ci.pitch = clamp(Math.round((ci.pitch - dy*0.15)*10)/10, -60, 60); refreshCam(ci); needRender = true; }
 function endPointer(e){
+  cancelLongPress();
   const had = pointers.has(e.pointerId); pointers.delete(e.pointerId);
   if (!had) return;
   if (pointers.size < 2) pinch = null;
   if (pointers.size === 0 && drag){
     if (drag.pan && drag.maybeDeselect) select(null);
-    else if (drag.move || drag.rotate || drag.look){ const ci = camItem(); if (ci) ci.pitch = Math.round(ci.pitch); renderSel(); renderList(); saveHash(); }
+    else if (drag.move || drag.rotate || drag.look || drag.handle){ const ci = camItem(); if (ci) ci.pitch = Math.round(ci.pitch); renderSel(); renderList(); saveHash(); }
     drag = null;
   }
 }
 canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', e => { e.preventDefault(); if (mainView==='cam'){ const ci=camItem(); if(ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci);} } else if (mainView==='pers'){ orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, 80); } else { planCam.zoom = clamp(planCam.zoom*(e.deltaY<0?1.1:0.9),0.3,6); sideCam.zoom=planCam.zoom; planCam.updateProjectionMatrix(); sideCam.updateProjectionMatrix(); } needRender = true; }, {passive:false});
+// つまんだ辺だけが動き、向かい側の辺はその場に残る
+function startHandle(h){
+  const it = sel();
+  const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+  if (h.ax === 'y') return {handle:h, it, base: itemObjs.get(it.id)?.group.position.y || 0};
+  const a = h.ax === 'x' ? new THREE.Vector2(c, -sn) : new THREE.Vector2(sn, c);
+  const centre = new THREE.Vector2(it.x, it.z), along = centre.dot(a);
+  const perp = centre.clone().sub(a.clone().multiplyScalar(along));
+  return {handle:h, it, a, perp, fixed: h.k === 'drape' ? along : along - h.s*it[h.k]/2};
+}
+function dragHandle(d, x, y){
+  const h = d.handle, it = d.it, lim = SIZE_LIM[it.type]?.[h.k] || [0.3, 20];
+  if (h.ax === 'y'){
+    ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
+    const r = THREE.MathUtils.degToRad(it.rot || 0);
+    const pl = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(Math.sin(r), 0, Math.cos(r)), new THREE.Vector3(it.x, 0, it.z));
+    const p = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(pl, p)) return;
+    it.h = +clamp(p.y - d.base, lim[0], lim[1]).toFixed(2);
+  } else {
+    const p = floorHit(x,y); if (!p) return;
+    const t = (new THREE.Vector2(p.x, p.z).dot(d.a) - d.fixed) * h.s;
+    const size = +clamp(t, lim[0], lim[1]).toFixed(2);
+    it[h.k] = size;
+    if (h.k !== 'drape'){
+      const q = d.perp.clone().add(d.a.clone().multiplyScalar(d.fixed + h.s*size/2));
+      setPos(it, q.x, q.y);
+    }
+  }
+  rebuildItem(it); needRender = true;
+}
 function setPos(it, x, z){ const {w,d} = state.studio; it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2); }
 function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildCamera(ci); g.userData.id = ci.id; g.position.copy(o.group.position); g.rotation.y = THREE.MathUtils.degToRad(ci.rot); itemsGroup.remove(o.group); itemsGroup.add(g); o.group = g; } buildFrustum(ci); updateSelectionVisuals(); }
 
@@ -1632,7 +1776,7 @@ function addItem(type, opt){
   else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
-  else it = {id, type, x:0, z:0.5, rot:0, kind:'water', w:3, h:2};
+  else it = {id, type, x:0, z:0.5, rot:0, kind:'floor', w:3, h:2};
   // drop it next to what is already there rather than on top of it
   const foot = o => Math.max(o.w || 0.4, o.d || 0.4, 0.4) * 0.5;
   let tries = 0;
@@ -1649,11 +1793,16 @@ function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).t
 const personLabel = it => PERSON_KIND[it.kind]?.label || '人';
 const EYE_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1"/><path d="M6.6 6.6A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+const SVG = (d, w=20) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const LOCK_ON  = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>');
+const LOCK_OFF = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.6-1.7"/>');
+const TRASH    = SVG('<path d="M4 6.5h16"/><path d="M9.5 6.5V4h5v2.5"/><path d="M6.5 6.5 7.4 20h9.2l.9-13.5"/><path d="M10 10v6.5M14 10v6.5"/>');
+const GRIP     = SVG('<circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/>', 16);
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
   {                                              // the room itself, edited like anything else
     const row = document.createElement('div'); row.className = 'itemrow'; row.dataset.kind = STUDIO;
-    const b = document.createElement('button'); b.classList.toggle('on', selectedId === STUDIO);
+    const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', selectedId === STUDIO);
     const s = state.studio;
     b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span><small>${fmt(s.w)}×${fmt(s.d)}×高 ${fmt(s.h)} m</small>`;
     b.addEventListener('click', () => select(STUDIO, true));
@@ -1663,7 +1812,7 @@ function renderList(){
   for (const it of state.items){
     counts[it.type] = (counts[it.type]||0)+1;
     const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : ''); row.dataset.kind = it.type;
-    const b = document.createElement('button'); b.classList.toggle('on', it.id === selectedId);
+    const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
     const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
     const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
@@ -1675,19 +1824,77 @@ function renderList(){
       : it.type==='chair' ? `座面 ${fmt(it.seatH)} m`
       : it.type==='table' || it.type==='box' ? dims('w','d','h')
       : it.type==='model' ? (modelCache.has(it.key) ? dims('w','d','h') : `箱 ${dims('w','d','h')}`)
-      : {water:'床の水面',floor:'床の鏡',wall:'立て鏡'}[it.kind];
+      : {floor:'床の鏡',wall:'立て鏡'}[it.kind];
     b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
     b.addEventListener('click', () => { select(it.id, true); });
-    const eye = document.createElement('button'); eye.className = 'eye'; eye.title = it.hidden ? '表示する' : '隠す'; eye.setAttribute('aria-label', eye.title);
-    eye.innerHTML = it.hidden ? EYE_OFF : EYE_ON;
-    eye.addEventListener('click', () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
-    row.append(b, eye); el.appendChild(row);
+    if (it.locked) row.classList.add('locked-item');
+    row.dataset.id = it.id;
+    const icon = (cls, title, html, fn) => {
+      const x = document.createElement('button'); x.className = cls; x.title = title; x.setAttribute('aria-label', title);
+      x.innerHTML = html; x.addEventListener('click', fn); return x;
+    };
+    const grip = document.createElement('span'); grip.className = 'grip'; grip.innerHTML = GRIP;
+    grip.title = 'ドラッグで並べ替え'; grip.setAttribute('aria-label', grip.title);
+    grip.addEventListener('pointerdown', e => startReorder(e, it));
+    const lock = icon('ico' + (it.locked ? ' on' : ''), it.locked ? 'ロックを外す' : 'ロック', it.locked ? LOCK_ON : LOCK_OFF, () => toggleLock(it));
+    const eye = icon('ico eye', it.hidden ? '表示する' : '隠す', it.hidden ? EYE_OFF : EYE_ON,
+      () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
+    const del = icon('ico trash', '削除', TRASH, () => { if (it.locked){ toast('ロック中です'); return; } deleteItem(it); });
+    row.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(it.id, e.clientX, e.clientY); });
+    row.prepend(grip); row.append(b, lock, eye, del); el.appendChild(row);
   }
   if (!state.items.length){
     const p = document.createElement('p'); p.className = 'hint';
     p.textContent = 'まだ何も置いていません。＋ から選んでください。';
     el.appendChild(p);
   }
+}
+// ---------- list: drag to reorder ----------
+// つまみを掴んで上下。並び順は「カメラ 1／カメラ 2」の番号にもそのまま出る
+let reorder = null;
+function startReorder(e, it){
+  if (viewerMode) return;
+  e.preventDefault(); e.stopPropagation();
+  const el = document.getElementById('items');
+  const row = e.currentTarget.parentElement;
+  reorder = {it, row, el, moved:false};
+  row.classList.add('dragging');
+  e.currentTarget.setPointerCapture(e.pointerId);
+  e.currentTarget.addEventListener('pointermove', moveReorder);
+  e.currentTarget.addEventListener('pointerup', endReorder);
+  e.currentTarget.addEventListener('pointercancel', endReorder);
+}
+function reorderTarget(y){
+  const rows = [...reorder.el.querySelectorAll('.itemrow[data-id]')];
+  for (const r of rows){
+    const b = r.getBoundingClientRect();
+    if (y < b.top + b.height/2) return {row:r, before:true};
+  }
+  const last = rows[rows.length-1];
+  return last ? {row:last, before:false} : null;
+}
+function moveReorder(e){
+  if (!reorder) return;
+  reorder.moved = true;
+  for (const r of reorder.el.querySelectorAll('.itemrow')) r.classList.remove('dropbefore','dropafter');
+  const t = reorderTarget(e.clientY); if (!t || t.row === reorder.row) return;
+  t.row.classList.add(t.before ? 'dropbefore' : 'dropafter');
+}
+function endReorder(e){
+  if (!reorder) return;
+  const {it, el} = reorder;
+  const t = reorder.moved ? reorderTarget(e.clientY) : null;
+  for (const r of el.querySelectorAll('.itemrow')) r.classList.remove('dropbefore','dropafter','dragging');
+  e.currentTarget.removeEventListener('pointermove', moveReorder);
+  e.currentTarget.removeEventListener('pointerup', endReorder);
+  e.currentTarget.removeEventListener('pointercancel', endReorder);
+  reorder = null;
+  if (!t || t.row.dataset.id === it.id) return;
+  const from = state.items.indexOf(it);
+  state.items.splice(from, 1);
+  const anchor = state.items.findIndex(i => i.id === t.row.dataset.id);
+  state.items.splice(anchor < 0 ? state.items.length : anchor + (t.before ? 0 : 1), 0, it);
+  renderList(); renderSel(); saveHash();
 }
 
 // select
@@ -1789,7 +1996,7 @@ function renderSel(){
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
 
   } else {
-    h += btns('kind', [['water','床の水面'],['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
+    h += btns('kind', [['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
 
   }
@@ -1860,14 +2067,59 @@ function deleteItem(it){
   if (it.id === state.activeCam) state.activeCam = firstCamId(state);
   select(null); rebuildItems(); layoutPip(); saveHash();
 }
+// ロックしたものは図面の上で動かない。選んで設定を見ることはできる
+function toggleLock(it){
+  if (!it || viewerMode) return;
+  it.locked = !it.locked;
+  updateSelectionVisuals(); renderList(); renderSel(); needRender = true; saveHash();
+  toast(it.locked ? 'ロックしました' : 'ロックを外しました');
+}
+function duplicateItem(it){
+  if (!it || viewerMode) return;
+  const c = JSON.parse(JSON.stringify(it));
+  c.id = c.type[0] + (Date.now()%100000) + (uid++);
+  c.locked = false;
+  setPos(c, c.x + 0.5, c.z + 0.5);
+  state.items.splice(state.items.indexOf(it) + 1, 0, c);
+  rebuildItems(); select(c.id); layoutPip(); needRender = true; saveHash();
+}
 // Delete / Backspace removes what is selected, unless a field has the keyboard
 addEventListener('keydown', e => {
   if (e.key !== 'Delete' && e.key !== 'Backspace') return;
   const t = e.target;
   if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
   const it = sel(); if (!it) return;
-  e.preventDefault(); deleteItem(it);
+  e.preventDefault();
+  if (it.locked){ toast('ロック中です'); return; }
+  deleteItem(it);
 });
+
+// ---------- right click / long press ----------
+// 現場では指でしか触らない人もいる。長押しでも同じメニューが出る
+const ctxEl = document.getElementById('ctx');
+function closeCtx(){ ctxEl.hidden = true; ctxEl.innerHTML = ''; }
+function openCtx(id, px, py){
+  if (viewerMode) return;
+  const it = state.items.find(i => i.id === id); if (!it) return;
+  select(id);
+  ctxEl.innerHTML = '';
+  const add = (label, cls, fn) => {
+    const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls;
+    b.addEventListener('click', () => { closeCtx(); fn(); });
+    ctxEl.appendChild(b);
+  };
+  add(it.locked ? 'ロックを外す' : 'ロック', '', () => toggleLock(it));
+  add('複製', '', () => duplicateItem(it));
+  add('削除', 'danger', () => { if (it.locked){ toast('ロック中です'); return; } deleteItem(it); });
+  ctxEl.hidden = false;
+  const r = ctxEl.getBoundingClientRect();
+  ctxEl.style.left = Math.max(6, Math.min(px, innerWidth  - r.width  - 6)) + 'px';
+  ctxEl.style.top  = Math.max(6, Math.min(py, innerHeight - r.height - 6)) + 'px';
+}
+addEventListener('pointerdown', e => { if (!ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx(); }, true);
+addEventListener('keydown', e => { if (e.key === 'Escape') closeCtx(); });
+addEventListener('scroll', closeCtx, true);
+addEventListener('resize', closeCtx);
 // A camera at 0 should face the back wall, the way a set is normally laid out.
 // Everything else keeps 0 = facing the front, so a person looks at the camera.
 // Only the dial is offset; what is stored stays one convention for the whole scene.
@@ -2526,7 +2778,7 @@ addEventListener('resize', () => { if (paperModal.classList.contains('show')) fi
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null};
+window.__sp = {THREE, renderer, scene, gizmo, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }};
 (async () => {
   findDownloads();
   await loadHash();

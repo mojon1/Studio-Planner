@@ -77,7 +77,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   const t = await open('desktop', { width: 1500, height: 950 });
   for (const m of ['asia-casual-man','asia-casual-woman','af-business-man','us-casual-woman']) await t.addPerson(m);
   for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
-  const rows = await t.page.$$eval('#items .itemrow > button:first-child', b => b.map(x => x.textContent.trim()));
+  const rows = await t.page.$$eval('#items .itemrow > button.name', b => b.map(x => x.textContent.trim()));
   ok('all presets placed', rows.length === 13, `${rows.length} rows`);
   ok('人 labelled by kind', rows.some(r => r.startsWith('男性')) && rows.some(r => r.startsWith('女性')));
 
@@ -105,7 +105,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // rotate ring: grab a person and drag the ring half a turn
   await t.page.click('[data-view="plan"]');
   await t.page.click('#pipbtn');                                   // the window would sit over the ring
-  await t.page.click('#items .itemrow:nth-child(2) > button:first-child');
+  await t.page.click('#items .itemrow:nth-child(2) > button.name');
   await t.page.waitForTimeout(300);
   const before = await t.page.inputValue('[data-range="rot"]');
   // リングは世界座標で置かれている。画面のどこに来ているかを投影して求める
@@ -139,7 +139,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#pipbtn');
 
   // typing an exact number into a slider readout
-  await t.page.click('#items .itemrow[data-kind="table"] > button:first-child');
+  await t.page.click('#items .itemrow[data-kind="table"] > button.name');
   await t.page.waitForTimeout(250);
   await t.page.click('[data-edit="w"]');
   await t.page.fill('input.vedit', '2.4');
@@ -161,13 +161,13 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('no two dimension labels overlap', overlap === 0, `${overlap} overlapping pairs of ${boxes.length}`);
 
   // the distance line belongs to the object now, and only appears when switched on
-  await t.page.click('#items .itemrow[data-kind="person"] > button:first-child');
+  await t.page.click('#items .itemrow[data-kind="person"] > button.name');
   await t.page.waitForTimeout(250);
   ok('objects carry a カメラまで switch', await t.page.$('[data-dim="dimCam"]') !== null);
   ok('cameras no longer carry 被写体まで', await t.page.$('[data-dim="dimSubject"]') === null);
   await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(500);
   await t.page.click('[data-dim="dimCam"]'); await t.page.waitForTimeout(400);
-  await t.page.click('#items .itemrow[data-kind="box"] > button:first-child'); await t.page.waitForTimeout(500);
+  await t.page.click('#items .itemrow[data-kind="box"] > button.name'); await t.page.waitForTimeout(500);
   const lines = (await t.page.$$eval('#labels span', n => n.map(x => x.textContent))).filter(x => x.includes('まで'));
   // the switched-on person keeps its line; the box only has one because it is selected
   ok('a switched-on object keeps its line', lines.some(x => x.startsWith('男性まで')), lines.join(' | '));
@@ -402,7 +402,7 @@ async function open(name, viewport, mobile = false, hash = ''){
 // --- 8. the built-in person model -------------------------------------------------------
 {
   const t = await open('person', { width: 1280, height: 800 });
-  await t.page.click('#items .itemrow > button:first-child >> nth=1');   // the default 男性
+  await t.page.click('#items .itemrow > button.name >> nth=1');   // the default 男性
   await t.page.waitForTimeout(300);
   await t.page.waitForTimeout(3000);
   ok('a person carries the kind chosen at the + button',
@@ -500,7 +500,7 @@ async function open(name, viewport, mobile = false, hash = ''){
     p.x = 2; p.z = 2;                       // 箱の真上へ
     return p.id;
   });
-  await t.page.click('#items .itemrow > button:first-child >> nth=1');   // 人に戻る
+  await t.page.click('#items .itemrow > button.name >> nth=1');   // 人に戻る
   await t.page.waitForTimeout(300);
   await setHeight('1.70');                   // 置き直させる（setProp -> rebuildItem -> restack）
   const onBox = await t.page.evaluate(id => +window.__sp.group(id).position.y.toFixed(3), who);
@@ -520,7 +520,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   await g.page.route('**/models/*.glb', r => r.fulfill({status: 404}));
   await g.page.reload();
   await g.page.waitForTimeout(2500);
-  await g.page.click('#items .itemrow > button:first-child >> nth=1');
+  await g.page.click('#items .itemrow > button.name >> nth=1');
   await g.page.waitForTimeout(500);
   const txt = await g.page.textContent('#selbody');
   ok('a missing model explains itself', txt.includes('サーバーから開いたとき'), txt.slice(0, 60));
@@ -532,6 +532,80 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('and the mannequin is still standing there', Math.abs(h - 1.7) < 0.05, `${h} m`);
   ok('missing-model run clean', g.errors.length === 0, g.errors.join(' | '));
   await g.ctx.close();
+}
+
+// --- 10. hit ranges, the right-click menu, the list buttons, the edge handles ------
+{
+  const t = await open('handles', { width: 1300, height: 900 });
+  const P = t.page;
+  const world = (x, z, y = 0) => P.evaluate(([x, y, z]) => {
+    const sp = window.__sp, r = document.getElementById('view').getBoundingClientRect();
+    const q = new sp.THREE.Vector3(x, y, z).project(sp.camera());
+    return { x: r.x + (q.x + 1) / 2 * r.width, y: r.y + (1 - q.y) / 2 * r.height };
+  }, [x, y, z]);
+  const selId = () => P.evaluate(() => window.__sp.sel());
+  const one = type => P.evaluate(t => { const i = window.__sp.state().items.find(o => o.type === t);
+    return i ? {id:i.id, type:i.type, x:i.x, z:i.z, w:i.w, h:i.h, locked:!!i.locked} : null; }, type);
+  const count = type => P.evaluate(t => window.__sp.state().items.filter(o => o.type === t).length, type);
+  await t.add('[data-add="box"]');
+  await P.click('#viewbtns button[data-view="plan"]'); await P.waitForTimeout(400);
+  await P.evaluate(() => window.__sp.select(null)); await P.waitForTimeout(200);
+  const box = await one('box');            // 置かれた場所はアプリが決める
+
+  // 1 m の箱は 1 m の箱ぶんしか選べない。輪郭線が Line.threshold の 1 m を
+  // まとっていたころは、外側 1 m を押しても選ばれていた
+  let q = await world(box.x + 0.2, box.z); await P.mouse.click(q.x, q.y); await P.waitForTimeout(200);
+  ok('geometry selects', await selId() === box.id, String(await selId()));
+  q = await world(box.x + 1.3, box.z); await P.mouse.click(q.x, q.y); await P.waitForTimeout(200);
+  ok('outside the geometry selects nothing', await selId() === null, String(await selId()));
+  // マニピュレータ: 内側が移動、リング上が回転、外は素通り
+  q = await world(box.x + 0.2, box.z); await P.mouse.click(q.x, q.y); await P.waitForTimeout(200);
+  const hit = async (x, z) => { const s = await world(x, z);
+    const r = await P.evaluate(() => document.getElementById('view').getBoundingClientRect().x);
+    return P.evaluate(([x, y]) => JSON.stringify(window.__sp.pick(x, y)), [s.x - r, s.y]); };
+  ok('inside the ring moves', (await hit(box.x + 0.4, box.z)).includes('move'), await hit(box.x + 0.4, box.z));
+  ok('the ring itself rotates', (await hit(box.x + 0.9, box.z)).includes('rotate'), await hit(box.x + 0.9, box.z));
+  ok('outside the ring is empty', await hit(box.x + 1.3, box.z) === 'null', await hit(box.x + 1.3, box.z));
+
+  // 右クリックのメニュー
+  q = await world(box.x + 0.2, box.z); await P.mouse.click(q.x, q.y, { button: 'right' }); await P.waitForTimeout(300);
+  const menu = await P.$$eval('#ctx button', b => b.map(x => x.textContent));
+  ok('right click offers lock, copy, delete', menu.join('/') === 'ロック/複製/削除', menu.join('/'));
+  await P.click('#ctx button >> nth=1'); await P.waitForTimeout(400);
+  ok('copy makes a second one', await count('box') === 2);
+  await P.keyboard.press('Delete'); await P.waitForTimeout(300);
+  ok('and Delete takes it away again', await count('box') === 1);
+
+  // ロック
+  q = await world(box.x + 0.2, box.z); await P.mouse.click(q.x, q.y); await P.waitForTimeout(200);
+  await P.click('#items .itemrow[data-kind="box"] .ico[aria-label="ロック"]'); await P.waitForTimeout(300);
+  ok('the list can lock a row', (await one('box')).locked === true);
+  ok('a locked object shows no manipulator', await P.evaluate(() => window.__sp.gizmo.visible) === false);
+  const a = await world(box.x + 0.2, box.z), b2 = await world(box.x + 1.6, box.z);
+  await P.mouse.move(a.x, a.y); await P.mouse.down(); await P.mouse.move(b2.x, b2.y, { steps: 6 }); await P.mouse.up();
+  await P.waitForTimeout(300);
+  ok('and does not move when dragged', (await one('box')).x === box.x, String((await one('box')).x));
+  await P.click('#items .itemrow[data-kind="box"] .ico.on'); await P.waitForTimeout(300);
+  ok('the same button unlocks it', (await one('box')).locked === false);
+  await P.click('#items .itemrow[data-kind="box"] .ico.trash'); await P.waitForTimeout(300);
+  ok('the trash button removes the row', await count('box') === 0);
+
+  // 背景布の辺を引く
+  await t.add('[data-add="chroma"]'); await P.waitForTimeout(500);
+  const c0 = await one('chroma');
+  const e1 = await world(c0.x + c0.w / 2, c0.z), e2 = await world(c0.x + c0.w / 2 + 1.2, c0.z);
+  await P.mouse.move(e1.x, e1.y); await P.mouse.down(); await P.mouse.move(e2.x, e2.y, { steps: 8 }); await P.mouse.up();
+  await P.waitForTimeout(400);
+  const c1 = await one('chroma');
+  ok('dragging an edge widens the backdrop', c1.w > c0.w + 1, `${c0.w} -> ${c1.w}`);
+  ok('and the far edge stays put', Math.abs((c1.x - c1.w / 2) - (c0.x - c0.w / 2)) < 0.06);
+
+  // 鏡から水面が消えている
+  await t.add('[data-add="mirror"]'); await P.waitForTimeout(400);
+  const kinds = await P.$$eval('#selbody [data-set="kind"]', b => b.map(x => x.textContent));
+  ok('the mirror has no water any more', kinds.join('/') === '床の鏡/立て鏡・レフ板', kinds.join('/'));
+  ok('handles run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
 }
 
 await browser.close(); server.close();
