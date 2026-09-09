@@ -83,8 +83,9 @@ async function open(name, viewport, mobile = false, hash = ''){
 
   // a second camera becomes the active one
   await t.add('[data-add="camera"]');
-  const camRows = await t.page.$$eval('#items .itemrow[data-kind="camera"] small', n => n.map(x => x.textContent));
-  ok('two cameras, one marked active', camRows.length === 2 && camRows.filter(x => x.includes('表示中')).length === 1, camRows.join(' | '));
+  const camState = await t.page.evaluate(() => { const st = window.__sp.state();
+    return {n: st.items.filter(i => i.type === 'camera').length, active: st.activeCam}; });
+  ok('two cameras, one marked active', camState.n === 2 && !!camState.active, JSON.stringify(camState));
 
   // sensor: pick 手動, type a width, save it under a name
   await t.page.click('[data-set="sensor"][data-val="custom"]');
@@ -150,8 +151,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   // the drawing names a reflector by its long and short side, a backdrop by w x d
   await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(600);
   const drawn = await t.page.$$eval('#labels span', n => n.map(x => x.textContent));
-  ok('reflector labelled long/short side', drawn.some(x => x.includes('長辺') && x.includes('短辺')), drawn.join(' | '));
-  ok('backdrop labelled width and depth', drawn.some(x => x.includes('幅') && x.includes('奥行')), drawn.filter(x => x.includes('幅')).join(' | '));
+  ok('the reflector names each edge on its own', drawn.some(x => /床鏡幅/.test(x)) && drawn.some(x => /床鏡奥行/.test(x)), drawn.join(' | '));
+  ok('so does the backdrop', drawn.some(x => /布幅/.test(x)), drawn.filter(x => x.includes('幅')).join(' | '));
   const boxes = await t.page.$$eval('#labels span', n => n.map(e => { const r = e.getBoundingClientRect(); return {l:r.left, r:r.right, t:r.top, b:r.bottom}; }));
   let overlap = 0;
   for (let i = 0; i < boxes.length; i++) for (let j = i+1; j < boxes.length; j++){
@@ -210,8 +211,9 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#addfab');
   await t.page.setInputFiles('#file', glb);
   await t.page.waitForTimeout(2500);
-  const sub = await t.page.$$eval('#items .itemrow[data-kind="model"] small', n => n.map(x => x.textContent));
-  ok('GLB imported at its true size', sub[0] === '2×1×3 m', sub.join(' | '));
+  const dims = await t.page.evaluate(() => { const m = window.__sp.state().items.find(i => i.type === 'model');
+    return m && [m.w, m.d, m.h].map(v => +v.toFixed(2)).join('×'); });
+  ok('GLB imported at its true size', dims === '2×1×3', String(dims));
   ok('height field matches', (await t.page.inputValue('[data-num="targetH"]')) === '3.00');
   ok('FBX loader resolves through the importmap',
      (await t.page.evaluate(() => import('three/addons/loaders/FBXLoader.js').then(m => typeof m.FBXLoader).catch(e => 'ERR ' + e.message))) === 'function');
@@ -222,8 +224,9 @@ async function open(name, viewport, mobile = false, hash = ''){
     {id:'c1',type:'camera',x:0,z:2.4,y:1.3,rot:180,pitch:-6,sensor:'ff',focal:35,aspect:'16:9'},
     {id:'m1',type:'model',x:0,z:0,rot:0,key:'missing',name:'set.glb',scale:1,upFix:false,w:2,d:1,h:3}]};
   const g = await open('shared', { width: 1280, height: 800 }, false, '#s=' + encodeState(shared));
-  const row = await g.page.$$eval('#items .itemrow[data-kind="model"] small', n => n.map(x => x.textContent));
-  ok('a model this device lacks shows as a box', row[0]?.startsWith('箱'), row.join(' | '));
+  await g.page.click('#items .itemrow[data-kind="model"] > button.name'); await g.page.waitForTimeout(300);
+  const note = await g.page.textContent('#selbody');
+  ok('a model this device lacks shows as a box', note.includes('実寸の箱'), note.slice(0, 40));
   ok('shared run clean', g.errors.length === 0, g.errors.join(' | '));
   await g.ctx.close();
 }
@@ -436,7 +439,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('sitting lowers the figure but keeps the model',
      sit.h > 1.0 && sit.h < 1.45 && await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'person').model) !== null,
      `${sit.h} m`);
-  ok('and the list says which pose', (await t.page.textContent('#items .itemrow >> nth=1')).includes('椅子'));
+  ok('and the settings panel says which pose', (await t.page.textContent('#selbody')).includes('椅子'));
   await t.page.screenshot({ path: `${OUT}/pose-sit.png` });
 
   await t.page.click('[data-pose="lie-up"]');
@@ -570,8 +573,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 右クリックのメニュー
   q = await world(box.x + 0.2, box.z); await P.mouse.click(q.x, q.y, { button: 'right' }); await P.waitForTimeout(300);
   const menu = await P.$$eval('#ctx button', b => b.map(x => x.textContent));
-  ok('right click offers lock, copy, delete', menu.join('/') === 'ロック/複製/削除', menu.join('/'));
-  await P.click('#ctx button >> nth=1'); await P.waitForTimeout(400);
+  ok('right click offers rename, lock, copy, delete', menu.join('/') === '名前を変更/ロック/複製/削除', menu.join('/'));
+  await P.click('#ctx button >> nth=2'); await P.waitForTimeout(400);
   ok('copy makes a second one', await count('box') === 2);
   await P.keyboard.press('Delete'); await P.waitForTimeout(300);
   ok('and Delete takes it away again', await count('box') === 1);
@@ -603,8 +606,73 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 鏡から水面が消えている
   await t.add('[data-add="mirror"]'); await P.waitForTimeout(400);
   const kinds = await P.$$eval('#selbody [data-set="kind"]', b => b.map(x => x.textContent));
-  ok('the mirror has no water any more', kinds.join('/') === '床の鏡/立て鏡・レフ板', kinds.join('/'));
+  ok('the mirror has no water any more', kinds.join('/') === '床の鏡/立て鏡', kinds.join('/'));
   ok('handles run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 11. defaults, renaming, per-edge dimensions, the camera on a box ---------------
+{
+  const t = await open('defaults', { width: 1300, height: 900 });
+  const P = t.page;
+  const st = () => P.evaluate(() => window.__sp.state());
+  ok('the cyclorama starts curved on all three walls',
+     JSON.stringify((await st()).studio.cove) === '{"back":true,"left":true,"right":true}',
+     JSON.stringify((await st()).studio.cove));
+  // 閉じたメニューが小さな棒として画面に残っていた（id 指定の display が [hidden] に勝つ）
+  ok('the closed context menu takes no space',
+     await P.evaluate(() => { const r = document.getElementById('ctx').getBoundingClientRect(); return !r.width && !r.height; }));
+  await P.click('#items .itemrow[data-kind="camera"] > button.name'); await P.waitForTimeout(300);
+  ok('the wall distance starts off',
+     (await P.$$eval('#selbody [data-dim="dimWall"]', b => b.map(x => x.classList.contains('on')))) [0] === false);
+  ok('the settings panel has no delete button of its own',
+     await P.$$eval('#selbody [data-del]', b => b.length) === 0);
+  ok('the move arrow is drawn once, not doubled',
+     await P.evaluate(() => window.__sp.gizmo.children.filter(c => c.geometry.type === 'ShapeGeometry').length) === 1);
+
+  await t.add('[data-add="chroma"]'); await P.waitForTimeout(400);
+  const room = (await st()).studio, cloth = (await st()).items.find(i => i.type === 'chroma');
+  ok('a backdrop lands clear of the cyclorama', cloth.z > -room.d/2 + 1, `z=${cloth.z}`);
+  const kinds = await P.$$eval('#selbody [data-set="kind"]', b => b.map(x => x.textContent));
+  await t.add('[data-add="mirror"]'); await P.waitForTimeout(400);
+  ok('a standing mirror is not called a bounce board',
+     (await P.$$eval('#selbody [data-set="kind"]', b => b.map(x => x.textContent))).join('/') === '床の鏡/立て鏡');
+
+  // 右クリック → 名前を変更
+  await P.click('#items .itemrow[data-kind="chroma"] > button.name'); await P.waitForTimeout(200);
+  await P.click('#items .itemrow[data-kind="chroma"] > button.name', { button: 'right' }); await P.waitForTimeout(300);
+  await P.click('#ctx button >> nth=0'); await P.waitForTimeout(300);
+  ok('rename opens a field in the row', await P.$$eval('#items input.ren', n => n.length) === 1);
+  await P.fill('#items input.ren', 'ホリ用 白布'); await P.press('#items input.ren', 'Enter'); await P.waitForTimeout(400);
+  ok('the list takes the new name',
+     (await P.$$eval('#items .itemrow > button.name', n => n.map(x => x.textContent.trim()))).some(n => n.includes('ホリ用 白布')));
+  ok('and so do the dimension labels',
+     (await P.$$eval('#labels span', n => n.map(x => x.textContent))).some(x => x.startsWith('ホリ用 白布幅')));
+
+  // 幅・高さ・垂らしは辺ごとに。パースにも出る
+  for (const v of ['plan', 'pers']){
+    await P.click(`#viewbtns button[data-view="${v}"]`); await P.waitForTimeout(600);
+    const L = await P.$$eval('#labels span', n => n.map(x => x.textContent));
+    ok(`${v}: the backdrop names its width`, L.some(x => /白布幅 /.test(x)), L.join(' | '));
+    if (v === 'pers') ok('pers: and its height, on the upright edge', L.some(x => /白布高 /.test(x)), L.join(' | '));
+  }
+  ok('defaults run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+{
+  // 箱に乗せたカメラは、その高さから見る。布は箱に乗らない
+  const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
+    {id:'b1',type:'box',x:0,z:2,rot:0,w:1.2,d:1.2,h:0.8,color:'#a9b0bd'},
+    {id:'c1',type:'camera',x:0,z:2,y:1.3,rot:180,pitch:0,sensor:'ff',focal:35,aspect:'16:9'},
+    {id:'k1',type:'chroma',x:0,z:2,rot:0,color:'#1fb24a',w:3,h:2.8,drape:1.5}]};
+  const t = await open('onbox', { width: 1200, height: 800 }, false, '#s=' + encodeState(scene));
+  await t.page.click('#viewbtns button[data-view="cam"]'); await t.page.waitForTimeout(700);
+  ok('a camera on a box looks from up there',
+     Math.abs(await t.page.evaluate(() => window.__sp.camera().position.y) - 2.1) < 0.001,
+     String(await t.page.evaluate(() => window.__sp.camera().position.y)));
+  ok('a backdrop stays on the floor',
+     await t.page.evaluate(() => window.__sp.group('k1').position.y) === 0);
+  ok('on-a-box run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

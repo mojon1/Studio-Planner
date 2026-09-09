@@ -45,6 +45,8 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #view canvas{display:block;width:100%;height:100%}
 #view.drop::after{content:"ここに落とすと取り込みます";position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,22,26,.55);font-weight:700;z-index:6;pointer-events:none}
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
+/* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
+#tabs,#sheet{zoom:.78}
 #tabs{display:flex;border-bottom:1px solid var(--rule);flex:none}
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
@@ -105,7 +107,11 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .itemrow.dropbefore{box-shadow:0 -3px 0 -1px var(--accent)}
 .itemrow.dropafter{box-shadow:0 3px 0 -1px var(--accent)}
 .itemrow.locked-item>button.name{border-style:dashed}
+.itemrow input.ren{flex:1;min-width:0;height:auto;min-height:44px}
+/* display は id 指定なので、そのままだと UA の [hidden]{display:none} に勝ってしまい、
+   空のメニューが常に小さな棒として画面に残る（前回開いた場所に貼り付く） */
 #ctx{position:fixed;z-index:60;min-width:150px;background:var(--panel);border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:6px;display:flex;flex-direction:column;gap:2px}
+#ctx[hidden]{display:none}
 #ctx button{min-height:42px;padding:0 14px;border:0;background:transparent;color:var(--ink);font:inherit;text-align:left;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:10px}
 #ctx button:hover{background:var(--btn)}
 #ctx button.danger{color:var(--danger)}
@@ -121,7 +127,7 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
 #labels span.dim{color:#ffd9a8}
 #labels span.dist{color:#fff;background:rgba(194,113,31,.85)}
-#pip{position:absolute;z-index:4;border:2px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;touch-action:none;box-shadow:0 4px 18px rgba(0,0,0,.4);overflow:hidden}
+#pip{position:absolute;z-index:4;border:2px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;touch-action:none;box-shadow:0 4px 18px rgba(0,0,0,.4);overflow:hidden;user-select:none;-webkit-user-select:none}
 #pip .bar{height:24px;background:rgba(20,22,26,.85);color:#fff;font-size:.72rem;font-weight:700;padding:3px 8px;cursor:move;display:flex;justify-content:space-between;align-items:center;user-select:none}
 #pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace;margin-left:auto}
 #pip .bar button{margin-left:8px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
@@ -395,7 +401,7 @@ let viewerMode = false;
 let uid = 1;
 
 function defaultState(){
-  return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:false,right:false}}, activeCam:'c1', items:[
+  return {meta:{project:'', cut:'', memo:'', frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
     {id:'p1', type:'person', x:0, z:-0.5, rot:0, height:1.7, pose:'stand', kind:'man', model:'asia-casual-man'},
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
@@ -495,8 +501,8 @@ gizKnob.renderOrder = 9; gizKnob.position.set(0,0,1); gizmo.add(gizKnob);
 const gizArrow = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 12), new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
 gizArrow.rotation.x = Math.PI/2; gizArrow.renderOrder = 9; gizArrow.position.set(0,0,1.32); gizmo.add(gizArrow);
 // The middle of the ring is what drags the object, so it wears the four-way arrow
-// everyone already reads as "move". It is drawn twice: a fatter white copy underneath
-// keeps it legible over a dark car or a white floor alike.
+// everyone already reads as "move". One colour only: the white understroke it used to
+// wear made the shape read as a smudge instead of an arrow.
 function crossArrowShape(){
   // half length, bar half width, head half width, head length
   const L = 0.44, w = 0.072, hw = 0.165, hl = 0.155, sh = new THREE.Shape();
@@ -509,9 +515,9 @@ function crossArrowShape(){
   return sh;
 }
 const crossGeo = new THREE.ShapeGeometry(crossArrowShape());
-for (const [color, scale, order] of [[0xffffff, 1.28, 9], [0xe29a44, 1, 10]]){
-  const m = new THREE.Mesh(crossGeo, new THREE.MeshBasicMaterial({color, depthTest:false}));
-  m.rotation.x = -Math.PI/2; m.scale.setScalar(scale); m.renderOrder = order; gizmo.add(m);
+{
+  const m = new THREE.Mesh(crossGeo, new THREE.MeshBasicMaterial({color:0xe29a44, depthTest:false}));
+  m.rotation.x = -Math.PI/2; m.renderOrder = 10; gizmo.add(m);
 }
 
 const matWall = new THREE.MeshStandardMaterial({color:0xf2f2f0, roughness:0.95, side:THREE.DoubleSide});
@@ -644,7 +650,7 @@ function buildMeasures(){
   measGroup.clear(); measLabels = [];
   const {w,d} = state.studio;
   for (const ci of cams()){
-    if (ci.hidden || !dimOn(ci, 'dimWall')) continue;
+    if (ci.hidden || ci.dimWall !== true) continue;
     const a = new V3(ci.x, 0.02, ci.z);
     const from = cams().length > 1 ? camName(ci) + ' ' : '';
     const back = new V3(ci.x, 0.02, -d/2);
@@ -668,33 +674,47 @@ function buildMeasures(){
 }
 const labelsEl = document.getElementById('labels');
 const num = v => fmt(+(+v).toFixed(2));
-const upright = it => it.type === 'chroma' || (it.type === 'mirror' && it.kind === 'wall');
-// a reflector is read as a panel, so its two edges are named by which is longer
-const sides = (a, b) => `長辺 ${num(Math.max(a,b))} × 短辺 ${num(Math.min(a,b))} m`;
 // a drawing with several things in it needs to say which one each number belongs to
 const MIRROR_NAME = {floor:'床鏡', wall:'鏡'};
 function itemName(it){
+  if (it.label) return it.label;                       // 右クリックから付け替えた名前が最優先
   if (it.type === 'camera') return camName(it);
   if (it.type === 'person') return personLabel(it);
   if (it.type === 'mirror') return MIRROR_NAME[it.kind] || '反射面';
   if (it.type === 'model') return (it.name || 'モデル').replace(/\.[^.]+$/, '').slice(0, 12);
   return NAMES[it.type] || '';
 }
+// 背景布と鏡は「幅 × 高さ」をひとつに束ねず、それぞれの辺のそばに置く。
+// 上面とパースの両方に出す（世界座標なので、どのビューでも同じ場所を指す）
+const PANEL_SHORT = it => it.label || (it.type === 'chroma' ? '布' : (MIRROR_NAME[it.kind] || '鏡'));
+function panelDims(it){
+  const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+  const base = standHeight(it);
+  const at = (lx, ly, lz) => new V3(it.x + lx*c + lz*sn, base + ly, it.z - lx*sn + lz*c);
+  const nm = PANEL_SHORT(it), out = [];
+  if (it.type === 'mirror' && it.kind !== 'wall'){          // 床に敷く鏡は 2 辺とも床の上
+    out.push({p:at(0, 0.02, it.h/2 + 0.4), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan','pers']});
+    out.push({p:at(it.w/2 + 0.4, 0.02, 0), text:`${nm}奥行 ${num(it.h)} m`, cls:'dim', views:['plan','pers']});
+    return out;
+  }
+  const drape = it.type === 'chroma' ? (it.drape || 0) : 0;
+  out.push({p:at(0, 0.02, drape + 0.4), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan','pers']});
+  out.push({p:at(it.w/2 + 0.35, it.h/2, 0), text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side']});
+  if (drape > 0) out.push({p:at(-it.w/2 - 0.4, 0.02, drape/2), text:`床 ${num(drape)} m`, cls:'dim', views:['plan','pers']});
+  return out;
+}
 function itemLabels(view){
   const out = [];
   for (const it of state.items){
     if (it.hidden || !dimOn(it)) continue;
+    // 背景布と鏡は、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
+    if (it.type === 'chroma' || it.type === 'mirror'){
+      for (const L of panelDims(it)) if (L.views.includes(view)) out.push(L);
+      continue;
+    }
     if (view === 'plan'){
-      // a backdrop lies against the floor for its drape; a reflector is a flat panel
-      const depth = it.type === 'chroma' ? (it.drape || 0) : it.type === 'mirror' ? (it.kind === 'wall' ? 0 : it.h) : (it.d || 0);
-      const off = depth/2 + 0.4;
-      const r = THREE.MathUtils.degToRad(it.rot || 0);
-      const p = new V3(it.x + Math.sin(r)*off, 0.02, it.z + Math.cos(r)*off);
-      let txt = null;
-      if (it.type === 'chroma') txt = depth > 0 ? `幅 ${num(it.w)} × 奥行 ${num(depth)} m` : `幅 ${num(it.w)} m`;
-      else if (it.type === 'mirror') txt = it.kind === 'wall' ? `幅 ${num(it.w)} m` : sides(it.w, it.h);
-      else if (it.w > 0 && it.d > 0) txt = `${num(it.w)} × ${num(it.d)} m`;
-      if (txt) out.push({p, text:`${itemName(it)}：${txt}`, cls:'dim', views:['plan']});
+      const p = new V3(it.x, 0.02, it.z + (it.d || 0)/2 + 0.4);
+      if (it.w > 0 && it.d > 0) out.push({p, text:`${itemName(it)}：${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
       continue;
     }
     if (view !== 'side') continue;
@@ -706,7 +726,6 @@ function itemLabels(view){
       top = drawn || (it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height);
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (it.type === 'mirror'){ if (it.kind !== 'wall') continue; top = it.h; txt = sides(it.w, it.h); }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
     out.push({p:new V3(it.x, standHeight(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side']});
@@ -1156,7 +1175,7 @@ function buildCamera(it){
 // 3D frustum, clipped by the studio (floor, walls, coves, ceiling)
 function setShotCam(ci, aspect){
   shotCam.aspect = aspect; shotCam.filmGauge = sensorW(ci); shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
-  shotCam.position.set(ci.x, ci.y, ci.z); shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
+  shotCam.position.set(ci.x, standHeight(ci) + ci.y, ci.z);      // 箱に乗せたら視点もその上 shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, 0);
   shotCam.updateMatrixWorld(true);
 }
 const fRay = new THREE.Raycaster();
@@ -1271,7 +1290,7 @@ function standHeight(it){
     const dx = it.x - o.x, dz = it.z - o.z;
     if (Math.abs(dx*c - dz*sn) <= o.w/2 && Math.abs(dx*sn + dz*c) <= o.d/2) y = Math.max(y, o.h);
   }
-  return it.type === 'box' ? 0 : y;
+  return (it.type === 'box' || it.type === 'chroma') ? 0 : y;   // 布は掛けるものなので箱には乗らない
 }
 // 箱が動いたり大きさが変わったりすると、上に乗っているものの高さも変わる
 function restack(){
@@ -1770,7 +1789,8 @@ function addItem(type, opt){
   if (type === 'person') it = {id, type, x:0, z:0, rot:0, kind:opt?.kind || 'man', model:opt?.model || null, height:opt?.height || 1.72, pose:'stand', posture:null};
   else if (type === 'camera') it = {id, type, x:0, z:d/2-1, y:1.4, rot:180, pitch:0, sensor:'ff', focal:50, aspect:'16:9'};
   else if (type === 'light') it = {id, type, x:-w/4, z:d/4, rot:135, y:2.0};
-  else if (type === 'chroma') it = {id, type, x:0, z:-d/2+0.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
+  // 白ホリの R は最大 1 m。奥壁ぎわに出すと布が壁に埋まるので、少し手前に置く
+  else if (type === 'chroma') it = {id, type, x:0, z:-d/2+1.4, rot:0, color:'#1fb24a', w:Math.min(3, w-0.5), h:Math.min(2.8, h-0.1), drape:1.5};
   else if (type === 'car') it = {id, type, x:0, z:0, rot:0, kind:'sedan', w:1.80, d:4.70, h:1.45, color:'#b9c0cc'};
   else if (type === 'chair') it = {id, type, x:0, z:0, rot:0, w:0.45, d:0.48, h:0.85, seatH:0.42, color:'#a58256'};
   else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
@@ -1798,13 +1818,37 @@ const LOCK_ON  = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><pat
 const LOCK_OFF = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.6-1.7"/>');
 const TRASH    = SVG('<path d="M4 6.5h16"/><path d="M9.5 6.5V4h5v2.5"/><path d="M6.5 6.5 7.4 20h9.2l.9-13.5"/><path d="M10 10v6.5M14 10v6.5"/>');
 const GRIP     = SVG('<circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/>', 16);
+// 自分でつけた名前があればそれを、無ければ種類と通し番号を
+const autoName = (it, counts) => it.type === 'camera' ? camName(it)
+  : it.type === 'person' ? `${personLabel(it)} ${counts[it.type]}`
+  : `${NAMES[it.type]} ${counts[it.type]}`;
+const listName = (it, counts) => (it.label || '').trim() || autoName(it, counts);
+let renamingId = null;
+function renameField(it, counts){
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'ren'; inp.maxLength = 24;
+  inp.value = listName(it, counts); inp.spellcheck = false;
+  let done = false;
+  const commit = keep => {
+    if (done) return; done = true; renamingId = null;
+    if (keep){ const v = inp.value.trim(); it.label = (!v || v === autoName(it, counts)) ? undefined : v; saveHash(); }
+    renderList(); renderSel(); buildDims(); needRender = true;
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') commit(true);
+    else if (e.key === 'Escape') commit(false);
+  });
+  inp.addEventListener('blur', () => commit(true));
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  return inp;
+}
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
   {                                              // the room itself, edited like anything else
     const row = document.createElement('div'); row.className = 'itemrow'; row.dataset.kind = STUDIO;
     const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', selectedId === STUDIO);
-    const s = state.studio;
-    b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span><small>${fmt(s.w)}×${fmt(s.d)}×高 ${fmt(s.h)} m</small>`;
+    b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span>`;
     b.addEventListener('click', () => select(STUDIO, true));
     row.append(b); el.appendChild(row);
   }
@@ -1814,21 +1858,12 @@ function renderList(){
     const row = document.createElement('div'); row.className = 'itemrow' + (it.hidden ? ' hidden-item' : ''); row.dataset.kind = it.type;
     const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', it.id === selectedId);
     const sw = `<span class="sw" style="background:${itemColor(it)}"></span>`;
-    const label = it.type==='camera' ? camName(it) : it.type==='person' ? `${personLabel(it)} ${counts[it.type]}` : `${NAMES[it.type]} ${counts[it.type]}`;
-    const dims = (...k) => k.map(x => fmt(+(+it[x]).toFixed(2))).join('×') + ' m';
-    const sub = it.type==='person' ? `${fmt(it.height)} m・${poseById(it.posture)?.label || {stand:'立つ',sit:'座る',lie:'寝る'}[it.pose]}`
-      : it.type==='camera' ? `${it.focal}mm ${it.aspect}${it.id === state.activeCam ? '・表示中' : ''}`
-      : it.type==='light' ? `高さ ${it.y} m`
-      : it.type==='chroma' ? dims('w','h')
-      : it.type==='car' ? `${{sedan:'セダン',wagon:'ワゴン',van:'バン',kei:'軽'}[it.kind]} ${dims('d','w')}`
-      : it.type==='chair' ? `座面 ${fmt(it.seatH)} m`
-      : it.type==='table' || it.type==='box' ? dims('w','d','h')
-      : it.type==='model' ? (modelCache.has(it.key) ? dims('w','d','h') : `箱 ${dims('w','d','h')}`)
-      : {floor:'床の鏡',wall:'立て鏡'}[it.kind];
-    b.innerHTML = `<span>${sw}${label}</span><small>${sub}</small>`;
+    // 寸法や身長は設定パネルとビューの寸法表示に出る。リストは「何がいくつあるか」だけ
+    b.innerHTML = `<span>${sw}${esc(listName(it, counts))}</span>`;
     b.addEventListener('click', () => { select(it.id, true); });
     if (it.locked) row.classList.add('locked-item');
     row.dataset.id = it.id;
+    if (it.id === renamingId){ row.append(renameField(it, counts)); el.appendChild(row); continue; }
     const icon = (cls, title, html, fn) => {
       const x = document.createElement('button'); x.className = cls; x.title = title; x.setAttribute('aria-label', title);
       x.innerHTML = html; x.addEventListener('click', fn); return x;
@@ -1996,17 +2031,16 @@ function renderSel(){
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
 
   } else {
-    h += btns('kind', [['floor','床の鏡'],['wall','立て鏡・レフ板']], it.kind);
+    h += btns('kind', [['floor','床の鏡'],['wall','立て鏡']], it.kind);
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
 
   }
   const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
   h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
-    + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', dimOn(it, 'dimWall'))
+    + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
                             : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
   h += range('rot','向き',-180,180,1,rotShown(it),'°');
   if (it.type === 'camera') h += `<p class="hint">0° で奥向き。</p>`;
-  h += `<div class="row" style="margin-top:14px"><button class="btn danger" data-del>削除</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
   el.querySelector('[data-poseopen]')?.addEventListener('click', () => { poseOpen = !poseOpen; renderSel(); });
@@ -2015,7 +2049,7 @@ function renderSel(){
   }));
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
-    it[k] = k === 'dimCam' ? it.dimCam !== true : !dimOn(it, k);   // this one starts off
+    it[k] = (k === 'dimCam' || k === 'dimWall') ? it[k] !== true : !dimOn(it, k);   // these two start off
     buildDims(); renderSel(); needRender = true; saveHash();
   }));
   el.querySelectorAll('[data-num]').forEach(n => n.addEventListener('change', () => { setProp(it, n.dataset.num, n.value); }));
@@ -2058,7 +2092,6 @@ function renderSel(){
     });
     inp.addEventListener('blur', commit);
   }));
-  el.querySelector('[data-del]').addEventListener('click', () => deleteItem(it));
 }
 function deleteItem(it){
   if (!it || viewerMode) return;
@@ -2108,6 +2141,7 @@ function openCtx(id, px, py){
     b.addEventListener('click', () => { closeCtx(); fn(); });
     ctxEl.appendChild(b);
   };
+  add('名前を変更', '', () => { renamingId = it.id; renderList(); showTab('list', true); });
   add(it.locked ? 'ロックを外す' : 'ロック', '', () => toggleLock(it));
   add('複製', '', () => duplicateItem(it));
   add('削除', 'danger', () => { if (it.locked){ toast('ロック中です'); return; } deleteItem(it); });
@@ -2416,7 +2450,10 @@ async function filesFromDrop(dt){
 }
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
 document.getElementById('file').addEventListener('change', e => { closeAdd(); if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
-for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
+// カメラ小窓をリサイズしたあとドラッグすると、ブラウザが選択範囲のドラッグを始めて
+// ここに来ていた。ファイルを掴んでいるときだけ取り込み枠を出す
+const dragHasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+for (const ev of ['dragenter','dragover']) viewEl.addEventListener(ev, e => { if (!dragHasFiles(e)) return; e.preventDefault(); if (!viewerMode) viewEl.classList.add('drop'); });
 for (const ev of ['dragleave','drop']) viewEl.addEventListener(ev, e => { e.preventDefault(); viewEl.classList.remove('drop'); });
 viewEl.addEventListener('drop', e => {
   if (viewerMode || !e.dataTransfer) return;
