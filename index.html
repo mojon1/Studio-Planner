@@ -208,9 +208,17 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 /* --- the printed sheet ---------------------------------------------------------- */
 #papermodal{position:fixed;inset:0;z-index:30;background:#3a3d44;display:none;flex-direction:column}
 #papermodal.show{display:flex}
-.pmbar{flex:none;display:flex;gap:10px;align-items:center;padding:10px 14px;background:#22252c;border-bottom:1px solid #000}
+.pmbar{flex:none;display:flex;gap:10px;row-gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:#22252c;border-bottom:1px solid #000}
 .pmbar .btn{flex:0 0 auto;min-height:40px}
-.pmhint{color:#c8ccd4;font-size:.82rem}
+.pmgrp{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.pmgrp>span{color:#9aa1ad;font-size:.74rem;white-space:nowrap;margin-right:2px}
+.pmopt{height:34px;padding:0 11px;border:1px solid #4a4f58;background:#2a2e36;color:#dfe3ea;border-radius:7px;
+  font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
+.pmopt.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.pmopt:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.pmbar input[type=text]{height:34px;width:11em;background:#2a2e36;border:1px solid #4a4f58;color:#dfe3ea;
+  border-radius:7px;padding:0 9px;font:inherit;font-size:.8rem}
+.pmhint{color:#c8ccd4;font-size:.78rem;flex:1 1 12em;min-width:0}
 .pmscroll{flex:1;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
 #papers{transform-origin:top center;display:flex;flex-direction:column;align-items:center;gap:20px}
 .paper{background:#fff;color:#15171b;box-shadow:0 6px 30px rgba(0,0,0,.5);
@@ -262,6 +270,11 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   .paper.landscape{height:194mm !important}
   .paper.portrait{height:281mm !important}
 }
+/* 指だけの端末（スマホ・タブレット）。ここでは window.open が別タブになって
+   ファインダーがまともに出ないので、切り離しボタンごと出さない */
+@media (hover: none) and (pointer: coarse){
+  #pipout{display:none}
+}
 @media (max-width:760px){
   #addpop,#namedlg{align-items:flex-end;padding:0}
   #addpop .pop,#namedlg .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
@@ -286,7 +299,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <div id="tabs">
       <button data-tab="list" class="on">オブジェクト</button>
       <button data-tab="cut">カット</button>
-      <button data-tab="share">共有</button>
+      <button data-tab="share">保存・共有</button>
     </div>
     <div id="sheet">
       <div class="sec on" data-sec="list">
@@ -295,8 +308,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       </div>
       <div class="sec" data-sec="cut">
         <div class="list" id="cuts"></div>
-        <div class="row"><button class="btn" id="addcut">カットを追加</button></div>
-        <p class="hint">今のカットをそのまま写して増やします。同じセットでカメラだけ動かす、が現場のふつうです。つまみを掴むと並べ替えられます。</p>
+        <div class="row"><button class="btn" id="dupcut">カットを複製</button><button class="btn" id="newcut">新規カット</button></div>
         <h2>このカット</h2>
         <label class="f2"><span>カット名</span><input type="text" id="m-cut" maxlength="24" placeholder="C-12"></label>
         <label class="f2"><span>メモ</span><textarea id="m-memo" rows="3" maxlength="400" placeholder="申し送り事項"></textarea></label>
@@ -307,25 +319,19 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
         <div class="row"><button class="btn" id="qrbtn">QRコード</button></div>
         <input type="text" id="linkbox" readonly>
+        <h2>PDF</h2>
+        <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
+        <p class="hint">用紙の向き・載せる図・タイトルは、押したあとの画面で選べます。</p>
+        <h2>画像</h2>
+        <div class="row"><button class="btn" id="png">画像保存</button></div>
         <h2>プロジェクト</h2>
         <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
         <input type="file" id="projfile" accept=".json,application/json" hidden>
         <p class="hint">取り込んだ 3D モデルの実体はこの端末に残ります。別の PC で開くと実寸の箱になります。</p>
-        <h2>PDF</h2>
-        <label class="f2"><span>案件名</span><input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></label>
-        <p class="hint">カット名とメモは「カット」タブにあります。</p>
-        <div class="row"><button class="btn on" data-orient="landscape">A4 横</button><button class="btn" data-orient="portrait">A4 縦</button></div>
-        <div class="row"><button class="btn on" data-scope="one">このカットだけ</button><button class="btn" data-scope="all">全カット</button></div>
-        <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
-        <p class="hint">4 面とカメラ情報が A4 一枚に入ります。</p>
-        <h2>画像</h2>
-        <div class="row"><button class="btn" id="png">画像保存</button></div>
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <h2>最初から</h2>
-        <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.6.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.7.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -398,8 +404,16 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   <div class="pmbar">
     <button class="btn primary" id="doprint">PDF にする</button>
     <button class="btn" id="paperclose">閉じる</button>
-    <button class="btn" id="framereset">図の位置を戻す</button>
-    <span class="pmhint">上面・側面・パースはドラッグで移動、ホイールで拡大縮小。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
+    <div class="pmgrp"><span>用紙</span>
+      <button class="pmopt on" data-orient="landscape">A4 横</button><button class="pmopt" data-orient="portrait">A4 縦</button></div>
+    <div class="pmgrp"><span>記載内容</span>
+      <button class="pmopt on" data-pane="plan">上面</button><button class="pmopt on" data-pane="side">側面</button><button class="pmopt" data-pane="front">正面</button><button class="pmopt on" data-pane="pers">パース</button><button class="pmopt on" data-pane="cam">ファインダー</button></div>
+    <div class="pmgrp"><span>範囲</span>
+      <button class="pmopt on" data-scope="one">このカットだけ</button><button class="pmopt" data-scope="all">全カット</button></div>
+    <div class="pmgrp"><span>タイトル</span>
+      <input type="text" id="m-project" maxlength="60" placeholder="○○ CM 30秒"></div>
+    <button class="pmopt" id="framereset">図の位置を戻す</button>
+    <span class="pmhint">図はドラッグで移動、ホイールで拡大縮小（ファインダーを除く）。印刷画面で「送信先」を <b>PDF に保存</b> に。</span>
   </div>
   <div class="pmscroll"><div id="papers"></div></div>
 </div>
@@ -2259,7 +2273,6 @@ const SVG = (d, w=20) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fi
 const LOCK_ON  = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>');
 const LOCK_OFF = SVG('<rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 7.6-1.7"/>');
 const TRASH    = SVG('<path d="M4 6.5h16"/><path d="M9.5 6.5V4h5v2.5"/><path d="M6.5 6.5 7.4 20h9.2l.9-13.5"/><path d="M10 10v6.5M14 10v6.5"/>');
-const COPY     = SVG('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>');
 const GRIP     = SVG('<circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/>', 16);
 // 自分でつけた名前があればそれを、無ければ種類と通し番号を
 const autoName = (it, counts) => it.type === 'camera' ? camName(it)
@@ -2307,9 +2320,8 @@ function renderCuts(){
     const grip = document.createElement('span'); grip.className = 'grip'; grip.innerHTML = GRIP;
     grip.title = 'ドラッグで並べ替え'; grip.setAttribute('aria-label', grip.title);
     grip.addEventListener('pointerdown', e => startReorder(e, {id:String(i)}, {el, apply:moveCut}));
-    const copy = icon('ico', 'このカットを複製', COPY, () => { showCut(i); addCut(); });
     const del = icon('ico trash', 'このカットを削除', TRASH, () => deleteCut(i));
-    row.prepend(grip); row.append(b, copy, del); el.appendChild(row);
+    row.prepend(grip); row.append(b, del); el.appendChild(row);
   });
   renderViewerCuts();
 }
@@ -2357,6 +2369,19 @@ function addCut(){
   state.cuts.splice(state.cutIx + 1, 0, copy);
   state.cutIx = -1;                       // showCut に切り替えさせる
   showCut(state.cuts.indexOf(copy));
+}
+// 新規はまっさらから。ただし空にするとカメラが無くなってファインダーが真っ暗に
+// なるので、アプリを開いたときと同じ「人ひとりとカメラ 1 台」で始める。
+// スタジオは全カット共通なのでそのまま
+function newCut(){
+  if (viewerMode) return;
+  stashCut();
+  const c = emptyCut();
+  c.items = defaultState().items.map(it => ({...it, id: it.type[0] + (Date.now()%100000) + (uid++)}));
+  c.activeCam = c.items.find(i => i.type === 'camera')?.id || null;
+  state.cuts.splice(state.cutIx + 1, 0, c);
+  state.cutIx = -1;
+  showCut(state.cuts.indexOf(c));
 }
 function deleteCut(i){
   if (state.cuts.length < 2){ toast('カットは 1 つ以上必要です'); return; }
@@ -3307,7 +3332,8 @@ async function copyLink(viewOnly){
   try { await navigator.clipboard.writeText(url); toast(viewOnly ? '見るだけリンクをコピーしました' : 'リンクをコピーしました'); }
   catch { document.getElementById('linkbox').value = url; document.getElementById('linkbox').select(); toast('下の欄から手でコピーしてください'); }
 }
-document.getElementById('addcut').addEventListener('click', addCut);
+document.getElementById('dupcut').addEventListener('click', addCut);
+document.getElementById('newcut').addEventListener('click', newCut);
 document.getElementById('copy').addEventListener('click', () => copyLink(false));
 document.getElementById('copyview').addEventListener('click', () => copyLink(true));
 // ---------- QR コード ----------
@@ -3349,7 +3375,6 @@ for (const b of qrDlg.querySelectorAll('[data-qrmode]')) b.addEventListener('cli
   drawQR();
 });
 addEventListener('keydown', e => { if (e.key === 'Escape' && qrDlg.classList.contains('on')) closeQR(); });
-document.getElementById('reset').addEventListener('click', () => { if (confirm('置いたものをすべて消します。よろしいですか？')){ state = defaultState(); state.items = []; state.activeCam = null; stashCut(); select(null); buildStudio(); rebuildItems(); renderCuts(); renderList(); renderMeta(); saveHash(); } });
 // ---------- handing a file to the viewer ----------
 // A plain <a download> is inert inside the claude.ai preview frame, which is where
 // this gets tried first, so a file goes through the viewer's own save when there is
@@ -3488,6 +3513,28 @@ let orient = 'landscape';
 try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
 const papersEl = document.getElementById('papers'), paperModal = document.getElementById('papermodal');
 let pdfScope = 'one';        // 'one' = 今のカットだけ / 'all' = 全カット
+// 用紙に載せる図。順番はこの並びで、選んだ数に応じて割り付けが変わる
+const PDF_VIEWS = [['plan','上面'], ['side','側面'], ['front','正面'], ['pers','パース'], ['cam','ファインダー']];
+let pdfPanes = ['plan','side','pers','cam'];
+try { const v = JSON.parse(localStorage.getItem('studio3d.panes')||'null');
+  if (Array.isArray(v) && v.length) pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => v.includes(k)); } catch {}
+// 用紙の図の領域（mm）。ここに収まるように 1 枚ぶんの大きさを割り出す
+const PDF_AREA = {landscape:[186, 177], portrait:[194, 146]}, PDF_GAP = 4, PDF_PXMM = 12;
+function paneLayout(){
+  const [VW, VH] = PDF_AREA[orient];
+  const list = PDF_VIEWS.filter(([v]) => pdfPanes.includes(v));
+  const n = Math.max(1, list.length);
+  // 2 枚までは 1 列に積む。2 列にすると細長い枠になって、図が小さくしか入らない
+  const cols = n <= 2 ? 1 : 2, rows = Math.ceil(n / cols);
+  const ph = (VH - PDF_GAP*(rows-1)) / rows, pw = (VW - PDF_GAP*(cols-1)) / cols;
+  // 奇数のときは最後の 1 枚を横いっぱいに使う
+  const panes = list.map(([v, name], i) => {
+    const span = cols === 2 && n % 2 === 1 && i === n - 1;
+    const mm = span ? VW : pw;
+    return {view:v, name, span, cw:Math.round(mm*PDF_PXMM), ch:Math.round(ph*PDF_PXMM)};
+  });
+  return {cols, rows, panes};
+}
 const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
 
 // render one view off-screen at print resolution and return its labels as percentages
@@ -3563,17 +3610,20 @@ function withCut(i, fn){
   try { return fn(); } finally { if (i !== back) put(back); }
 }
 function sheetPage(ci){
-  const land = orient === 'landscape', c = state.cuts[ci];
-  const [cw, ch] = land ? [1092, 1038] : [1140, 852];   // 12 px/mm at the panel size, about 300 dpi
-  const cam = camItem();
-  const shots = [['plan','上面'],['side','側面'],['pers','パース'],['cam', cam ? `ファインダー（${camName(cam)}）` : 'ファインダー']]
-    .map(([v, name]) => ({view:v, name, ...captureView(v, cw, ch)}));
+  const c = state.cuts[ci], cam = camItem();
+  const {cols, rows, panes} = paneLayout();
+  // 図は 1 枠ぶんの縦横比そのままで撮る。枠と比が違うと object-fit の切り取りで
+  // 寸法ラベル（% で置いてある）が絵からずれる
+  const shots = panes.map(p => ({...p,
+    name: p.view === 'cam' ? (cam ? `ファインダー（${camName(cam)}）` : 'ファインダー') : p.name,
+    ...captureView(p.view, p.cw, p.ch)}));
   const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
   const panels = shots.map(sh =>
-    `<div class="pv" data-pane="${sh.view}"><div class="pvin" style="${frameCSS(sh.view, ci)}">` +
+    `<div class="pv" data-pane="${sh.view}"${sh.span ? ' style="grid-column:1/-1"' : ''}><div class="pvin" style="${frameCSS(sh.view, ci)}">` +
     `<img src="${sh.url}" alt="${esc(sh.name)}" draggable="false">` +
     sh.labels.map(L => `<span class="lb ${L.cls}" style="left:${L.x.toFixed(2)}%;top:${L.y.toFixed(2)}%">${L.text}</span>`).join('') +
     `</div><span class="cap">${esc(sh.name)}</span></div>`).join('');
+  const grid = `grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)`;
   const project = state.meta.project;
   return `<div class="paper ${orient}" data-cut="${ci}">
      <div class="ph">
@@ -3582,7 +3632,7 @@ function sheetPage(ci){
        <div class="meta">出力 ${esc(stamp)}<br>Studio Planner</div>
      </div>
      <div class="pbody">
-       <div class="pviews">${panels}</div>
+       <div class="pviews" style="${grid}">${panels}</div>
        <div class="pside">
          <div class="pbox"><h4>${esc(cam ? camName(cam) : 'カメラ')}</h4><div class="inner">${cameraRows()}</div></div>
          <div class="pbox"><h4>スタジオ・被写体</h4><div class="inner">${studioRows()}</div></div>
@@ -3662,7 +3712,7 @@ document.getElementById('framereset').addEventListener('click', () => {
     const ci = +el.dataset.cut;
     state.cuts[ci].frames = {};
     if (ci === state.cutIx) state.meta.frames = state.cuts[ci].frames;
-    for (const v of ['plan','side','pers']) applyFrame(v, ci);
+    for (const v of pdfPanes) if (v !== 'cam') applyFrame(v, ci);
   }
   saveHash();
 });
@@ -3674,14 +3724,46 @@ function fitPaper(){
   papersEl.style.transform = `scale(${k.toFixed(3)})`;
   papersEl.parentElement.style.height = k < 1 ? `${papersEl.offsetHeight * k + 40}px` : '';
 }
+// 用紙の画面の項目はどれも、押したらその場で刷り直して見せる
+let rebuilding = false;
+async function refreshSheet(){
+  if (rebuilding || !paperModal.classList.contains('show')) return;
+  rebuilding = true;
+  try { await buildSheet(); requestAnimationFrame(fitPaper); } finally { rebuilding = false; }
+}
 document.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('click', () => {
   orient = b.dataset.orient;
   document.querySelectorAll('[data-orient]').forEach(x => x.classList.toggle('on', x.dataset.orient === orient));
   try { localStorage.setItem('studio3d.orient', orient); } catch {}
+  refreshSheet();
 }));
+document.querySelectorAll('.pmbar [data-pane]').forEach(b => b.addEventListener('click', () => {
+  const v = b.dataset.pane;
+  const next = pdfPanes.includes(v) ? pdfPanes.filter(x => x !== v) : [...pdfPanes, v];
+  if (!next.length){ toast('図は 1 つ以上必要です'); return; }   // 空の用紙は刷らせない
+  pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => next.includes(k));
+  syncPaneBtns();
+  try { localStorage.setItem('studio3d.panes', JSON.stringify(pdfPanes)); } catch {}
+  refreshSheet();
+}));
+function syncPaneBtns(){
+  document.querySelectorAll('.pmbar [data-pane]').forEach(x => x.classList.toggle('on', pdfPanes.includes(x.dataset.pane)));
+}
+syncPaneBtns();
 for (const [id, key] of [['m-project','project'], ['m-cut','cut'], ['m-memo','memo']]){
   const el = document.getElementById(id);
-  el.addEventListener('input', () => { state.meta[key] = el.value; if (key === 'cut'){ stashCut(); renderCuts(); } saveHash(); });
+  el.addEventListener('input', () => { state.meta[key] = el.value; if (key === 'cut'){ stashCut(); renderCuts(); }
+    if (key === 'project') retitleSheet(); saveHash(); });
+}
+// 1 文字打つたびに全部の図を撮り直すのは重い。頭と足の文字だけ差し替える
+function retitleSheet(){
+  const t = state.meta.project || '';
+  for (const el of papersEl.querySelectorAll('.paper')){
+    const pj = el.querySelector('.ph .pj');
+    if (pj) pj.innerHTML = `<em>PROJECT</em>${esc(t || '案件名未入力')}`;
+    const foot = el.querySelector('.pfoot span:last-child');
+    if (foot) foot.textContent = `${t} ${cutName(state.cuts[+el.dataset.cut], +el.dataset.cut)}`;
+  }
 }
 function renderMeta(){
   document.getElementById('m-project').value = state.meta.project || '';
@@ -3695,6 +3777,7 @@ document.getElementById('makepdf').addEventListener('click', async () => {
 document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
   pdfScope = b.dataset.scope;
   document.querySelectorAll('[data-scope]').forEach(x => x.classList.toggle('on', x.dataset.scope === pdfScope));
+  refreshSheet();
 }));
 document.getElementById('paperclose').addEventListener('click', () => paperModal.classList.remove('show'));
 document.getElementById('doprint').addEventListener('click', () => {

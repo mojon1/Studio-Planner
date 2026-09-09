@@ -276,16 +276,21 @@ async function open(name, viewport, mobile = false, hash = ''){
 {
   const t = await open('pdf', { width: 1500, height: 950 });
   await t.add('[data-add="chroma"]');
-  await t.tab('share');
-  await t.page.fill('#m-project', 'コスモ石油 CM 30秒');
   await t.tab('cut');                                  // カット名とメモはカットタブへ移した
   await t.page.fill('#m-cut', 'C-12');
   await t.page.fill('#m-memo', '演者は白ホリ手前 2m。\nレフ板は下手から。');
+  await t.tab('share');
+  await t.page.click('#makepdf');                      // 用紙の項目は押したあとの画面に出る
+  await t.page.waitForTimeout(2500);
+  ok('the paper options moved onto the sheet',
+     !!(await t.page.$('.pmbar [data-orient="landscape"]')) &&
+     (await t.page.$$eval('.pmbar [data-pane]', n => n.map(x => x.dataset.pane).join(','))) === 'plan,side,front,pers,cam',
+     await t.page.$$eval('.pmbar [data-pane]', n => n.map(x => x.dataset.pane).join(',')));
+  await t.page.fill('#m-project', 'コスモ石油 CM 30秒');
+  await t.page.waitForTimeout(300);
   for (const o of ['landscape','portrait']){
-    await t.tab('share');
-    await t.page.click(`[data-orient="${o}"]`);
-    await t.page.click('#makepdf');
-    await t.page.waitForTimeout(2500);
+    await t.page.click(`.pmbar [data-orient="${o}"]`);
+    await t.page.waitForTimeout(3000);
     const panels = await t.page.$$eval('.paper .pv img', n => n.length);
     const labels = await t.page.$$eval('.paper .pv .lb', n => n.length);
     ok(`${o}: four panels drawn`, panels === 4, `${panels} panels, ${labels} labels`);
@@ -330,10 +335,28 @@ async function open(name, viewport, mobile = false, hash = ''){
       const fin = await t.page.$eval('.paper .pv[data-pane="cam"] .pvin', e => e.style.transform);
       ok('the finder cannot be reframed', /translate\(0%,\s*0%\)\s*scale\(1\)/.test(fin), fin);
     }
-    await t.page.click('#paperclose');
   }
   const head = await t.page.$eval('.paper .ph', e => e.innerText.replace(/\n/g, ' | '));
   ok('header carries project, cut and stamp', head.includes('コスモ石油') && head.includes('C-12') && /\d{4}\/\d{2}\/\d{2}/.test(head), head);
+  // 記載内容: 正面を足して 5 枚、削って 2 枚
+  await t.page.click('.pmbar [data-orient="landscape"]'); await t.page.waitForTimeout(3000);
+  await t.page.click('.pmbar [data-pane="front"]'); await t.page.waitForTimeout(4000);
+  const five = await t.page.$$eval('.paper .pv', n => n.map(x => x.dataset.pane).join(','));
+  ok('正面 can be added to the sheet', five === 'plan,side,front,pers,cam', five);
+  ok('and an odd one out runs the full width',
+     (await t.page.$$eval('.paper .pv[style*="grid-column"]', n => n.map(x => x.dataset.pane).join(','))) === 'cam');
+  for (const v of ['plan','side','pers']){ await t.page.click(`.pmbar [data-pane="${v}"]`); await t.page.waitForTimeout(2500); }
+  const two = await t.page.$$eval('.paper .pv', n => n.map(x => x.dataset.pane).join(','));
+  ok('and panels can be taken away', two === 'front,cam', two);
+  ok('two panels stack instead of standing side by side',
+     /repeat\(1,\s*1fr\)/.test(await t.page.$eval('.paper .pviews', e => e.style.gridTemplateColumns)),
+     await t.page.$eval('.paper .pviews', e => e.style.gridTemplateColumns));
+  await t.page.click('.pmbar [data-pane="front"]'); await t.page.waitForTimeout(2500);
+  await t.page.click('.pmbar [data-pane="cam"]'); await t.page.waitForTimeout(600);
+  ok('the last panel cannot be taken away', (await t.page.$$eval('.paper .pv', n => n.length)) === 1,
+     await t.page.textContent('#toast'));
+  await t.page.screenshot({ path: `${OUT}/pdf-panes.png` });
+  await t.page.click('#paperclose');
   await t.page.waitForTimeout(500);
   await t.page.screenshot({ path: `${OUT}/pdf-after.png` });
   ok('pdf run clean', t.errors.length === 0, t.errors.join(' | '));
@@ -354,12 +377,14 @@ async function open(name, viewport, mobile = false, hash = ''){
   const t = await open('projfile', { width: 1280, height: 800 });
   await t.add('[data-add="chroma"]');
   await t.add('[data-add="mirror"]');
-  await t.tab('share');
-  await t.page.fill('#m-project', '青山スタジオ 下見');
   await t.tab('cut');
   await t.page.fill('#m-cut', 'C-3');
   await t.page.waitForTimeout(200);
   await t.tab('share');
+  await t.page.click('#makepdf'); await t.page.waitForTimeout(2500);   // 案件名は用紙の画面にある
+  await t.page.fill('#m-project', '青山スタジオ 下見');
+  await t.page.waitForTimeout(300);
+  await t.page.click('#paperclose'); await t.page.waitForTimeout(300);
   const before = await t.page.$$eval('#items .itemrow', n => n.length);
 
   // desktop Chrome path: the real save dialog, stubbed so headless can watch it
@@ -408,24 +433,22 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the file holds the whole scene', saved.cuts[0].items.length === before - 1 && saved.cuts[0].name === 'C-3',
      `${saved.cuts[0].items.length} items in ${saved.cuts.length} cut(s)`);
 
-  // wipe it, then read the file back
-  t.page.once('dialog', d => d.accept());
-  await t.page.click('#reset');
-  await t.page.waitForTimeout(300);
-  ok('reset empties the list', await t.page.$$eval('#items .itemrow', n => n.length) === 1);
-
-  await t.page.setInputFiles('#projfile', file);
-  await t.page.waitForTimeout(600);
-  const after = await t.page.$$eval('#items .itemrow', n => n.length);
-  ok('load brings every object back', after === before, `${after} rows, was ${before}`);
-  await t.tab('cut');
-  ok('load brings the meta back', await t.page.inputValue('#m-cut') === 'C-3');
-  await t.tab('share');
-
-  await t.page.setInputFiles('#projfile', path.join(HERE, 'package.json'));
-  await t.page.waitForTimeout(400);
+  // 別のセッションで開き直す。これが「来月また開く」の実際の手順でもある
+  const f = await open('projload', { width: 1280, height: 800 });
+  await f.tab('share');
+  await f.page.setInputFiles('#projfile', file);
+  await f.page.waitForTimeout(900);
+  const after = await f.page.$$eval('#items .itemrow', n => n.length);
+  ok('a saved file opens in a fresh session', after === before, `${after} rows, was ${before}`);
+  await f.tab('cut');
+  ok('and brings the meta back', await f.page.inputValue('#m-cut') === 'C-3');
+  await f.tab('share');
+  await f.page.setInputFiles('#projfile', path.join(HERE, 'package.json'));
+  await f.page.waitForTimeout(400);
   ok('a file that is not a scene is refused, not applied',
-     (await t.page.textContent('#toast')).includes('読めません') && await t.page.$$eval('#items .itemrow', n => n.length) === after);
+     (await f.page.textContent('#toast')).includes('読めません') && await f.page.$$eval('#items .itemrow', n => n.length) === after);
+  ok('project load run clean', f.errors.length === 0, f.errors.join(' | '));
+  await f.ctx.close();
   // the PNG dialog hands over a file the same way
   await t.page.click('#png');
   await t.page.waitForTimeout(1200);
@@ -886,7 +909,7 @@ async function open(name, viewport, mobile = false, hash = ''){
 {
   const t = await open('cuts', { width: 1200, height: 800 });
   ok('three tabs, カット in the middle',
-     (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/共有',
+     (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/保存・共有',
      await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/')));
   const nItems = () => t.page.evaluate(() => window.__sp.state().items.length);
   const before = await nItems();
@@ -903,7 +926,10 @@ async function open(name, viewport, mobile = false, hash = ''){
 
   // カットは今の内容を写して増える。片方をいじってももう片方は動かない
   await t.tab('cut');
-  await t.page.click('#addcut'); await t.page.waitForTimeout(500);
+  ok('the cut tab offers 複製 and 新規',
+     (await t.page.$$eval('[data-sec="cut"] .row button', b => b.map(x => x.textContent.trim()).join('/'))) === 'カットを複製/新規カット');
+  ok('and the row keeps only the bin', (await t.page.$$eval('#cuts .itemrow button.ico', n => n.length)) === 1);
+  await t.page.click('#dupcut'); await t.page.waitForTimeout(500);
   const cuts = () => t.page.evaluate(() => window.__sp.state().cuts.length);
   ok('a second cut appears', await cuts() === 2, String(await cuts()));
   ok('and it carries the same things', await nItems() === before + 1);
@@ -925,16 +951,14 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('and the one being shown stays shown',
      await t.page.$eval('#cuts .itemrow[data-ix="1"] > button.name', e => e.classList.contains('on')));
   await t.tab('share');
-  // 用紙はカットごとに 1 枚
-  await t.page.click('[data-scope="all"]');
-  await t.page.click('#makepdf'); await t.page.waitForTimeout(3500);
+  // 用紙はカットごとに 1 枚。範囲も用紙の画面で選ぶ
+  await t.page.click('#makepdf'); await t.page.waitForTimeout(3000);
+  ok('このカットだけ prints one', await t.page.$$eval('.paper', n => n.length) === 1);
+  await t.page.click('.pmbar [data-scope="all"]'); await t.page.waitForTimeout(5000);
   const sheets = await t.page.$$eval('.paper', n => n.length);
   ok('全カット prints one sheet per cut', sheets === 2, `${sheets} sheets`);
   ok('with four panels on each', await t.page.$$eval('.paper .pv img', n => n.length) === 8);
-  await t.page.click('#paperclose'); await t.page.waitForTimeout(200);
-  await t.page.click('[data-scope="one"]');
-  await t.page.click('#makepdf'); await t.page.waitForTimeout(2500);
-  ok('このカットだけ prints one', await t.page.$$eval('.paper', n => n.length) === 1);
+  await t.page.click('.pmbar [data-scope="one"]'); await t.page.waitForTimeout(3000);
   await t.page.click('#paperclose'); await t.page.waitForTimeout(200);
 
   // 共有リンクに両方のカットが乗る
@@ -1237,6 +1261,43 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('two fingers move the view as well', swiped[0] !== 0 && swiped[1] !== 0, swiped.join());
   ok('pan run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 21. the panel after the tidy-up --------------------------------------------
+{
+  const t = await open('panel', { width: 1280, height: 860 });
+  ok('the tab is called 保存・共有',
+     (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/保存・共有',
+     await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/')));
+  await t.tab('share');
+  const secs = await t.page.$$eval('[data-sec="share"] h2', n => n.map(x => x.textContent).join('/'));
+  ok('the project file sits below PDF and 画像', secs === 'リンクで共有/PDF/画像/プロジェクト/オフライン', secs);
+  ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
+  ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
+
+  // 新規カットは、アプリを開いたときと同じ中身から始まる
+  await t.tab('cut');
+  await t.add('[data-add="box"]');
+  await t.tab('cut');
+  const before = await t.page.evaluate(() => window.__sp.state().items.length);
+  await t.page.click('#newcut'); await t.page.waitForTimeout(900);
+  const made = await t.page.evaluate(() => { const st = window.__sp.state();
+    return {cuts: st.cuts.length, items: st.items.map(i => i.type).join(','), cam: !!st.activeCam}; });
+  ok('新規カット starts from a clean floor', made.cuts === 2 && made.items === 'person,camera' && made.cam,
+     JSON.stringify(made));
+  ok('and leaves the cut it came from alone',
+     await t.page.evaluate(() => window.__sp.state().cuts[0].items.length) === before, String(before));
+  ok('panel run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+
+  // 指だけの端末では、ファインダーを切り離すボタンを出さない
+  const m = await open('touch', { width: 390, height: 780 }, true);
+  await m.page.waitForTimeout(600);
+  ok('a touch device is not offered the pop-out',
+     await m.page.$eval('#pipout', e => getComputedStyle(e).display) === 'none',
+     await m.page.$eval('#pipout', e => getComputedStyle(e).display));
+  ok('touch run clean', m.errors.length === 0, m.errors.join(' | '));
+  await m.ctx.close();
 }
 
 await browser.close(); server.close();
