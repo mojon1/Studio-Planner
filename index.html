@@ -139,6 +139,11 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #viewbtns button.on{background:var(--accent)}
 #viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
 #viewbtns button.icon:not(.on){color:#b9bec9}
+#recenter{position:absolute;top:58px;left:10px;z-index:3;display:none;align-items:center;gap:6px;height:34px;padding:0 12px 0 9px;
+  border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.8rem;
+  white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
+#recenter.on{display:flex}
+#recenter:focus-visible{outline:2px solid #fff;outline-offset:2px}
 #info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
 #info.hide{display:none}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
@@ -270,6 +275,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #viewbtns{gap:4px}
   #viewbtns button{height:34px;padding:0 6px;font-size:.72rem}
   #viewbtns button.icon{width:32px}
+  #recenter{top:52px;height:30px;font-size:.72rem;padding:0 10px 0 7px}
   #info{font-size:.68rem;padding:4px 8px}
   label.f{grid-template-columns:5em 1fr auto}
 }
@@ -319,7 +325,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
         <h2>最初から</h2>
         <div class="row"><button class="btn danger" id="reset">配置をすべて消す</button></div>
-        <p class="colophon">Studio Planner v1.5.2<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.6.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -337,6 +343,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
       </button>
     </div>
+    <button id="recenter" title="表示を中心に戻す" aria-label="表示を中心に戻す">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+      中心に戻す
+    </button>
     <div id="labels"></div>
     <div id="info"></div>
     <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipout" title="別ウィンドウで開く" aria-label="別ウィンドウで開く"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
@@ -1653,6 +1663,50 @@ function fitOrtho(){
     cam.updateProjectionMatrix();
   }
 }
+// ---------- 画面の移動（中ボタンのドラッグ / 2 本指のスワイプ） ----------
+// 平行投影の 3 面はカメラを平行に動かし、パースは注視点を動かす（カメラは
+// applyOrbit がそこから組み立てる）。ズームと見る角度には触らない。
+const PAN_LIMIT = () => Math.max(state.studio.w, state.studio.d) * 2;
+function panView(dx, dy){
+  if (mainView === 'cam' || (!dx && !dy)) return;
+  const lim = PAN_LIMIT();
+  if (mainView === 'pers'){
+    const k = 2 * orbit.radius * Math.tan(THREE.MathUtils.degToRad(persCam.fov/2)) / Math.max(1, H);
+    const dir = new THREE.Vector3().subVectors(orbit.target, persCam.position).normalize();
+    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+    const up = new THREE.Vector3().crossVectors(right, dir).normalize();
+    orbit.target.addScaledVector(right, -dx*k).addScaledVector(up, dy*k);
+    orbit.target.set(clamp(orbit.target.x, -lim, lim), clamp(orbit.target.y, -lim, lim), clamp(orbit.target.z, -lim, lim));
+    applyOrbit();
+  } else {
+    const cam = mainCam(), spu = (cam.right - cam.left)/cam.zoom/Math.max(1, W);
+    const c = v => clamp(v, -lim, lim);
+    if (mainView === 'plan'){ planCam.position.x = c(planCam.position.x - dx*spu); planCam.position.z = c(planCam.position.z - dy*spu); }
+    else if (mainView === 'front'){ frontCam.position.x = c(frontCam.position.x - dx*spu); frontCam.position.y = c(frontCam.position.y + dy*spu); }
+    else { sideCam.position.z = c(sideCam.position.z + dx*spu); sideCam.position.y = c(sideCam.position.y + dy*spu); }
+    fitOrtho();
+  }
+  needRender = true;
+}
+// 中心からどれだけずれているか（m）。0 より大きいあいだだけ「中心に戻す」を出す
+function panOffset(){
+  const h = state.studio.h;
+  if (mainView === 'pers') return Math.hypot(orbit.target.x, orbit.target.y - h*0.3, orbit.target.z);
+  if (mainView === 'plan') return Math.hypot(planCam.position.x, planCam.position.z);
+  if (mainView === 'side') return Math.hypot(sideCam.position.z, sideCam.position.y - h/2);
+  if (mainView === 'front') return Math.hypot(frontCam.position.x, frontCam.position.y - h/2);
+  return 0;
+}
+// ズームと見る角度は残す。動かしたぶんだけ戻す
+function centerView(){
+  const h = state.studio.h;
+  planCam.position.set(0, 60, 0); sideCam.position.set(60, h/2, 0); frontCam.position.set(0, h/2, 60);
+  orbit.target.set(0, h*0.3, 0);
+  fitOrtho(); needRender = true;
+}
+function syncRecenter(){
+  document.getElementById('recenter').classList.toggle('on', mainView !== 'cam' && panOffset() > 0.02);
+}
 function renderView(view, rect, isMain){
   const ci = camItem();
   itemsGroup.traverse(n => {
@@ -1740,7 +1794,7 @@ function frame(){
   renderView(mainView, mainRect(), true);
   if (pipShown()) renderView('cam', pipRect(), false);
   renderer.setScissorTest(false);
-  updateInfo();
+  updateInfo(); syncRecenter();
 }
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
@@ -1818,10 +1872,20 @@ function pick(x,y){
   }
   return null;
 }
+// 中ボタンは Chrome のオートスクロール（十字カーソル）を呼ぶ。pointerdown だけでは
+// 止まらないことがあるので mousedown と auxclick でも止める
+canvas.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+canvas.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
 canvas.addEventListener('pointerdown', e => {
   const r = canvas.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
-  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, {x,y,sx:x,sy:y});
-  if (pointers.size === 2){ const [a,b] = [...pointers.values()]; pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, r0: orbit.radius}; drag = null; return; }
+  try { canvas.setPointerCapture(e.pointerId); } catch {}   // 既に離れている指では投げる
+  pointers.set(e.pointerId, {x,y,sx:x,sy:y});
+  // 中ボタンは画面の移動。既定のオートスクロールは止める
+  if (e.button === 1){ e.preventDefault(); cancelLongPress(); drag = {panView:true}; return; }
+  if (pointers.size === 2){ const [a,b] = [...pointers.values()];
+    pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, r0: orbit.radius,
+             cx:(a.x+b.x)/2, cy:(a.y+b.y)/2};
+    drag = null; return; }
   if (mainView === 'cam'){ const ci = camItem(); drag = ci && !viewerMode ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
   if (viewerMode){ drag = {pan:true}; return; }
   const hit = pick(x,y);
@@ -1861,11 +1925,18 @@ canvas.addEventListener('pointermove', e => {
   if (pinch && pointers.size === 2){
     const [a,b] = [...pointers.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y); const k = d/pinch.d0;
     if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
-    else if (mainView === 'pers'){ orbit.radius = clamp(pinch.r0/k, 1.5, 80); }
-    else setOrthoZoom(clamp(pinch.z0*k, 0.3, 6));
+    else {
+      if (mainView === 'pers') orbit.radius = clamp(pinch.r0/k, 1.5, 80);
+      else setOrthoZoom(clamp(pinch.z0*k, 0.3, 6));
+      // つまむのと同時に、2 本の指の真ん中が動いたぶんだけ画面も動かす
+      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      panView(mx - pinch.cx, my - pinch.cy);
+      pinch.cx = mx; pinch.cy = my;
+    }
     needRender = true; return;
   }
   if (!drag) return;
+  if (drag.panView){ panView(dx, dy); return; }
   if (drag.look){ lookDrag(dx, dy); return; }
   if (drag.handle){ dragHandle(drag, x, y); return; }
   if (drag.tilt){ const it = sel(); const a = tiltAngle(x, y, false); if (a === null) return;
@@ -1873,12 +1944,9 @@ canvas.addEventListener('pointermove', e => {
   if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
   if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); needRender = true; return; }
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
+    // パースは何もない場所のドラッグで回す。平行投影の 3 面は動かす
     if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, 1.5); needRender = true; return; }
-    const cam = mainCam(); const spu = (cam.right-cam.left)/cam.zoom/W;
-    if (mainView==='plan'){ planCam.position.x -= dx*spu; planCam.position.z -= dy*spu; }
-    else if (mainView==='front'){ frontCam.position.x -= dx*spu; frontCam.position.y += dy*spu; }
-    else { sideCam.position.z += dx*spu; sideCam.position.y += dy*spu; }
-    needRender = true; }
+    panView(dx, dy); }
 });
 function lookDrag(dx, dy){ const ci = camItem(); if (!ci) return; ci.rot = norm(ci.rot - dx*0.15); ci.pitch = clamp(Math.round((ci.pitch - dy*0.15)*10)/10, -TILT_MAX, TILT_MAX); refreshCam(ci); needRender = true; }
 function endPointer(e){
@@ -2050,6 +2118,7 @@ const pipOutBtn = document.getElementById('pipout');
 pipOutBtn.addEventListener('click', e => { e.stopPropagation(); popOut(); });
 pipOutBtn.addEventListener('pointerdown', e => e.stopPropagation());
 pipBtn.addEventListener('click', () => { if (popOpen()) closePop(); setPipOpen(!pip.open); });
+document.getElementById('recenter').addEventListener('click', centerView);
 document.getElementById('undobtn').addEventListener('click', undo);
 document.getElementById('redobtn').addEventListener('click', redo);
 const rulerBtn = document.getElementById('ruler');

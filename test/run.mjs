@@ -1192,6 +1192,53 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 20. moving the view, and getting back to the middle --------------------------
+{
+  const t = await open('pan', { width: 1200, height: 800 });
+  const box = await t.page.locator('#view canvas').boundingBox();
+  const cx = box.x + box.width/2, cy = box.y + box.height/2;
+  const shown = () => t.page.$eval('#recenter', e => e.classList.contains('on'));
+  const cam = () => t.page.evaluate(() => { const c = window.__sp.camera();
+    return [+c.position.x.toFixed(2), +c.position.z.toFixed(2)]; });
+  ok('nothing to recentre at the start', !(await shown()));
+  const home = await cam();
+  await t.page.mouse.move(cx, cy); await t.page.mouse.down({ button: 'middle' });
+  await t.page.mouse.move(cx + 160, cy + 60, { steps: 10 }); await t.page.mouse.up({ button: 'middle' });
+  await t.page.waitForTimeout(400);
+  const moved = await cam();
+  ok('the middle button moves the perspective view', moved.join() !== home.join(), `${home} -> ${moved}`);
+  ok('and the recentre button turns up', await shown());
+  await t.page.screenshot({ path: `${OUT}/pan.png` });
+  await t.page.click('#recenter'); await t.page.waitForTimeout(400);
+  ok('it goes back to the middle', (await cam()).join() === home.join(), (await cam()).join());
+  ok('and takes itself away again', !(await shown()));
+
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(300);
+  ok('a fresh view starts centred', !(await shown()));
+  await t.page.mouse.move(cx, cy); await t.page.mouse.down({ button: 'middle' });
+  await t.page.mouse.move(cx - 140, cy - 80, { steps: 10 }); await t.page.mouse.up({ button: 'middle' });
+  await t.page.waitForTimeout(400);
+  const plan = await cam();
+  ok('the plan view moves too', plan[0] !== 0 && plan[1] !== 0, plan.join());
+  ok('and offers to recentre', await shown());
+  await t.page.click('#recenter'); await t.page.waitForTimeout(400);
+
+  // 2 本指のスワイプ。ブラウザに 2 本目の指は作れないので、イベントを直に投げる
+  await t.page.evaluate(([x, y]) => {
+    const c = document.querySelector('#view canvas');
+    const ev = (type, id, px, py) => c.dispatchEvent(new PointerEvent(type,
+      {pointerId:id, pointerType:'touch', clientX:px, clientY:py, bubbles:true, isPrimary:id === 1}));
+    ev('pointerdown', 1, x - 40, y); ev('pointerdown', 2, x + 40, y);
+    for (let i = 1; i <= 10; i++){ ev('pointermove', 1, x - 40 + i*10, y + i*6); ev('pointermove', 2, x + 40 + i*10, y + i*6); }
+    ev('pointerup', 1, x + 60, y + 60); ev('pointerup', 2, x + 140, y + 60);
+  }, [cx - box.x, cy - box.y]);
+  await t.page.waitForTimeout(400);
+  const swiped = await cam();
+  ok('two fingers move the view as well', swiped[0] !== 0 && swiped[1] !== 0, swiped.join());
+  ok('pan run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
