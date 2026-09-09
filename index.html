@@ -764,13 +764,19 @@ function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.Sphere
 // The cost is that they need a real server: the claude.ai preview frame cannot fetch
 // them and quietly stays on the mannequin, and so does file://.
 // Adding one is a line here plus the .glb and its thumbnail; see tools/make-thumbs.mjs.
+// 地域ごとに 1 行ずつ並ぶ順序。4 列なので、この並びだと行が地域で揃う。
 const PEOPLE_MODELS = [
-  {id:'asia-casual-man',   kind:'man',   wear:'カジュアル', label:'アジア系 男性 カジュアル'},
-  {id:'asia-business-man', kind:'man',   wear:'スーツ',     label:'アジア系 男性 スーツ'},
-  {id:'af-casual-man',     kind:'man',   wear:'カジュアル', label:'アフリカ系 男性 カジュアル'},
-  {id:'af-business-man',   kind:'man',   wear:'スーツ',     label:'アフリカ系 男性 スーツ'},
-  {id:'af-casual-woman',   kind:'woman', wear:'カジュアル', label:'アフリカ系 女性 カジュアル'},
-  {id:'af-business-woman', kind:'woman', wear:'スーツ',     label:'アフリカ系 女性 スーツ'},
+  {id:'asia-casual-man',     kind:'man',   wear:'カジュアル', label:'アジア系 男性 カジュアル'},
+  {id:'asia-business-man',   kind:'man',   wear:'スーツ',     label:'アジア系 男性 スーツ'},
+  {id:'asia-casual-woman',   kind:'woman', wear:'カジュアル', label:'アジア系 女性 カジュアル'},
+  {id:'asia-business-woman', kind:'woman', wear:'スーツ',     label:'アジア系 女性 スーツ'},
+  {id:'af-casual-man',       kind:'man',   wear:'カジュアル', label:'アフリカ系 男性 カジュアル'},
+  {id:'af-business-man',     kind:'man',   wear:'スーツ',     label:'アフリカ系 男性 スーツ'},
+  {id:'af-casual-woman',     kind:'woman', wear:'カジュアル', label:'アフリカ系 女性 カジュアル'},
+  {id:'af-business-woman',   kind:'woman', wear:'スーツ',     label:'アフリカ系 女性 スーツ'},
+  {id:'us-casual-man',       kind:'man',   wear:'カジュアル', label:'欧米系 男性 カジュアル'},
+  {id:'us-business-man',     kind:'man',   wear:'スーツ',     label:'欧米系 男性 スーツ'},
+  {id:'us-casual-woman',     kind:'woman', wear:'カジュアル', label:'欧米系 女性 カジュアル'},
 ];
 const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
 const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
