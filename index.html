@@ -76,7 +76,8 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
   padding-left:var(--sal);padding-bottom:var(--sab)}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
 #tabs,#sheet{zoom:.78}
-/* 見るだけリンクはパネルごと消えるので、カットの切り替えだけ画面の下に出す */
+/* 見るだけ（m=v）はパネルごと消えるので、カットの切り替えだけ画面の下に出す。
+   新しくこのリンクを作る道は無いが、配ってしまった古いリンクは今までどおり開く */
 #viewercuts{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
 #viewercuts button{height:34px;padding:0 12px;border:0;border-radius:17px;background:rgba(20,22,26,.75);color:#fff;
   font:inherit;font-size:.86rem;font-weight:500;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px)}
@@ -217,7 +218,6 @@ body.viewer #addfab{display:none}
 #qrdlg .qrnote span{font-size:.66rem;color:#999}
 #qrdlg .row{width:100%}
 #qrdlg .btn{background:#f1f2f4;color:#111;border:1px solid #d5d7db}
-#qrdlg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
 #toast{position:absolute;left:50%;bottom:calc(72px + var(--vsab));transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
@@ -364,7 +364,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint">配置だけの軽いファイルです。取り込んだモデルと3DGSの実体は入りません（この端末に残ります）。</p>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.3<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.10.4<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -462,7 +462,6 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 <div id="qrdlg"><div class="pop">
   <div class="qrtitle" id="qrtitle">このカットを開く QR コード</div>
   <canvas id="qrcv" width="10" height="10" aria-label="共有リンクの QR コード"></canvas>
-  <div class="row"><button class="btn on" data-qrmode="edit">編集できる</button><button class="btn" data-qrmode="view">見るだけ</button></div>
   <p class="qrnote">スマホのカメラを向けると、この配置がそのまま開きます。<br><span id="qrnote"></span></p>
   <div class="row"><button class="btn" id="qrclose">閉じる</button></div>
 </div></div>
@@ -3822,9 +3821,8 @@ document.getElementById('copy').addEventListener('click', copyLink);
 // ---------- QR コード ----------
 // 現場で「そのスマホで開いてもらう」ための一枚。リンクの中身は共有リンクと同じ。
 const qrDlg = document.getElementById('qrdlg'), qrCv = document.getElementById('qrcv');
-let qrMode = 'edit';
 async function drawQR(){
-  const url = location.origin + location.pathname + location.search + '#s=' + await encode() + (qrMode === 'view' ? '&m=v' : '');
+  const url = location.origin + location.pathname + location.search + '#s=' + await encode();
   const note = document.getElementById('qrnote');
   const m = QR(url);
   if (!m){
@@ -3852,11 +3850,6 @@ function closeQR(){ qrDlg.classList.remove('on'); }
 document.getElementById('qrbtn').addEventListener('click', openQR);
 document.getElementById('qrclose').addEventListener('click', closeQR);
 qrDlg.addEventListener('click', e => { if (e.target === qrDlg) closeQR(); });
-for (const b of qrDlg.querySelectorAll('[data-qrmode]')) b.addEventListener('click', () => {
-  qrMode = b.dataset.qrmode;
-  for (const o of qrDlg.querySelectorAll('[data-qrmode]')) o.classList.toggle('on', o === b);
-  drawQR();
-});
 addEventListener('keydown', e => { if (e.key === 'Escape' && qrDlg.classList.contains('on')) closeQR(); });
 // ---------- handing a file to the viewer ----------
 // A plain <a download> is inert inside the claude.ai preview frame, which is where
@@ -4470,6 +4463,8 @@ window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camer
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
   if (BUNDLE?.state){ try { state = migrate(BUNDLE.state); } catch(e){ console.warn('bundle state failed', e); } }
   else await loadHash();
+  // 見るだけを新しく作る道はもう無い（クラウドで 1 つの配置を共有する仕組みでは
+  // ないので、鍵にも約束にもならなかった）。配ってしまった古いリンクだけが通る
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; }
   syncViewBtns();

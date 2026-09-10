@@ -412,7 +412,8 @@ async function open(name, viewport, mobile = false, hash = ''){
 {
   const hash = global.__link.slice(global.__link.indexOf('#'));
   const t = await open('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
-  ok('viewer hides the editing panel', await t.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
+  // 新しく作る道は無いが、配ってしまった古い m=v のリンクは今までどおり開く
+  ok('an old m=v link still opens read-only', await t.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
   ok('viewer run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
@@ -1068,11 +1069,11 @@ async function open(name, viewport, mobile = false, hash = ''){
   const url = await read();
   ok('and the code really reads back as the share link',
      !!url && url.startsWith('http://localhost:8765/#s=') && !/m=v/.test(url), String(url).slice(0, 48));
-  await t.page.click('[data-qrmode="view"]'); await t.page.waitForTimeout(500);
-  const vurl = await read();
-  ok('見るだけ gives the viewer link', !!vurl && /&m=v$/.test(vurl), String(vurl).slice(-20));
+  // 「見るだけ」の切り替えは外した。クラウドで 1 つの配置を共有する仕組みでは
+  // ないので、鍵にも約束にもならなかった（寺村さんの指摘）
+  ok('there is no view-only switch any more', (await t.page.$$('[data-qrmode]')).length === 0);
   // リンクの中身が本当にその配置か
-  const t2 = await open('qr-open', { width: 1000, height: 700 }, false, vurl.slice(vurl.indexOf('#')));
+  const t2 = await open('qr-open', { width: 1000, height: 700 }, false, url.slice(url.indexOf('#')));
   ok('opening it restores the scene',
      await t2.page.evaluate(() => window.__sp.state().items.some(i => i.type === 'person')));
   await t.page.click('#qrclose'); await t.page.waitForTimeout(200);
@@ -1326,7 +1327,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // どれか 1 つが既定の道具ではないので、オレンジ（primary）は付けない
   ok('and none of them is painted as the one to press',
      (await t.page.$$('[data-sec="share"] .btn.primary')).length === 0);
-  // 見るだけリンクのボタンは外した（見るだけは QR の切り替えに残っている）
+  // 見るだけは共有タブからも QR からも外した（新しく作る道はもう無い）
   ok('the view-only button is gone', !(await t.page.$('#copyview')));
   // URL の欄はクリップボードが塞がれているときだけ出る
   ok('the URL box stays out of the way', await t.page.evaluate(() => document.getElementById('linkbox').hidden));
