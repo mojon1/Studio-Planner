@@ -26,7 +26,7 @@ const NAMES = {
   'Female Standing Pose':      {id:'stand-4',  label:'立つ 4'},
   'Female Standing Pose (1)':  {id:'stand-5',  label:'立つ 3'},
   'Male Locomotion Pose':      {id:'walk',     label:'歩く'},
-  'Male Sitting Pose':         {id:'sit-chair',label:'椅子'},
+  'Sitting':                   {id:'sit-chair',label:'椅子'},
   'Male Sitting Pose (1)':     {id:'sit-floor',label:'床に座る'},
   'Male Laying Pose':          {id:'lie-up',   label:'仰向け'},
   'Female Laying Pose':        {id:'lie-down', label:'うつ伏せ'},
