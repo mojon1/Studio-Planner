@@ -1788,6 +1788,72 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 31. 指だけの端末：長押しでメニュー、画面は文字選択にならない -------------------
+// スマホで長押し／感圧タッチをすると画面じゅうが「文字選択」に化けていた。
+// 一覧の行も、iOS Safari は contextmenu を投げないのでメニューが出ず選択になっていた
+{
+  const t = await open('touchmenu', { width: 390, height: 844 }, true);
+  const css = await t.page.evaluate(() => [...document.querySelectorAll('style')].map(s => s.textContent).join(''));
+  const how = await t.page.evaluate(() => {
+    const g = el => getComputedStyle(el);
+    return {body: g(document.body).userSelect, input: g(document.getElementById('linkbox')).userSelect};
+  });
+  ok('the page itself cannot be text-selected', how.body === 'none', JSON.stringify(how));
+  ok('but the text fields still can be', how.input === 'text', how.input);
+  // -webkit-touch-callout は WebKit だけのものなので、Chromium では配線だけ見る
+  ok('and iOS is told to skip the callout and the force-touch preview',
+     /body\{[^}]*-webkit-touch-callout:\s*none/.test(css));
+
+  await t.page.click('#gear'); await t.page.waitForTimeout(250);      // 携帯は畳んで始まる
+  const rowSel = '#items .itemrow[data-id] > button.name';
+  const row = t.page.locator(rowSel).first();
+  const box = await row.boundingBox();
+  const at = {clientX: Math.round(box.x + box.width/2), clientY: Math.round(box.y + box.height/2), bubbles: true};
+  const menu = () => t.page.evaluate(() => {
+    const c = document.getElementById('ctx');
+    return {open: !c.hidden, items: [...c.querySelectorAll('button')].map(b => b.textContent),
+            guard: getComputedStyle(c).pointerEvents};
+  });
+  await row.dispatchEvent('pointerdown', {pointerType:'touch', ...at});
+  await t.page.waitForTimeout(750);
+  let m = await menu();
+  ok('a long press on an object row opens the right-click menu',
+     m.open && m.items.join('/') === '名前を変更/ロック/複製/削除', JSON.stringify(m));
+  // 指の真下に出るので、離した瞬間の click で 1 行目が押されないようにしてある
+  ok('and the finger that opened it cannot fall through onto it', m.guard === 'none', m.guard);
+  await t.page.waitForTimeout(450);
+  ok('it takes taps a moment later',
+     (await t.page.evaluate(() => getComputedStyle(document.getElementById('ctx')).pointerEvents)) !== 'none');
+  await t.page.keyboard.press('Escape'); await t.page.waitForTimeout(150);
+
+  // マウスには効かせない（右クリックがある）
+  await row.dispatchEvent('pointerdown', {pointerType:'mouse', ...at});
+  await t.page.waitForTimeout(700);
+  ok('a mouse press does not open it', (await menu()).open === false);
+
+  // 指を滑らせたら、それはスクロールか並べ替え
+  await row.dispatchEvent('pointerdown', {pointerType:'touch', ...at});
+  await row.dispatchEvent('pointermove', {pointerType:'touch', ...at, clientY: at.clientY + 40});
+  await t.page.waitForTimeout(700);
+  ok('sliding the finger cancels it', (await menu()).open === false);
+
+  // カットの一覧も同じ
+  await t.tab('cut');
+  await t.page.click('#dupcut'); await t.page.waitForTimeout(400);
+  const crow = t.page.locator('#cuts .itemrow > button.name').first();
+  const cbox = await crow.boundingBox();
+  await crow.dispatchEvent('pointerdown', {pointerType:'touch',
+    clientX: Math.round(cbox.x + cbox.width/2), clientY: Math.round(cbox.y + cbox.height/2), bubbles: true});
+  await t.page.waitForTimeout(750);
+  m = await menu();
+  ok('a long press on a cut row opens the cut menu',
+     m.open && m.items.join('/') === '名前を変更/複製/削除', JSON.stringify(m));
+  await t.page.keyboard.press('Escape');
+  await t.page.screenshot({ path: `${OUT}/touchmenu.png` });
+  ok('touch menu run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

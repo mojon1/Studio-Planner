@@ -60,6 +60,13 @@ body:not(.folded):not(.viewer) #view{--vsal:0px}
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}
+/* 指で触る端末では、長押しや感圧タッチ（3D Touch）が「文字を選ぶ」に化ける。
+   図面を触っているつもりが画面じゅうが青く反転する、という形で出ていた。
+   ここは文書ではなく道具なので、**選べるのは入力欄だけ**にする。
+   -webkit-touch-callout は iOS の「コピー / 調べる」の吹き出しと、
+   強く押し込んだときのプレビューを止める */
+body{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+input,textarea,[contenteditable]{-webkit-user-select:text; user-select:text; -webkit-touch-callout:default}
 body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
 #app{position:fixed;inset:0;display:grid;grid-template-columns:340px 1fr;grid-template-rows:1fr}
 #view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
@@ -359,7 +366,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>まとめて書き出す</h2>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTMLエクスポート</button></div>
         <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.1<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.10.2<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -2211,7 +2218,7 @@ function armLongPress(id, e){
   cancelLongPress();
   if (!id || viewerMode || pointers.size > 1) return;
   lpAt = {x:e.clientX, y:e.clientY};
-  lpT = setTimeout(() => { lpT = null; drag = null; pointers.clear(); openCtx(id, lpAt.x, lpAt.y); }, 550);
+  lpT = setTimeout(() => { lpT = null; drag = null; pointers.clear(); ctxGuard(); openCtx(id, lpAt.x, lpAt.y); }, 550);
 }
 function cancelLongPress(){ if (lpT){ clearTimeout(lpT); lpT = null; } }
 canvas.addEventListener('contextmenu', e => {
@@ -2641,6 +2648,29 @@ function renameField(it, counts){
 // カットの帯。押すと切り替え、右クリック（長押し）で名前・複製・削除
 // カットは「オブジェクト」と同じ形の一覧。行を押すと切り替わる。
 // 見るだけリンクではパネルごと消えるので、そのときだけ画面の下にチップを出す。
+// 指だけの端末には contextmenu が来ない（iOS Safari は投げない）ので、一覧の行を
+// 長押ししても何も出ず、代わりに文字選択が始まっていた。キャンバスと同じ 550 ms の
+// 長押しで同じメニューを出す。8 px 動いたら並べ替えかスクロールなので取り消す。
+// **マウスには効かせない**（右クリックがある）。Android は長押しで contextmenu も
+// 投げるので、来たらこちらは取り消して二重に開かないようにする。
+function bindLongPress(el, run){
+  let t = null, at = null;
+  const stop = () => { if (t){ clearTimeout(t); t = null; } };
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    stop(); at = {x:e.clientX, y:e.clientY};
+    t = setTimeout(() => { t = null; ctxGuard(); run(at.x, at.y); }, 550);
+  });
+  el.addEventListener('pointermove', e => { if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) > 8) stop(); });
+  for (const ev of ['pointerup','pointercancel','contextmenu']) el.addEventListener(ev, stop);
+}
+// 長押しで出したメニューは指の真下に出る。そのまま指を離すと、その click が
+// メニューの 1 行目（「名前を変更」）を押してしまう。出た直後だけ触れなくして
+// その 1 回を下へ逃がす
+function ctxGuard(){
+  ctxEl.style.pointerEvents = 'none';
+  setTimeout(() => { ctxEl.style.pointerEvents = ''; }, 350);
+}
 function renderCuts(){
   const el = document.getElementById('cuts'); el.innerHTML = '';
   state.cuts.forEach((c, i) => {
@@ -2652,6 +2682,7 @@ function renderCuts(){
     b.innerHTML = `<span>${esc(cutName(c, i))}</span><small>${n} 点</small>`;
     b.addEventListener('click', () => { showCut(i); showTab('cut'); });
     row.addEventListener('contextmenu', e => { e.preventDefault(); showCut(i); openCutMenu(e.clientX, e.clientY); });
+    bindLongPress(b, (x, y) => { showCut(i); openCutMenu(x, y); });   // 指だけの端末はこちら
     const icon = (cls, title, html, fn) => {
       const x = document.createElement('button'); x.className = cls; x.title = title; x.setAttribute('aria-label', title);
       x.innerHTML = html; x.addEventListener('click', fn); return x;
@@ -2784,6 +2815,7 @@ function renderList(){
       () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
     const del = icon('ico trash', '削除', TRASH, () => { if (it.locked){ toast('ロック中です'); return; } deleteItem(it); });
     row.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(it.id, e.clientX, e.clientY); });
+    bindLongPress(b, (x, y) => openCtx(it.id, x, y));                 // 指だけの端末はこちら
     row.prepend(grip); row.append(b, lock, eye, del); el.appendChild(row);
   }
   if (!state.items.length){
