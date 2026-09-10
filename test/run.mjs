@@ -181,7 +181,6 @@ async function open(name, viewport, mobile = false, hash = ''){
   // the drawing names a reflector by its long and short side, a backdrop by w x d
   await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(600);
   const drawn = await t.page.$$eval('#labels span', n => n.map(x => x.textContent));
-  ok('the reflector names each edge on its own', drawn.some(x => /床鏡幅/.test(x)) && drawn.some(x => /床鏡奥行/.test(x)), drawn.join(' | '));
   ok('so does the backdrop', drawn.some(x => /布幅/.test(x)), drawn.filter(x => x.includes('幅')).join(' | '));
   const boxes = await t.page.$$eval('#labels span', n => n.map(e => { const r = e.getBoundingClientRect(); return {l:r.left, r:r.right, t:r.top, b:r.bottom}; }));
   let overlap = 0;
@@ -214,6 +213,18 @@ async function open(name, viewport, mobile = false, hash = ''){
 
   await t.tab('share');
   const link = await t.page.inputValue('#linkbox');
+  // 辺ごとの寸法は、ラベルが押し合わない素の場面で見る（上の場面は 7 個ぶん詰めてある）
+  {
+    const solo = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
+      activeCam:'c1', items:[{id:'w1',type:'mirror',x:0,z:0,rot:0,kind:'floor',w:3,h:2},
+        {id:'c1',type:'camera',x:0,z:3,y:1.3,rot:180,pitch:-6,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
+    const so = await open('mirror-dims', { width: 1200, height: 800 }, false, '#s=' + encodeState(solo));
+    await so.page.click('[data-view="plan"]'); await so.page.waitForTimeout(700);
+    const md = await so.page.$$eval('#labels span', n => n.map(x => x.textContent));
+    ok('the reflector names each edge on its own',
+       md.some(x => /床鏡幅/.test(x)) && md.some(x => /床鏡奥行/.test(x)), md.join(' | '));
+    await so.ctx.close();
+  }
   ok('share link built', link.includes('#s='), `${link.length} chars`);
   ok('desktop run clean', t.errors.length === 0, t.errors.join(' | '));
   global.__link = link;
@@ -1297,6 +1308,77 @@ async function open(name, viewport, mobile = false, hash = ''){
      await m.page.$eval('#pipout', e => getComputedStyle(e).display) === 'none',
      await m.page.$eval('#pipout', e => getComputedStyle(e).display));
   ok('touch run clean', m.errors.length === 0, m.errors.join(' | '));
+  await m.ctx.close();
+}
+
+// --- 22. the tidy-up round: bins, pinch, angles, presets, the corner buttons -------
+{
+  const t = await open('polish', { width: 1300, height: 860 });
+  // ゴミ箱: 消したあと、繰り上がってきた別の行が赤くならない
+  for (const k of ['box','chair','table','koma']) await t.add(`[data-add="${k}"]`);
+  const reds = () => t.page.$$eval('#items .itemrow .ico.trash',
+    n => n.filter(x => getComputedStyle(x).color === 'rgb(168, 58, 58)').length);
+  await t.page.click('#items .itemrow[data-kind="chair"] .ico.trash');
+  await t.page.waitForTimeout(500);
+  ok('deleting a row leaves no other bin lit up', await reds() === 0, `${await reds()} red`);
+
+  // 左下: ＋ と設定は同じ大きさで縦並び、下が設定
+  const r = await t.page.evaluate(() => Object.fromEntries(['addfab','gear','undobtn'].map(id => {
+    const b = document.getElementById(id).getBoundingClientRect();
+    return [id, {x:Math.round(b.left), y:Math.round(b.top), w:Math.round(b.width), h:Math.round(b.height), cy:Math.round(b.top + b.height/2)}];
+  })));
+  ok('＋ and the gear are the same size, stacked, gear underneath',
+     r.addfab.w === r.gear.w && r.addfab.h === r.gear.h && r.addfab.x === r.gear.x && r.addfab.y < r.gear.y,
+     JSON.stringify(r));
+  ok('and undo sits beside them on the same line', r.undobtn.x > r.gear.x && Math.abs(r.undobtn.cy - r.gear.cy) <= 2,
+     `${r.undobtn.cy} vs ${r.gear.cy}`);
+
+  // プリセットは一回り大きく
+  await t.page.click('#items .itemrow[data-kind="studio"] > button.name'); await t.page.waitForTimeout(300);
+  const opts = await t.page.$$eval('#preset option', n => n.map(x => x.textContent).join(' / '));
+  ok('the studio presets are a size bigger',
+     /小スタジオ 6×5×3.5/.test(opts) && /中スタジオ 10×8×4.5/.test(opts) && /大スタジオ 15×12×6/.test(opts), opts);
+  ok('and a new session starts at the middle one',
+     JSON.stringify(await t.page.evaluate(() => window.__sp.state().studio)).startsWith('{"w":10,"d":8,"h":4.5'),
+     JSON.stringify(await t.page.evaluate(() => window.__sp.state().studio)));
+
+  // 角度は小数第 1 位まで
+  await t.page.evaluate(() => { const c = window.__sp.state().items.find(i => i.type === 'camera');
+    c.pitch = -6.28; c.rot = 179.62; window.__sp.render(); });
+  await t.page.click('#items .itemrow[data-kind="camera"] > button.name'); await t.page.waitForTimeout(300);
+  const shown = await t.page.$$eval('#selbody [data-edit]', n => n.map(x => x.textContent.trim()).join(' | '));
+  ok('angles read to one decimal place', /-6\.3 °/.test(shown) && !/-6\.28/.test(shown), shown);
+  await t.page.waitForTimeout(300);
+  ok('and so does the readout', /チルト -6\.3°/.test(await t.page.textContent('#info')),
+     (await t.page.textContent('#info')).split('\n').pop());
+  ok('polish run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+
+  // スマホ: 物の上に指を置いたままでも、2 本指でつまめば拡大縮小できる
+  const m = await open('pinch', { width: 390, height: 780 }, true);
+  await m.page.click('[data-view="plan"]'); await m.page.waitForTimeout(600);
+  const zoom = () => m.page.evaluate(() => window.__sp.camera().zoom);
+  const before = await zoom();
+  const box = await m.page.locator('#view canvas').boundingBox();
+  await m.page.evaluate(([x, y]) => {
+    const c = document.querySelector('#view canvas');
+    window.__ev = (type, id, px, py) => c.dispatchEvent(new PointerEvent(type,
+      {pointerId:id, pointerType:'touch', clientX:px, clientY:py, bubbles:true, isPrimary:id === 1}));
+    window.__p = [x, y];
+    window.__ev('pointerdown', 1, x - 30, y);
+  }, [Math.round(box.width/2), Math.round(box.height/2)]);
+  await m.page.waitForTimeout(800);                 // 長押しの 550ms を跨がせる
+  await m.page.evaluate(() => {
+    const [x, y] = window.__p, ev = window.__ev;
+    ev('pointerdown', 2, x + 30, y);
+    for (let i = 1; i <= 12; i++){ ev('pointermove', 1, x - 30 - i*8, y); ev('pointermove', 2, x + 30 + i*8, y); }
+    ev('pointerup', 1, x - 126, y); ev('pointerup', 2, x + 126, y);
+  });
+  await m.page.waitForTimeout(500);
+  const after = await zoom();
+  ok('two fingers zoom even after resting on something', after > before * 1.5, `${before} -> ${after}`);
+  ok('and no long-press menu got in the way', await m.page.$eval('#ctx', e => e.hidden));
+  ok('pinch run clean', m.errors.length === 0, m.errors.join(' | '));
   await m.ctx.close();
 }
 

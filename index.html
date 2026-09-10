@@ -44,7 +44,7 @@ html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
 #app{position:fixed;inset:0;display:grid;grid-template-columns:340px 1fr;grid-template-rows:1fr}
 #view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
-#view canvas{display:block;width:100%;height:100%}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
 #view.drop::after{content:"ここに落とすと取り込みます";position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,22,26,.55);font-weight:700;z-index:6;pointer-events:none}
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
@@ -62,12 +62,12 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #pipbtn.on{background:var(--accent);color:#fff}
 #pipbtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #pipbtn{display:none}
-#undobtn,#redobtn{position:absolute;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
-#undobtn{left:132px}#redobtn{left:184px}
+#undobtn,#redobtn{position:absolute;bottom:16px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#undobtn{left:76px}#redobtn{left:128px}
 #undobtn:disabled,#redobtn:disabled{opacity:.32;cursor:default}
 #undobtn:focus-visible,#redobtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #undobtn,body.viewer #redobtn{display:none}
-#gear{position:absolute;left:80px;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#gear{position:absolute;left:12px;bottom:12px;z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
 #gear.on{background:var(--accent)}
 #gear:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #gear{display:none}
@@ -118,7 +118,10 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .itemrow.hidden-item .eye{color:var(--muted)}
 .itemrow .ico{flex:0 0 36px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .itemrow .ico.on{color:var(--accent);border-color:var(--accent)}
-.itemrow .ico.trash:hover{color:var(--danger)}
+/* 消したあと行が繰り上がると、カーソルの下に来た別の行のゴミ箱が赤くなり、
+   「関係ない行が消える寸前」に見える。指で触る端末では触ったあとずっと赤い。
+   一覧を組み直したらいったん切り、指やカーソルが動いてから効かせる */
+@media (hover: hover){ body:not(.nohover) .itemrow .ico.trash:hover{color:var(--danger)} }
 .itemrow .grip{flex:0 0 20px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .itemrow.dragging{opacity:.5}
 .itemrow.dropbefore{box-shadow:0 -3px 0 -1px var(--accent)}
@@ -157,7 +160,8 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #pip .bar button:hover{background:rgba(255,255,255,.18)}
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
-#addfab{position:absolute;left:12px;bottom:12px;z-index:4;width:56px;height:56px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.9rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
+/* ＋ と設定は同じ大きさで縦並び。下が設定 */
+#addfab{position:absolute;left:12px;bottom:74px;z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
 #addfab:active{transform:translateY(1px)}
 #addfab:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #addfab{display:none}
@@ -234,8 +238,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pbody{flex:1;display:flex;gap:5mm;min-height:0;padding-top:3mm}
 .paper.portrait .pbody{flex-direction:column;gap:3mm}
 .pviews{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
-.paper.landscape .pviews{flex:0 0 186mm}
-.paper.portrait .pviews{flex:0 0 146mm}
+.paper.landscape .pviews{flex:0 0 206mm}
+.paper.portrait .pviews{flex:0 0 156mm}
 .pv{position:relative;border:.8pt solid #9ca3af;background:#eceef1;overflow:hidden;cursor:move;touch-action:none}
 .pv[data-pane="cam"]{cursor:default}
 .pvin{position:absolute;inset:0;transform-origin:center center}
@@ -248,15 +252,15 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 .pside{flex:1;display:flex;flex-direction:column;gap:3mm;min-width:0}
 .paper.portrait .pside{flex:1;flex-direction:row;gap:4mm}
 .pbox{border:.8pt solid #9ca3af;display:flex;flex-direction:column;min-height:0}
-.pbox>h4{margin:0;font-size:7pt;font-weight:700;letter-spacing:.1em;background:#e5e7eb;color:#374151;padding:1mm 2mm;border-bottom:.4pt solid #9ca3af}
-.pbox .inner{padding:1.5mm 2mm;font-size:8pt;line-height:1.55}
-.prow{display:flex;justify-content:space-between;gap:3mm;border-bottom:.3pt dotted #b6bcc6;padding:.5mm 0}
+.pbox>h4{margin:0;font-size:5.8pt;font-weight:700;letter-spacing:.08em;background:#e5e7eb;color:#374151;padding:.7mm 1.5mm;border-bottom:.4pt solid #9ca3af}
+.pbox .inner{padding:1mm 1.5mm;font-size:6.2pt;line-height:1.35}
+.prow{display:flex;justify-content:space-between;gap:2mm;border-bottom:.3pt dotted #b6bcc6;padding:.25mm 0}
 .prow:last-child{border-bottom:0}
 .prow .k{color:#6b7280;white-space:nowrap}
 .prow .v{font-weight:700;text-align:right}
-.pmemo{flex:1;min-height:18mm}
-.pmemo .inner{flex:1;white-space:pre-wrap;font-size:8pt;line-height:2.1;
-  background-image:repeating-linear-gradient(#fff 0 calc(2.1em - .3pt), #dfe3e9 calc(2.1em - .3pt) 2.1em)}
+.pmemo{flex:1;min-height:14mm}
+.pmemo .inner{flex:1;white-space:pre-wrap;font-size:6.6pt;line-height:2.2;
+  background-image:repeating-linear-gradient(#fff 0 calc(2.2em - .3pt), #dfe3e9 calc(2.2em - .3pt) 2.2em)}
 .pfoot{flex:none;padding-top:1.5mm;font-size:6.5pt;color:#9ca3af;display:flex;justify-content:space-between}
 @media print{
   html,body{overflow:visible !important;height:auto !important;background:#fff !important}
@@ -278,7 +282,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 @media (max-width:760px){
   #addpop,#namedlg{align-items:flex-end;padding:0}
   #addpop .pop,#namedlg .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
-  #addfab{width:52px;height:52px;font-size:1.7rem}
+  #addfab{width:48px;height:48px;font-size:1.6rem;bottom:68px}
+  #gear{width:48px;height:48px}
+  #undobtn,#redobtn{width:40px;height:40px;bottom:16px}
+  #undobtn{left:70px}#redobtn{left:118px}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   body.folded:not(.viewer) #app{grid-template-rows:1fr}
   #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
@@ -331,7 +338,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <p class="colophon">Studio Planner v1.7.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.7.1<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -440,9 +447,9 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';   
 
 // ---------- data ----------
 const PRESETS = [
-  {id:'s', name:'小スタジオ 5×4×3 m', w:5, d:4, h:3, cove:{back:false,left:false,right:false}},
-  {id:'m', name:'中スタジオ 8×6×4 m（白ホリ 奥）', w:8, d:6, h:4, cove:{back:true,left:false,right:false}},
-  {id:'l', name:'大スタジオ 12×10×5 m（白ホリ 奥+左右）', w:12, d:10, h:5, cove:{back:true,left:true,right:true}},
+  {id:'s', name:'小スタジオ 6×5×3.5 m', w:6, d:5, h:3.5, cove:{back:false,left:false,right:false}},
+  {id:'m', name:'中スタジオ 10×8×4.5 m（白ホリ 奥）', w:10, d:8, h:4.5, cove:{back:true,left:false,right:false}},
+  {id:'l', name:'大スタジオ 15×12×6 m（白ホリ 奥+左右）', w:15, d:12, h:6, cove:{back:true,left:true,right:true}},
   {id:'r', name:'6 畳の部屋 3.6×2.7×2.4 m', w:3.6, d:2.7, h:2.4, cove:{back:false,left:false,right:false}},
   {id:'custom', name:'数値で入力'},
 ];
@@ -480,6 +487,7 @@ const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 // rotations live in -180..180 so a slider has zero in the middle
 const norm = a => { const n = ((a % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
+const a1 = v => Math.round((+v || 0) * 10) / 10;      // 角度は小数第 1 位まで
 
 let state = defaultState();
 let selectedId = null;
@@ -493,7 +501,7 @@ function defaultState(){
     {id:'c1', type:'camera', x:0, z:2.4, y:1.3, rot:180, pitch:-6, roll:0, sensor:'ff', focal:35, aspect:'16:9'},
   ]};
   return {meta:{project:'', cut:cut.name, memo:cut.memo, frames:cut.frames},
-          studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}},
+          studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
           activeCam:cut.activeCam, items:cut.items, cuts:[cut], cutIx:0};
 }
 // ---------- カット ----------
@@ -1681,17 +1689,51 @@ function fitOrtho(){
 // 平行投影の 3 面はカメラを平行に動かし、パースは注視点を動かす（カメラは
 // applyOrbit がそこから組み立てる）。ズームと見る角度には触らない。
 const PAN_LIMIT = () => Math.max(state.studio.w, state.studio.d) * 2;
+// 行き過ぎて迷子にならないよう、動かせる範囲を世界の 2 倍で止める
+function clampView(){
+  const lim = PAN_LIMIT(), c = v => clamp(v, -lim, lim);
+  orbit.target.set(c(orbit.target.x), c(orbit.target.y), c(orbit.target.z));
+  planCam.position.x = c(planCam.position.x); planCam.position.z = c(planCam.position.z);
+  frontCam.position.x = c(frontCam.position.x); frontCam.position.y = c(frontCam.position.y);
+  sideCam.position.z = c(sideCam.position.z); sideCam.position.y = c(sideCam.position.y);
+}
+// 画面の向きベクトル。パースは注視点まわりで持つ
+function screenAxes(){
+  const dir = new THREE.Vector3().subVectors(orbit.target, persCam.position).normalize();
+  const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+  return {right, up: new THREE.Vector3().crossVectors(right, dir).normalize()};
+}
+const persPPU = r => 2 * r * Math.tan(THREE.MathUtils.degToRad(persCam.fov/2)) / Math.max(1, H);
+const orthoPPU = c => (c.right - c.left) / c.zoom / Math.max(1, W);
+// **指（カーソル）の下の点を動かさずに拡大縮小する。** 画面の真ん中を軸にすると、
+// 端をつまんだ瞬間に見ていたところが枠の外へ逃げていき、スマホでは特に狙えない。
+function zoomAt(mx, my, apply){
+  if (mainView === 'cam'){ apply(); needRender = true; return; }
+  const ox = mx - W/2, oy = my - H/2;
+  if (mainView === 'pers'){
+    const before = persPPU(orbit.radius);
+    apply();
+    const d = before - persPPU(orbit.radius), ax = screenAxes();
+    orbit.target.addScaledVector(ax.right, ox*d).addScaledVector(ax.up, -oy*d);
+    clampView(); applyOrbit();
+  } else {
+    const cam = mainCam(), before = orthoPPU(cam);
+    apply();
+    const d = before - orthoPPU(cam);
+    if (mainView === 'plan'){ planCam.position.x += ox*d; planCam.position.z += oy*d; }
+    else if (mainView === 'front'){ frontCam.position.x += ox*d; frontCam.position.y -= oy*d; }
+    else { sideCam.position.z -= ox*d; sideCam.position.y -= oy*d; }
+    clampView(); fitOrtho();
+  }
+  needRender = true;
+}
 function panView(dx, dy){
   if (mainView === 'cam' || (!dx && !dy)) return;
   const lim = PAN_LIMIT();
   if (mainView === 'pers'){
-    const k = 2 * orbit.radius * Math.tan(THREE.MathUtils.degToRad(persCam.fov/2)) / Math.max(1, H);
-    const dir = new THREE.Vector3().subVectors(orbit.target, persCam.position).normalize();
-    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
-    const up = new THREE.Vector3().crossVectors(right, dir).normalize();
-    orbit.target.addScaledVector(right, -dx*k).addScaledVector(up, dy*k);
-    orbit.target.set(clamp(orbit.target.x, -lim, lim), clamp(orbit.target.y, -lim, lim), clamp(orbit.target.z, -lim, lim));
-    applyOrbit();
+    const k = persPPU(orbit.radius), ax = screenAxes();
+    orbit.target.addScaledVector(ax.right, -dx*k).addScaledVector(ax.up, dy*k);
+    clampView(); applyOrbit();
   } else {
     const cam = mainCam(), spu = (cam.right - cam.left)/cam.zoom/Math.max(1, W);
     const c = v => clamp(v, -lim, lim);
@@ -1815,7 +1857,7 @@ function updateInfo(){
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
   if (ci){
     const eq = equiv(ci), many = cams().length > 1;          // the name only earns its place with more than one
-    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${ci.pitch}°`:''}`;
+    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${a1(ci.pitch)}°`:''}`;
   }
   el.textContent = t;
   document.getElementById('pipname').textContent = ci ? camName(ci) : 'カメラ';
@@ -1897,6 +1939,9 @@ canvas.addEventListener('pointerdown', e => {
   // 中ボタンは画面の移動。既定のオートスクロールは止める
   if (e.button === 1){ e.preventDefault(); cancelLongPress(); drag = {panView:true}; return; }
   if (pointers.size === 2){ const [a,b] = [...pointers.values()];
+    // 2 本目が来たら長押しは取り消す。放っておくと 550ms でメニューが開き、
+    // pointers.clear() でつまむ操作が丸ごと消える（スマホで拡大できない原因）
+    cancelLongPress();
     pinch = {d0:Math.hypot(a.x-b.x,a.y-b.y), f0: camItem()?.focal, z0: planCam.zoom, r0: orbit.radius,
              cx:(a.x+b.x)/2, cy:(a.y+b.y)/2};
     drag = null; return; }
@@ -1940,11 +1985,12 @@ canvas.addEventListener('pointermove', e => {
     const [a,b] = [...pointers.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y); const k = d/pinch.d0;
     if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(pinch.f0*k), 10, 400); refreshCam(ci); } }
     else {
-      if (mainView === 'pers') orbit.radius = clamp(pinch.r0/k, 1.5, 80);
-      else setOrthoZoom(clamp(pinch.z0*k, 0.3, 6));
-      // つまむのと同時に、2 本の指の真ん中が動いたぶんだけ画面も動かす
       const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
-      panView(mx - pinch.cx, my - pinch.cy);
+      zoomAt(mx, my, () => {                     // 指の真ん中の下にあるものは動かさない
+        if (mainView === 'pers') orbit.radius = clamp(pinch.r0/k, 1.5, 80);
+        else setOrthoZoom(clamp(pinch.z0*k, 0.3, 6));
+      });
+      panView(mx - pinch.cx, my - pinch.cy);     // 真ん中が動いたぶんは画面も動かす
       pinch.cx = mx; pinch.cy = my;
     }
     needRender = true; return;
@@ -1954,7 +2000,7 @@ canvas.addEventListener('pointermove', e => {
   if (drag.look){ lookDrag(dx, dy); return; }
   if (drag.handle){ dragHandle(drag, x, y); return; }
   if (drag.tilt){ const it = sel(); const a = tiltAngle(x, y, false); if (a === null) return;
-    it.pitch = a; refreshCam(it); needRender = true; return; }
+    it.pitch = a1(a); refreshCam(it); needRender = true; return; }
   if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
   if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); needRender = true; return; }
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
@@ -1970,12 +2016,20 @@ function endPointer(e){
   if (pointers.size < 2) pinch = null;
   if (pointers.size === 0 && drag){
     if (drag.pan && drag.maybeDeselect) select(null);
-    else if (drag.move || drag.rotate || drag.look || drag.handle || drag.tilt){ const ci = camItem(); if (ci) ci.pitch = Math.round(ci.pitch); renderSel(); renderList(); saveHash(); }
+    else if (drag.move || drag.rotate || drag.look || drag.handle || drag.tilt){ const ci = camItem(); if (ci) ci.pitch = a1(ci.pitch); renderSel(); renderList(); saveHash(); }
     drag = null;
   }
 }
 canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
-canvas.addEventListener('wheel', e => { e.preventDefault(); if (mainView==='cam'){ const ci=camItem(); if(ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci);} } else if (mainView==='pers'){ orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, 80); } else setOrthoZoom(clamp(planCam.zoom*(e.deltaY<0?1.1:0.9),0.3,6)); needRender = true; }, {passive:false});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  zoomAt(e.clientX - r.left, e.clientY - r.top, () => {
+    if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)), 10, 400); refreshCam(ci); } }
+    else if (mainView === 'pers') orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, 80);
+    else setOrthoZoom(clamp(planCam.zoom*(e.deltaY<0?1.1:0.9), 0.3, 6));
+  });
+}, {passive:false});
 // つまんだ辺だけが動き、向かい側の辺はその場に残る
 function startHandle(h){
   const it = sel();
@@ -2030,7 +2084,7 @@ function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildC
     else if (mode === 'resize'){ pip.w = clamp(start.pw + e.clientX - start.x, 120, W - pip.x); pip.h = clamp(start.ph + e.clientY - start.y, 90, H - pip.y); pip.user = true; layoutPip(); needRender = true; }
     else if (mode === 'look' && !viewerMode) lookDrag(dx, dy);
   });
-  const end = e => { pp.delete(e.pointerId); if (pp.size < 2) pin = null; if (pp.size === 0){ if (mode === 'look'){ const ci = camItem(); if (ci){ ci.pitch = Math.round(ci.pitch); renderSel(); saveHash(); } } if (mode === 'move' || mode === 'resize') savePip(); mode = null; } };
+  const end = e => { pp.delete(e.pointerId); if (pp.size < 2) pin = null; if (pp.size === 0){ if (mode === 'look'){ const ci = camItem(); if (ci){ ci.pitch = a1(ci.pitch); renderSel(); saveHash(); } } if (mode === 'move' || mode === 'resize') savePip(); mode = null; } };
   pipEl.addEventListener('pointerup', end); pipEl.addEventListener('pointercancel', end);
   pipEl.addEventListener('wheel', e => { e.preventDefault(); e.stopPropagation(); const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)),10,400); refreshCam(ci); renderSel(); saveHash(); needRender = true; } }, {passive:false});
   pipEl.addEventListener('dblclick', () => setMain('cam'));
@@ -2080,7 +2134,7 @@ function bindPopInput(win, cv){
     if (!last || viewerMode) return;
     lookDrag(e.clientX - last.x, e.clientY - last.y); last = {x:e.clientX, y:e.clientY};
   });
-  const up = () => { if (last){ const ci = camItem(); if (ci && !viewerMode){ ci.pitch = Math.round(ci.pitch); renderSel(); saveHash(); } } last = null; };
+  const up = () => { if (last){ const ci = camItem(); if (ci && !viewerMode){ ci.pitch = a1(ci.pitch); renderSel(); saveHash(); } } last = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => {
     e.preventDefault(); const ci = camItem(); if (!ci || viewerMode) return;
@@ -2323,7 +2377,7 @@ function renderCuts(){
     const del = icon('ico trash', 'このカットを削除', TRASH, () => deleteCut(i));
     row.prepend(grip); row.append(b, del); el.appendChild(row);
   });
-  renderViewerCuts();
+  renderViewerCuts(); suppressHover();
 }
 function renderViewerCuts(){
   const el = document.getElementById('viewercuts'); el.innerHTML = '';
@@ -2402,6 +2456,9 @@ function openCutMenu(px, py){
   ctxEl.style.left = Math.max(6, Math.min(px, innerWidth - r.width - 6)) + 'px';
   ctxEl.style.top = Math.max(6, Math.min(py, innerHeight - r.height - 6)) + 'px';
 }
+// 一覧を組み直した直後は、カーソルの下にたまたま来ただけの行を光らせない
+function suppressHover(){ document.body.classList.add('nohover'); }
+addEventListener('pointermove', () => document.body.classList.remove('nohover'), {passive:true});
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
   {                                              // the room itself, edited like anything else
@@ -2442,6 +2499,7 @@ function renderList(){
     p.textContent = 'まだ何も置いていません。＋ から選んでください。';
     el.appendChild(p);
   }
+  suppressHover();
 }
 // ---------- list: drag to reorder ----------
 // つまみを掴んで上下。並び順は「カメラ 1／カメラ 2」の番号にもそのまま出る
@@ -2574,8 +2632,8 @@ function renderSel(){
     if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
   } else if (it.type === 'camera'){
     h += `<h2>アングル</h2>`;
-    h += range('y','高さ',0.2,4,0.05,it.y,'m') + range('rot','パン',-180,180,1,rotShown(it),'°')
-       + range('pitch','チルト',-45,45,1,it.pitch,'°') + range('roll','ロール',-45,45,1,it.roll || 0,'°');
+    h += range('y','高さ',0.2,4,0.05,it.y,'m') + range('rot','パン',-180,180,1,a1(rotShown(it)),'°')
+       + range('pitch','チルト',-45,45,1,a1(it.pitch),'°') + range('roll','ロール',-45,45,1,a1(it.roll || 0),'°');
     h += `<p class="hint">パンは 0° で奥向き。図面のリングでも回せます。</p>`;
     h += `<h2>センサー</h2>` + btns('sensor', Object.entries(SENSORS).map(([k,v]) => [k, v.name]), it.sensor);
     if (it.sensor === 'custom'){
@@ -2607,7 +2665,7 @@ function renderSel(){
   h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
     + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
                             : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
-  if (it.type !== 'camera') h += range('rot','向き',-180,180,1,rotShown(it),'°');
+  if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
   if (it.type === 'person' && personModel(it) && POSES){
     const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
       `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
@@ -3519,7 +3577,7 @@ let pdfPanes = ['plan','side','pers','cam'];
 try { const v = JSON.parse(localStorage.getItem('studio3d.panes')||'null');
   if (Array.isArray(v) && v.length) pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => v.includes(k)); } catch {}
 // 用紙の図の領域（mm）。ここに収まるように 1 枚ぶんの大きさを割り出す
-const PDF_AREA = {landscape:[186, 177], portrait:[194, 146]}, PDF_GAP = 4, PDF_PXMM = 12;
+const PDF_AREA = {landscape:[206, 177], portrait:[194, 156]}, PDF_GAP = 4, PDF_PXMM = 12;
 function paneLayout(){
   const [VW, VH] = PDF_AREA[orient];
   const list = PDF_VIEWS.filter(([v]) => pdfPanes.includes(v));
@@ -3568,8 +3626,8 @@ function cameraRows(){
   h += prow('画面比率', ci.aspect);
   h += prow('水平画角', `${THREE.MathUtils.radToDeg(hfov(ci)).toFixed(1)}°`);
   h += prow('カメラ高さ', `${ci.y.toFixed(2)} m`);
-  h += prow('上下の向き', `${ci.pitch}°`);
-  h += prow('パン', `${rotShown(ci)}°（0° で奥）`);
+  h += prow('上下の向き', `${a1(ci.pitch)}°`);
+  h += prow('パン', `${a1(rotShown(ci))}°（0° で奥）`);
   h += prow('立ち位置', `左右 ${ci.x >= 0 ? '+' : ''}${ci.x.toFixed(2)} / 前後 ${ci.z >= 0 ? '+' : ''}${ci.z.toFixed(2)} m`);
   const back = state.studio.d/2 + ci.z;
   h += prow('奥壁まで', `${back.toFixed(2)} m`);
