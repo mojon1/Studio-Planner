@@ -246,7 +246,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.screenshot({ path: `${OUT}/desktop-side.png` });
 
   await t.tab('share');
-  const link = await t.page.inputValue('#linkbox');
+  const link = await t.page.evaluate(() => location.href);
   // 辺ごとの寸法は、ラベルが押し合わない素の場面で見る（上の場面は 7 個ぶん詰めてある）
   {
     const solo = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
@@ -1316,8 +1316,20 @@ async function open(name, viewport, mobile = false, hash = ''){
      (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/保存・共有',
      await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/')));
   await t.tab('share');
-  const secs = await t.page.$$eval('[data-sec="share"] h2', n => n.map(x => x.textContent).join('/'));
-  ok('the project file sits below PDF and 画像', secs === 'リンクで共有/PDF/画像/プロジェクト/まとめて書き出す', secs);
+  // 見出しは付けない。ボタンの名前がそのまま見出しなので、同じことを 2 回言うだけになる
+  ok('the share tab carries no headings at all',
+     (await t.page.$$('[data-sec="share"] h2')).length === 0);
+  const btns = await t.page.$$eval('[data-sec="share"] .btn', n => n.map(x => x.textContent.trim()));
+  ok('every button says what it does on its own',
+     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/プロジェクト保存/プロジェクト読込/HTML書き出し',
+     btns.join('/'));
+  // どれか 1 つが既定の道具ではないので、オレンジ（primary）は付けない
+  ok('and none of them is painted as the one to press',
+     (await t.page.$$('[data-sec="share"] .btn.primary')).length === 0);
+  // 見るだけリンクのボタンは外した（見るだけは QR の切り替えに残っている）
+  ok('the view-only button is gone', !(await t.page.$('#copyview')));
+  // URL の欄はクリップボードが塞がれているときだけ出る
+  ok('the URL box stays out of the way', await t.page.evaluate(() => document.getElementById('linkbox').hidden));
   ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
   ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
 
@@ -1728,8 +1740,8 @@ async function open(name, viewport, mobile = false, hash = ''){
 {
   const t = await open('naming', { width: 1200, height: 820 });
   await t.tab('share');
-  ok('the one-file export is called HTMLエクスポート',
-     (await t.page.textContent('#bundlebtn')).trim() === 'HTMLエクスポート',
+  ok('the one-file export is called HTML書き出し',
+     (await t.page.textContent('#bundlebtn')).trim() === 'HTML書き出し',
      await t.page.textContent('#bundlebtn'));
   // PC では accept を残す。読める形式だけが並んで、選ぶのが速い
   ok('a desktop browser keeps the accept list',

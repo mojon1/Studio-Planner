@@ -350,23 +350,21 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint">名前とメモは PDF の頭に入ります。</p>
       </div>
       <div class="sec" data-sec="share">
-        <h2>リンクで共有</h2>
-        <div class="row"><button class="btn primary" id="copy">リンクをコピー</button><button class="btn" id="copyview">見るだけリンク</button></div>
-        <div class="row"><button class="btn" id="qrbtn">QRコード</button></div>
-        <input type="text" id="linkbox" readonly>
-        <h2>PDF</h2>
-        <div class="row"><button class="btn primary" id="makepdf">PDF保存</button></div>
+        <!-- 見出しは付けない。ボタンの名前がそのまま見出しなので、上に「リンクで共有」と
+             書いても同じことを 2 回言うだけになる。色も付けない（どれか 1 つが
+             既定の道具ではないので、オレンジは「押すべきボタン」の嘘になる） -->
+        <div class="row"><button class="btn" id="copy">共有リンク</button><button class="btn" id="qrbtn">共有QRコード</button></div>
+        <!-- クリップボードが塞がれている場所でだけ出す、手でコピーするための欄 -->
+        <input type="text" id="linkbox" readonly hidden>
+        <div class="row"><button class="btn" id="makepdf">PDF資料作成</button></div>
         <p class="hint">用紙の向き・載せる図・タイトルは、押したあとの画面で選べます。</p>
-        <h2>画像</h2>
-        <div class="row"><button class="btn" id="png">画像保存</button></div>
-        <h2>プロジェクト</h2>
-        <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
+        <div class="row"><button class="btn" id="png">画像書き出し</button></div>
+        <div class="row"><button class="btn" id="savefile">プロジェクト保存</button><button class="btn" id="loadfile">プロジェクト読込</button></div>
         <input type="file" id="projfile" accept=".json,application/json" hidden>
         <p class="hint">配置だけの軽いファイルです。取り込んだモデルと3DGSの実体は入りません（この端末に残ります）。</p>
-        <h2>まとめて書き出す</h2>
-        <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTMLエクスポート</button></div>
+        <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.2<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.10.3<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -3807,16 +3805,20 @@ async function loadHash(){
   try { const st = await decode(m[1]); if (st?.studio && (Array.isArray(st.items) || Array.isArray(st.cuts))){ state = migrate(st); return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
   return false;
 }
-async function copyLink(viewOnly){
-  const h = '#s=' + await encode() + (viewOnly?'&m=v':'');
-  const url = location.origin + location.pathname + location.search + h;
-  try { await navigator.clipboard.writeText(url); toast(viewOnly ? '見るだけリンクをコピーしました' : 'リンクをコピーしました'); }
-  catch { document.getElementById('linkbox').value = url; document.getElementById('linkbox').select(); toast('下の欄から手でコピーしてください'); }
+// 「見るだけ」のリンクはボタンを外した（共有タブがボタンだらけになるため）。
+// 見るだけが要るときは QR の「見るだけ」から出す。古いリンクは今までどおり開く。
+async function copyLink(){
+  const url = location.origin + location.pathname + location.search + '#s=' + await encode();
+  try { await navigator.clipboard.writeText(url); toast('リンクをコピーしました'); return; }
+  catch {}
+  // クリップボードが塞がれている場所（枠の中など）でだけ、手でコピーする欄を出す
+  const el = document.getElementById('linkbox');
+  el.hidden = false; el.value = url; el.select();
+  toast('下の欄から手でコピーしてください');
 }
 document.getElementById('dupcut').addEventListener('click', addCut);
 document.getElementById('newcut').addEventListener('click', newCut);
-document.getElementById('copy').addEventListener('click', () => copyLink(false));
-document.getElementById('copyview').addEventListener('click', () => copyLink(true));
+document.getElementById('copy').addEventListener('click', copyLink);
 // ---------- QR コード ----------
 // 現場で「そのスマホで開いてもらう」ための一枚。リンクの中身は共有リンクと同じ。
 const qrDlg = document.getElementById('qrdlg'), qrCv = document.getElementById('qrcv');
