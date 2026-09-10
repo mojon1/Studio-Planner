@@ -1761,6 +1761,33 @@ async function open(name, viewport, mobile = false, hash = ''){
   await ctx.close();
 }
 
+// --- 30. ＋ で置いても、パネルの開き／畳みは置く前のまま --------------------------
+// 携帯は畳んであるのが既定。＋ で置くたびに設定パネルがせり上がると図が半分になり、
+// 続けて置きたいだけの人には邪魔でしかない（寺村さんの指摘）
+{
+  const t = await open('addfold', { width: 390, height: 844 }, true);
+  const folded = () => t.page.evaluate(() => document.body.classList.contains('folded'));
+  ok('a phone starts with the panel folded away', await folded() === true);
+  await t.add('[data-add="box"]');
+  ok('and placing something leaves it folded', await folded() === true);
+  // 置いたものは選ばれている。開けばその設定が出る、は今までどおり
+  const picked = await t.page.evaluate(() => {
+    const sp = window.__sp, id = sp.sel();
+    return {id, type: sp.state().items.find(i => i.id === id)?.type,
+            tab: document.querySelector('#tabs button.on')?.dataset.tab};
+  });
+  ok('the new object is still the selected one', picked.type === 'box', JSON.stringify(picked));
+  ok('and the list tab is the one waiting behind the gear', picked.tab === 'list', picked.tab);
+  // 歯車で開けば開く。開いたまま足しても閉じない
+  await t.page.click('#gear'); await t.page.waitForTimeout(250);
+  ok('the gear still opens it', await folded() === false);
+  ok('and the settings for it are there', (await t.page.textContent('#selbody')).includes('幅'));
+  await t.add('[data-add="chair"]');
+  ok('placing another one leaves it open', await folded() === false);
+  ok('add-fold run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

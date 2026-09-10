@@ -359,7 +359,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>まとめて書き出す</h2>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTMLエクスポート</button></div>
         <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.10.1<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -2597,7 +2597,11 @@ function addItem(type, opt){
   setPos(it, it.x, it.z);
   state.items.push(it);
   if (type === 'camera') state.activeCam = id;                 // show what the new one sees
-  rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+  // **パネルは勝手に開かない。** 置く前の開き／畳みをそのまま保つ。携帯では
+  // 畳んであるのが既定なので、＋ で置くたびに設定パネルがせり上がって図が半分になり、
+  // 続けて置きたいだけの人には邪魔でしかなかった。開きたければ歯車がある
+  // （選択と一覧のタブ切り替えは今までどおりなので、開けばその物の設定が出る）
+  rebuildItems(); select(id); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
   return it;
 }
 function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
