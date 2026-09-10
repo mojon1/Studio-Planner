@@ -170,7 +170,7 @@ tools/shrink-glb.mjs  GLB のテクスチャを縮めて GLB を組み直す
 tools/make-thumbs.mjs models/*.glb から models/thumbs/*.webp を焼く
 tools/make-ogp.mjs    ogp.png を撮り直す
 tools/make-poses.mjs  FBX からポーズ（models/poses.json）とサムネイルを作る
-models/poses.json     11 ポーズぶんの関節位置。6 KB。11 体で共通
+models/poses.json     11 ポーズぶんの関節位置。6 KB。12 体で共通
 tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実験。下の「ポーズ」参照
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
@@ -191,6 +191,27 @@ node tools/shrink-glb.mjs 元.glb models/地域-服装-性別.glb 1024 0.86
 node tools/make-thumbs.mjs                # models/ 全部のサムネイルを焼き直す
 ```
 
+`shrink-glb.mjs` は**元が PNG でも JPEG でも読む**（Tripo 直は JPEG、Blender を
+通すと PNG になる）。書き出しは常に JPEG なので、`images[0].mimeType` も一緒に
+書き換えている。**中身と mimeType がずれた GLB を作らないこと。**
+
+**入れる前に UV と骨があるか確かめる。** 見た目は正しく立っているのに、
+`TEXCOORD_0`（UV）と `skins`（骨）だけが落ちていることがある。UV が無いと
+テクスチャがどこにも貼れず単色になり、骨が無いとポーズが 1 つも効かない。
+どちらも**後から足せない**（UV を作り直してもテクスチャは元の UV 前提で焼いてある）。
+
+```
+node -e "const b=require('fs').readFileSync(process.argv[1]);const j=JSON.parse(b.toString('utf8',20,20+b.readUInt32LE(12)));
+const p=j.meshes[0].primitives[0];console.log(j.asset.generator,Object.keys(p.attributes),'skins',(j.skins||[]).length)" ファイル.glb
+```
+
+`POSITION,NORMAL,TEXCOORD_0,JOINTS_0,WEIGHTS_0` と `skins 1` が出れば入れられる。
+骨は 41 本で、名前は既存 11 体と 1 つ違わず同じでなければならない（`Root` / `Hip` /
+`Pelvis` / `L_Thigh` …）。**Tripo から GLB で直接落とせないときは Blender 経由でもよい**
+（`generator` が `Blender Foundation Blender (stable FBX IO)` でも、UV と骨さえ
+生きていれば `us-business-woman` のようにそのまま通る）。**ポリゴン削減やリメッシュは
+掛けないこと** — UV とボーンウェイトが落ちる。
+
 登録は `PEOPLE_MODELS` に 1 行。`id` はファイル名（拡張子なし）、`kind` は
 `man` / `woman` / `boy` / `girl`、`wear` はサムネイルの下に出る一語、
 `label` は読み上げとツールチップ用。**ファイルは身長 1 m・A ポーズで作る**こと。
@@ -204,7 +225,7 @@ node tools/make-thumbs.mjs                # models/ 全部のサムネイルを�
 ### ポーズ（実装済み）
 
 寺村さんの C4D の FBX（`docs/pose-check/suwaru01.fbx`、椅子に座る姿）を使って、
-**別リグのポーズを Tripo の 11 体に移せることを確認した。** 絵は `docs/pose-check/`。
+**別リグのポーズを Tripo の 12 体に移せることを確認した。** 絵は `docs/pose-check/`。
 
 - C4D 側は **Mixamo 系のリグ**（`mocaprig_Hips` / `Spine` / `LeftUpLeg` …、指まである）。
   Tripo 側（`Hip` / `Waist` / `Spine01` / `L_Thigh` …）とは名前も本数も違う。
@@ -237,7 +258,7 @@ node tools/make-thumbs.mjs                # models/ 全部のサムネイルを�
   `docs/pose-check/all-poses.png`、元データは `docs/pose-check/src/`。
 
 **でき上がり**: FBX は実行時に読まない。`models/poses.json`（6 KB）に関節のワールド位置
-だけを持ち、向き合わせは `applyPose()` がアプリ側でやる。11 体で 1 ファイル共通、
+だけを持ち、向き合わせは `applyPose()` がアプリ側でやる。12 体で 1 ファイル共通、
 体格差も吸収する。人物の設定パネルにサムネイル 12 枚（素の姿勢＋11）の一覧を出し、
 押すとその場で着せ替わる。`it.posture` に ID が入り、共有リンクにも乗る。
 
@@ -935,7 +956,7 @@ iOS 向けの `-webkit-touch-callout:none` が入っていること）、
 寸法のリボン描画と項目ごとの寸法スイッチ、A4 の PDF 出力（横・縦とも 1 ページ、
 A4 実寸であることを Chromium の PDF 生成で確認済み）、用紙の中での再構図、
 画像と HTML の「名前を付けて保存」、固定サイズのマニピュレータ、
-人物モデル 11 体（アジア系・アフリカ系・欧米系 × スーツ・カジュアル × 男女）と
+人物モデル 12 体（アジア系・アフリカ系・欧米系 × スーツ・カジュアル × 男女）と
 サムネイルでの選択、起動時のパースビュー、ポーズ 11 種の適用、箱の上に立つこと、
 パースでの映り込み、見た目どおりの当たり判定、右クリック／長押しのメニュー、
 リストのロック・ゴミ箱・並べ替え・名前の変更、背景布と鏡の辺のドラッグと
@@ -975,5 +996,5 @@ FBXLoader のモジュール解決までは確認済み）、
 コードは残してあるので、古いリンクやファイルは今までどおり開ける。そのぶん
 **男の子・女の子が置けなくなっている**。子どものモデルが入ったら復活する。
 
-**残り**: 子どものモデル（今は置く手段が無い）。欧米系の女性スーツも 1 体欠けている。
+**残り**: 子どものモデル（今は置く手段が無い）。
 座面高の突き合わせ（上記）。タイムコードや香盤との連携。

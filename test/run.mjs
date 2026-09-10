@@ -557,9 +557,12 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#addfab');
   await t.page.waitForTimeout(400);
   const cast = await t.page.$$eval('#people button[data-model]', b => b.map(x => x.dataset.model));
-  ok('every model is offered as a thumbnail', cast.length === 11, cast.join(', '));
+  // 数は書かない（増えるものなので）。一覧そのものと突き合わせる
+  const roster = await t.page.evaluate(() => window.__sp.people().map(m => m.id));
+  ok('every model is offered as a thumbnail', cast.join(',') === roster.join(','), cast.join(', '));
   const thumbs = await t.page.$$eval('#people img', imgs => imgs.map(i => i.naturalWidth));
-  ok('the thumbnails actually load', thumbs.length === 11 && thumbs.every(w => w === 200), thumbs.join(','));
+  ok('the thumbnails actually load',
+     thumbs.length === roster.length && thumbs.every(w => w === 200), thumbs.join(','));
   await t.page.click('#people button[data-model="af-business-woman"]');
   await t.page.waitForTimeout(2500);
   const placed = await t.page.evaluate(() => {

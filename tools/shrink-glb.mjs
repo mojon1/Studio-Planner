@@ -16,18 +16,22 @@ const bvBytes = j.bufferViews.map(bv => d.subarray(BIN + (bv.byteOffset||0), BIN
 const b = await chromium.launch({ executablePath: process.env.PW_CHROME });
 const p = await (await b.newContext()).newPage();
 const b64 = bvBytes[imgBV].toString('base64');
-const out = await p.evaluate(async ([b64, size, q]) => {
+// 元は PNG のことも JPEG のこともある（Tripo は JPEG、Blender を通すと PNG）。
+// 書き出しは常に JPEG なので、mimeType も合わせて書き換える
+const srcMime = j.images[0].mimeType || 'image/jpeg';
+const out = await p.evaluate(async ([b64, size, q, srcMime]) => {
   const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/jpeg;base64,' + b64; });
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:' + srcMime + ';base64,' + b64; });
   const c = document.createElement('canvas'); c.width = c.height = size;
   const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
   x.drawImage(img, 0, 0, size, size);
   return {orig:[img.width, img.height], url: c.toDataURL('image/jpeg', q)};
-}, [b64, size, q]);
+}, [b64, size, q, srcMime]);
 await b.close();
 const newImg = Buffer.from(out.url.split(',')[1], 'base64');
 console.log(`texture ${out.orig.join('x')} ${(bvBytes[imgBV].length/1024).toFixed(0)} KB -> ${size}x${size} ${(newImg.length/1024).toFixed(0)} KB`);
 bvBytes[imgBV] = newImg;
+j.images[0].mimeType = 'image/jpeg';
 
 // re-lay the BIN chunk, 4-byte aligned, and rewrite every bufferView offset
 const parts = []; let cur = 0;

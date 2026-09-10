@@ -361,7 +361,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.11.1<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.11.2<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -1065,12 +1065,13 @@ const PEOPLE_MODELS = [
   {id:'us-casual-man',       kind:'man',   wear:'カジュアル', label:'欧米系 男性 カジュアル'},
   {id:'us-business-man',     kind:'man',   wear:'スーツ',     label:'欧米系 男性 スーツ'},
   {id:'us-casual-woman',     kind:'woman', wear:'カジュアル', label:'欧米系 女性 カジュアル'},
+  {id:'us-business-woman',   kind:'woman', wear:'スーツ',     label:'欧米系 女性 スーツ'},
 ];
 const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
 
 // ポーズは別リグ（Mixamo など）から起こしたもの。書き出してあるのは関節の位置だけで、
 // 回転は入っていない。骨の長さも初期姿勢も関係なくなるので、この 1 ファイルを
-// 11 体すべてで共通に使える。作り方は tools/make-poses.mjs。
+// 12 体すべてで共通に使える。作り方は tools/make-poses.mjs。
 let POSES = null, posesReq = null;
 function loadPoses(){
   return posesReq ||= fetch(asset('models/poses.json')).then(r => r.ok ? r.json() : null)
@@ -4440,7 +4441,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
