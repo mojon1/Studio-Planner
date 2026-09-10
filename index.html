@@ -355,11 +355,11 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>プロジェクト</h2>
         <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
         <input type="file" id="projfile" accept=".json,application/json" hidden>
-        <p class="hint">配置だけの軽いファイルです。取り込んだモデルとロケーションの実体は入りません（この端末に残ります）。</p>
+        <p class="hint">配置だけの軽いファイルです。取り込んだモデルと3DGSの実体は入りません（この端末に残ります）。</p>
         <h2>まとめて書き出す</h2>
-        <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">1 つのファイルにする</button></div>
-        <p class="hint" id="bundlestat">取り込んだモデルもロケーションのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.9.0<br>© 2026 寺村太一</p>
+        <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTMLエクスポート</button></div>
+        <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
+        <p class="colophon">Studio Planner v1.10.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -422,7 +422,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button class="btn" data-add="mirror">ミラー</button>
       <button class="btn" data-add="chroma">背景布</button>
     </div>
-    <h2>ロケーション・3D モデルを取り込む</h2>
+    <h2>3DGS・3D モデルを取り込む</h2>
     <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
     <input type="file" id="file" accept=".glb,.gltf,.fbx,.spz,.ply,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
     <p class="hint"><b>ロケハンのスキャン（.spz / .ply）</b>を入れると、その現場の中で撮影計画を立てられます。Scaniverse などの 3D ガウシアンスプラッティング。<br>
@@ -488,7 +488,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
 const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'ロケーション',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'3DGS',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -655,6 +655,10 @@ function applyOrbit(){
 }
 
 const studioGroup = new THREE.Group(); scene.add(studioGroup);
+// グリッドはスタジオの持ち物にしない。スタジオを消して 3DGS だけで使うとき、
+// studioGroup ごと消えると床の目盛りまで無くなり、大きさの見当が付かなくなる。
+// 別のグループに出して、広さはそのとき置いてあるものから引く（syncGrid）
+const gridGroup = new THREE.Group(); scene.add(gridGroup);
 const itemsGroup = new THREE.Group(); scene.add(itemsGroup);
 const dimGroup = new THREE.Group(); scene.add(dimGroup);
 const measGroup = new THREE.Group(); scene.add(measGroup);
@@ -769,12 +773,8 @@ function buildStudio(){
   }
   // ceiling: only in the camera / perspective views
   const ceil = quad(-w/2, w/2, h, h, -d/2, d/2, matCeil, 'y'); ceil.userData.camOnly = true; studioGroup.add(ceil);
-  // 1 m grid + outline
-  const pts = []; const gx = Math.ceil(w/2) + 4, gz = Math.ceil(d/2) + 4;   // 部屋より広く引く
-  for (let x = -gx; x <= gx; x++) pts.push(new V(x,0.003,-gz), new V(x,0.003,gz));
-  for (let z = -gz; z <= gz; z++) pts.push(new V(-gx,0.003,z), new V(gx,0.003,z));
-  const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6}));
-  grid.userData.noHit = true; grid.userData.ground = true; grid.userData.grid = true; grid.visible = showGrid; studioGroup.add(grid);
+  // 1 m grid は gridGroup が持つ（スタジオを消しても残す）。ここは部屋の外周線だけ
+  syncGrid();
   const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new V(-w/2,0.004,-d/2),new V(w/2,0.004,-d/2),new V(w/2,0.004,d/2),new V(-w/2,0.004,d/2)]), new THREE.LineBasicMaterial({color:0x333})); edge.userData.noHit = true; edge.userData.ground = true; studioGroup.add(edge);
   sun.position.set(w*0.4, h*1.5, d*0.6); sun.target.position.set(0,0,0);
   const sc = sun.shadow.camera; const m = Math.max(w,d);
@@ -783,6 +783,38 @@ function buildStudio(){
   resetOrbit(); buildDims();
   studioGroup.updateMatrixWorld(true);
   fitOrtho();
+}
+
+// ---------- 1 m グリッド ----------
+// 広さは「スタジオ（消していなければ）と、置いてあるもの」から引く。
+// 3DGS だけで使うときは現場のスキャンの大きさに合う
+function gridExtent(){
+  let ex = 3, ez = 3;
+  if (!state.studio.hidden){ ex = Math.max(ex, state.studio.w/2); ez = Math.max(ez, state.studio.d/2); }
+  for (const it of state.items){
+    if (it.hidden) continue;
+    let hw, hd;
+    if (it.type === 'splat'){ const c = cropWorldBox(it); hw = Math.max(Math.abs(c.x0), Math.abs(c.x1)); hd = Math.max(Math.abs(c.z0), Math.abs(c.z1)); }
+    else { hw = (it.w || 0)/2; hd = (it.d || 0)/2; }
+    const r = Math.max(hw, hd);        // 回してあるぶんは大きいほうで見る。目盛りの広さに精度は要らない
+    ex = Math.max(ex, Math.abs(it.x) + r); ez = Math.max(ez, Math.abs(it.z) + r);
+  }
+  return [Math.min(Math.ceil(ex) + 4, 120), Math.min(Math.ceil(ez) + 4, 120)];   // 際限なく引かない
+}
+let gridSpan = '';
+function syncGrid(){
+  const [gx, gz] = gridExtent(), key = gx + ':' + gz;
+  if (gridSpan !== key){
+    gridSpan = key; gridGroup.clear();
+    const V = THREE.Vector3, pts = [];
+    for (let x = -gx; x <= gx; x++) pts.push(new V(x,0.003,-gz), new V(x,0.003,gz));
+    for (let z = -gz; z <= gz; z++) pts.push(new V(-gx,0.003,z), new V(gx,0.003,z));
+    const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6}));
+    grid.userData.noHit = true; grid.userData.ground = true; grid.userData.grid = true;
+    gridGroup.add(grid); gridGroup.updateMatrixWorld(true);
+  }
+  for (const n of gridGroup.children) n.visible = showGrid;
 }
 
 // ---------- dimensions ----------
@@ -870,7 +902,7 @@ function buildMeasures(){
   if (!ci || ci.hidden) return;
   const a = new V3(ci.x, 0.02, ci.z), picked = sel();
   for (const it of state.items){
-    if (it.hidden || it.type === 'camera') continue;
+    if (it.hidden || it.type === 'camera' || it.type === 'splat') continue;   // 3DGS は寸法を出さない
     if (it.dimCam !== true && it !== picked) continue;
     const b = new V3(it.x, 0.02, it.z);
     if (a.distanceTo(b) > 0.1) measure(a, b, `${itemName(it)}まで ${a.distanceTo(b).toFixed(2)} m`);
@@ -912,21 +944,13 @@ function itemLabels(view){
   const out = [];
   for (const it of state.items){
     if (it.hidden || !dimOn(it)) continue;
+    if (it.type === 'splat') continue;      // 3DGS は現場そのもの。寸法を書いても図面にならない
     // 背景布と鏡は、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
     if (it.type === 'chroma' || it.type === 'mirror'){
       for (const L of panelDims(it)) if (L.views.includes(view)) out.push(L);
       continue;
     }
     if (view === 'plan'){
-      // ロケーションは「いま床に残っている範囲」を書く。切り取ったのに元の大きさが
-      // 出ていると、図面としては嘘になる（拡大縮小も同じ理由でここで効かせる）
-      if (it.type === 'splat'){
-        const c = cropWorldBox(it), r = THREE.MathUtils.degToRad(it.rot || 0);
-        const mx = (c.x0 + c.x1)/2, mz = c.z1 + 0.4;
-        out.push({p:new V3(it.x + mx*Math.cos(r) + mz*Math.sin(r), 0.02, it.z - mx*Math.sin(r) + mz*Math.cos(r)),
-                  text:`${itemName(it)}：${num(c.x1-c.x0)} × ${num(c.z1-c.z0)} m`, cls:'dim', views:['plan']});
-        continue;
-      }
       const p = new V3(it.x, 0.02, it.z + (it.d || 0)/2 + 0.4);
       if (it.w > 0 && it.d > 0) out.push({p, text:`${itemName(it)}：${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
       continue;
@@ -940,7 +964,6 @@ function itemLabels(view){
       top = drawn || (it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height);
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
-    else if (it.type === 'splat'){ const c = cropWorldBox(it); top = c.y1; txt = `高さ ${num(c.y1-c.y0)} m`; }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
     out.push({p:new V3(it.x, standHeight(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side','front']});
@@ -1394,7 +1417,7 @@ function modelEnv(){
   return envTex;
 }
 // imported model: the real mesh when this device has the file, a labelled box otherwise
-// ---------- ロケーション（3D ガウシアンスプラッティング） ----------
+// ---------- 3DGS（3D ガウシアンスプラッティング） ----------
 // Scaniverse などで撮った現場をそのまま持ち込んで、その中で撮影計画を立てる。
 // three 本体には WebGPU 向けの実装しか無い（r186 の GaussianSplatMesh は
 // WebGPURenderer 専用）ので、WebGLRenderer のまま使える Spark を、
@@ -1417,6 +1440,14 @@ async function loadSpark(){
   return sparkLoading;
 }
 const splatBusy = () => !!sparkRenderer && (sparkRenderer.sorting || sparkRenderer.sortDirty);
+// Spark は自分から並べ直すのを「視点が動いたか、中身の版が上がったか」で決めていて、
+// **目のマークで消しただけでは絵が変わらない**（視点を回した瞬間に消える、という
+// 形で出る）。update() を自分で呼ぶと autoUpdate の判定を通らずに必ず作り直すので、
+// スキャンを組み直したらここを通す
+function splatRefresh(){
+  if (!sparkRenderer) return;
+  sparkRenderer.update({scene, camera: mainCam()}).then(() => { needRender = true; }, () => {});
+}
 // 並べ替えが落ち着くまで待つ。用紙や画像に古い並びを焼き付けないため
 async function splatSettle(ms = 4000){
   if (!sparkRenderer) return;
@@ -1438,7 +1469,7 @@ async function makeSplat(it){
   }
   rebuildItem(it); renderSel(); needRender = true;
 }
-// ---------- ロケーションの切り取り ----------
+// ---------- 3DGSの切り取り ----------
 // スキャンには要らないものが必ず写り込む（隣の建物、空、足元のノイズ）。箱で囲んで
 // 外側を消す。Spark の SplatEdit（SDF の箱）で**その場で**効くので、元のデータには
 // 一切触らない — いつでも戻せるし、共有リンクに乗るのは 6 個の数字だけ。
@@ -1637,10 +1668,13 @@ function buildMirror(it){
   // 映り込みの間だけ地色を明るいスタジオ色にしておく。
   const draw = refl.onBeforeRender;
   refl.onBeforeRender = function(...a){
-    const off = [dimGroup, measGroup, frustumGroup, gizmo, handleGroup, tiltGiz]
-      .concat(sparkRenderer ? [sparkRenderer] : [])   // スキャンは映さない（重いうえ並べ替えが別視点で狂う）
-      .filter(o => o.visible);
+    const off = [dimGroup, measGroup, frustumGroup, gizmo, handleGroup, tiltGiz].filter(o => o.visible);
     for (const o of off) o.visible = false;
+    // 3DGS も映す。並べ替えは本体のカメラで出したものをそのまま使う（autoUpdate を
+    // 切らないと、鏡の仮想カメラでもう一度並べ替えが走り、本体と取り合って
+    // 毎フレーム並べ直しになる）
+    const wasAuto = sparkRenderer?.autoUpdate;
+    if (sparkRenderer) sparkRenderer.autoUpdate = false;
     const walls = studioGroup.children.filter(n => n.userData.sides && n.material);
     const was = walls.map(n => [n.visible, n.material.opacity, n.material.depthWrite]);
     for (const n of walls){ n.visible = true; n.material.opacity = 1; n.material.depthWrite = true; }
@@ -1648,11 +1682,12 @@ function buildMirror(it){
     // 切り分けられず、鏡が床の裏側（光の当たらない面＝真っ黒）を映していた。
     // 床鏡のあいだだけ床と grid を外す。壁鏡は床を映してよいのでそのまま。
     const ground = it.kind === 'floor'
-      ? studioGroup.children.filter(n => n.visible && (n.userData.ground || n.userData.sides?.[0] === 'floor')) : [];
+      ? [...studioGroup.children, ...gridGroup.children].filter(n => n.visible && (n.userData.ground || n.userData.sides?.[0] === 'floor')) : [];
     for (const n of ground) n.visible = false;
     const bg = scene.background; scene.background = REFLECT_BG;
     try { draw.apply(this, a); }
     finally {
+      if (sparkRenderer) sparkRenderer.autoUpdate = wasAuto;
       scene.background = bg;
       for (const n of ground) n.visible = true;
       for (const o of off) o.visible = true;
@@ -1721,17 +1756,21 @@ function rebuildItems(){
   }
   restack();
   const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
-  updateSelectionVisuals();
+  updateSelectionVisuals(); splatRefresh();
 }
 function disposeGroup(g){ g.traverse(n => { if (n.userData.reflector) n.dispose?.(); }); }
 // rebuild one item instead of the whole scene, so slider drags stay smooth with heavy models
 function rebuildItem(it){
   const o = itemObjs.get(it.id); if (!o) return rebuildItems();
+  const wasVis = o.group.visible;
   const g = (BUILDERS[it.type] || buildBox)(it);
   g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
   itemsGroup.remove(o.group); disposeGroup(o.group); itemsGroup.add(g); o.group = g;
   restack();
   updateSelectionVisuals();
+  // 出したり消したりしたときだけ。スライダーを動かしている最中は毎回来るので、
+  // そこで作り直させると 3DGS の重さがそのまま操作の重さになる
+  if (it.type === 'splat' && wasVis !== g.visible) splatRefresh();
 }
 function updateItemTransform(it){
   const o = itemObjs.get(it.id); if (!o) return;
@@ -1794,7 +1833,7 @@ function edgeHandles(it){
   if (it.type === 'chroma')
     return wx.concat([{k:'h', ax:'y', s:1, p:[0, it.h, 0]},
                       {k:'drape', ax:'z', s:1, p:[0, 0.02, Math.max(it.drape || 0, 0.2)]}]);
-  // ロケーションは大きさではなく「切り取る箱の 6 面」をつまむ。
+  // 3DGSは大きさではなく「切り取る箱の 6 面」をつまむ。
   // 面の真ん中に置くので、6 個が互いに重ならない
   if (it.type === 'splat' && it.crop){
     const c = cropWorldBox(it), mx = (c.x0+c.x1)/2, my = (c.y0+c.y1)/2, mz = (c.z0+c.z1)/2;
@@ -1967,12 +2006,13 @@ function syncRecenter(){
 }
 function renderView(view, rect, isMain){
   const ci = camItem();
+  syncGrid();                                    // 置いたものが変わればグリッドの広さも変わる
   itemsGroup.traverse(n => {
     if (n.userData.plan) n.visible = view !== 'cam';
     // パースでも映り込む。1 枚につきシーンをもう 1 度描くので、置いた枚数ぶん重くなる
     if (n.userData.reflector) n.visible = view === 'cam' || view === 'pers';
   });
-  studioGroup.visible = !state.studio.hidden;     // ロケーションのスキャンだけで使うとき
+  studioGroup.visible = !state.studio.hidden;     // 3DGSのスキャンだけで使うとき
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
   for (const g of [dimGroup, measGroup]) g.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
@@ -2438,7 +2478,7 @@ setDims(showDims);
 const gridBtn = document.getElementById('gridbtn');
 function setGrid(v){
   showGrid = v; gridBtn.classList.toggle('on', v);
-  studioGroup.traverse(n => { if (n.userData.grid) n.visible = v; });
+  syncGrid();
   try { localStorage.setItem('studio3d.grid', v ? '1' : '0'); } catch {}
   needRender = true;
 }
@@ -2708,7 +2748,7 @@ function renderList(){
     const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', selectedId === STUDIO);
     b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span>`;
     b.addEventListener('click', () => select(STUDIO, true));
-    // ロケーションのスキャンを置いたら、部屋のほうは消したい
+    // 3DGSのスキャンを置いたら、部屋のほうは消したい
     const eye = document.createElement('button');
     eye.className = 'ico eye'; eye.title = state.studio.hidden ? '表示する' : '隠す';
     eye.setAttribute('aria-label', eye.title); eye.innerHTML = state.studio.hidden ? EYE_OFF : EYE_ON;
@@ -2871,19 +2911,23 @@ function renderSel(){
       ? `<p class="hint">読み込み中…</p>`
       : `<p class="hint">スキャンの実体はこの端末にありません。共有リンクには置き方だけが乗ります（PDF と画像には写ります）。</p>`;
     else if (bb) h += `<p class="hint">実寸 ${fmt(bb.w*(it.scale||1))} × ${fmt(bb.d*(it.scale||1))} × 高 ${fmt(bb.h*(it.scale||1))} m</p>`;
+    h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
     h += range('lift','高さ調整',-5,5,0.01,it.lift || 0,'m');
     h += range('scale','拡大縮小',0.2,5,0.01,it.scale || 1,'倍');
     h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。</p>`;
     // 現場のスキャンには要らないものが必ず入る。箱で囲んで外を消す
     h += `<h2>切り取り</h2>`;
-    h += `<div class="row"><button class="btn ${it.crop?'on':''}" data-set="cropOn" data-val="${it.crop?'':'1'}">${it.crop?'切り取り中':'切り取る'}</button>`;
-    if (it.crop) h += `<button class="btn" data-set="cropOn" data-val="">全部を出す</button>`;
+    h += `<div class="row"><button class="btn ${it.crop?'on':''}" data-set="cropOn" data-val="${it.crop?'':'1'}">${it.crop?'切り取り':'切り取る'}</button>`;
+    if (it.crop) h += `<button class="btn" data-set="cropOn" data-val="">全体表示</button>`;
     h += `</div>`;
     if (it.crop){
       const c = cropBox(it), f = cropFull(it);
+      // 6 面ぶん。図のつまみでも動くが、数字でも合わせられるようにしておく
+      h += range('crop.x0','左端',f.x0,f.x1,0.01,c.x0,'m') + range('crop.x1','右端',f.x0,f.x1,0.01,c.x1,'m');
+      h += range('crop.z0','奥端',f.z0,f.z1,0.01,c.z0,'m') + range('crop.z1','手前端',f.z0,f.z1,0.01,c.z1,'m');
       h += range('crop.y0','下端',f.y0,f.y1,0.01,c.y0,'m') + range('crop.y1','上端',f.y0,f.y1,0.01,c.y1,'m');
       h += `<p class="hint">残す範囲 ${fmt(+((c.x1-c.x0)*(it.scale||1)).toFixed(2))} × ${fmt(+((c.z1-c.z0)*(it.scale||1)).toFixed(2))} × 高 ${fmt(+((c.y1-c.y0)*(it.scale||1)).toFixed(2))} m。`
-         + `図に出ているオレンジの箱の白い四角をつまむと、前後左右が変わります。</p>`;
+         + `図に出ているオレンジの箱の白い四角をつまんでも動かせます。</p>`;
       h += `<p class="hint">消えたぶんも並べ替えの手間には残るので、軽くはなりません。絵と図面が整うだけです。</p>`;
     }
   } else if (it.type === 'model'){
@@ -2932,11 +2976,14 @@ function renderSel(){
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
 
   }
-  const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
-  h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
-    + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
-                            : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
-  if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
+  // 3DGS は現場そのものなので寸法を出さない（向きは splat の枠の中で先に出してある）
+  if (it.type !== 'splat'){
+    const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
+    h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
+      + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
+                              : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
+    if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
+  }
   if (it.type === 'person' && personModel(it) && POSES){
     const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
       `<img src="${asset(`models/thumbs/pose-${id}.webp`)}" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
@@ -3074,9 +3121,11 @@ function setProp(it, k, v, live=false){
   else if (k.startsWith('crop.')){
     const c = {...cropBox(it)}, f = cropFull(it), n = k.slice(5);
     c[n] = +parseFloat(v).toFixed(2);
-    // 上下は追い越させない。追い越すと箱が裏返って全部消える
-    if (n === 'y1') c.y1 = clamp(c.y1, c.y0 + CROP_MIN, f.y1);
-    if (n === 'y0') c.y0 = clamp(c.y0, f.y0, c.y1 - CROP_MIN);
+    // 向かい合う面を追い越させない。追い越すと箱が裏返って全部消える
+    for (const [lo, hi] of [['x0','x1'], ['y0','y1'], ['z0','z1']]){
+      if (n === hi) c[hi] = clamp(c[hi], c[lo] + CROP_MIN, f[hi]);
+      if (n === lo) c[lo] = clamp(c[lo], f[lo], c[hi] - CROP_MIN);
+    }
     it.crop = c;
   }
   else if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
@@ -3348,7 +3397,7 @@ async function importFiles(files){
 // 相手の画面では枠だけが出て、その旨をパネルに書く。
 async function importScan(f){
   if (state.items.filter(i => i.type === 'splat').length >= SPLAT_MAX){
-    toast(`ロケーションは 1 カットに ${SPLAT_MAX} 個までです`); return;
+    toast(`3DGSは 1 カットに ${SPLAT_MAX} 個までです`); return;
   }
   if (f.size > 120*1024*1024){ toast(`${f.name} は大きすぎます（120MB まで）`); return; }
   toast(`${f.name} を読み込み中`);
@@ -3438,6 +3487,14 @@ async function filesFromDrop(dt){
   for (const e of entries) await walk(e).catch(() => {});
   return out;
 }
+// iPhone / iPad の「ファイルを選ぶ」は、accept に **UTI を持たない拡張子**
+// （.spz / .ply / .glb / .fbx …）が並んでいると、ファイル App の中身をまとめて
+// グレーアウトする。「知らない＝対応していない」と見なされるため、こちらが
+// 読める形式ほど選べなくなる。iOS では accept ごと外して全部選べるようにする
+// （読めないものは importFiles 側が拡張子で弾く）。
+const IOS_PICKER = /iP(hone|od|ad)/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS は Mac を名乗る
+if (IOS_PICKER) document.getElementById('file').removeAttribute('accept');
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
 document.getElementById('file').addEventListener('change', e => { closeAdd(); if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
 // カメラ小窓をリサイズしたあとドラッグすると、ブラウザが選択範囲のドラッグを始めて
@@ -4217,7 +4274,7 @@ const canSW = 'serviceWorker' in navigator && window.top === window.self &&
 if (canSW) navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw register failed', e));
 
 // ---------- まとめて書き出す（1 枚の HTML） ----------
-// 取り込んだモデルもロケーションのスキャンも、実体はこの端末の IndexedDB にある。
+// 取り込んだモデルも3DGSのスキャンも、実体はこの端末の IndexedDB にある。
 // 共有リンクにもプロジェクトファイルにも入らないので、**渡した相手の画面では
 // 枠だけ**になる。そこで、アプリ本体・three・部品・モデル・スキャン・配置を
 // まるごと 1 枚の HTML に詰めて渡せるようにした。ダブルクリックで開く。
@@ -4315,7 +4372,7 @@ async function makeBundle(){
       } catch { /* 無いものは飛ばす。相手の画面では今までどおり枠になるだけ */ }
     }
 
-    // ---- 取り込んだモデルとロケーションの実体 ----
+    // ---- 取り込んだモデルと3DGSの実体 ----
     const assets = {};
     const keys = [...new Set(items.filter(i => (i.type === 'model' || i.type === 'splat') && i.key).map(i => i.key))];
     for (const k of keys){
@@ -4350,7 +4407,7 @@ async function makeBundle(){
 if (BUNDLE){
   // まとめたファイルの中からは、自分のソースを取りに行けない（file:// の fetch は塞がれる）
   document.getElementById('bundlerow').hidden = true;
-  bundleStat.textContent = 'このファイルは「まとめて書き出した」ものです。モデルもロケーションも中に入っています。';
+  bundleStat.textContent = 'このファイルは「まとめて書き出した」ものです。モデルも3DGSも中に入っています。';
 } else bundleBtn.addEventListener('click', makeBundle);
 
 // ---------- ホーム画面から起動したとき ----------
@@ -4369,7 +4426,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

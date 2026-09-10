@@ -73,6 +73,20 @@ function makeSplatPLY(){
   }
   return Buffer.concat([Buffer.from(head, 'ascii'), body]);
 }
+// 鏡に映ったことを読み取れるように、色付きで大きめのガウシアンを 4x4x4 個
+function makeColourSplatPLY(){
+  const props = ['x','y','z','f_dc_0','f_dc_1','f_dc_2','opacity','scale_0','scale_1','scale_2','rot_0','rot_1','rot_2','rot_3'];
+  const head = `ply\nformat binary_little_endian 1.0\nelement vertex 64\n` +
+    props.map(p => `property float ${p}`).join('\n') + `\nend_header\n`;
+  const body = Buffer.alloc(64 * props.length * 4);
+  let o = 0;
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++){
+    for (const v of [-1.5 + i, 0.2 + j*0.7, -1.5 + k, i/3*2 - 0.5, j/3*2 - 0.5, k/3*2 - 0.5,
+                     4.0, Math.log(0.22), Math.log(0.22), Math.log(0.22), 1, 0, 0, 0])
+      { body.writeFloatLE(v, o); o += 4; }
+  }
+  return Buffer.concat([Buffer.from(head, 'ascii'), body]);
+}
 const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(st)))
   .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
@@ -1494,8 +1508,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('and it is measured at its real size', Math.abs(it.w - 2) < 0.4 && Math.abs(it.h - 2) < 0.4,
      `${it.w} x ${it.d} x ${it.h} m`);
   ok('it sits at the origin, not nudged aside', it.x === 0 && it.z === 0);
-  ok('the list calls it ロケーション',
-     (await t.page.textContent('#items .itemrow[data-kind="splat"] > button.name')).includes('ロケーション'));
+  ok('the list calls it 3DGS',
+     (await t.page.textContent('#items .itemrow[data-kind="splat"] > button.name')).includes('3DGS'));
 
   // 現場ぜんぶを覆うので、クリックでは拾わない（中の人やカメラが選べなくなる）
   await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(600);
@@ -1508,10 +1522,40 @@ async function open(name, viewport, mobile = false, hash = ''){
   });
   ok('clicking the scan does not select it', overIt === null, String(overIt));
 
-  // スタジオを消せる
+  // スタジオを消せる。消す前のグリッドの広さを控えておく
+  const gridSize = () => t.page.evaluate(() => {
+    const sp = window.__sp; let g = null;
+    sp.scene.traverse(n => { if (n.userData.grid) g = n; });
+    if (!g) return null;
+    let vis = g.visible, p = g.parent;
+    while (p){ vis = vis && p.visible; p = p.parent; }
+    const b = new sp.THREE.Box3().setFromObject(g);
+    return {vis, x:+b.max.x.toFixed(1), z:+b.max.z.toFixed(1)};
+  });
+  const roomGrid = await gridSize();
   await t.page.click('#items .itemrow[data-kind="studio"] .ico.eye'); await t.page.waitForTimeout(500);
   ok('the studio can be switched off for a location',
      await t.page.evaluate(() => window.__sp.state().studio.hidden === true));
+  // スタジオを消してもグリッドは残る。3DGS だけで使うとき、床の目盛りが無いと
+  // 大きさの見当が付かない（以前はグリッドが studioGroup の中に居たので一緒に消えた）
+  const grid = await gridSize();
+  ok('the grid stays after the studio is switched off', !!grid && grid.vis, JSON.stringify(grid));
+  // 部屋（10 x 8）が消えたので、スキャン（2 m 角）に合わせて引き直される
+  ok('and it shrinks to the scan it is left with', !!grid && grid.x < roomGrid.x && grid.z < roomGrid.z,
+     `${roomGrid.x}x${roomGrid.z} -> ${grid.x}x${grid.z}`);
+
+  // 目のマークで消したら、視点を動かさなくてもその場で消える
+  await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(1800);
+  const gone = await t.page.evaluate(() => {
+    const sp = window.__sp; let n = 0;
+    sp.scene.traverse(o => { if (o.constructor?.name === 'SplatMesh' || o.type === 'SplatMesh') n++; });
+    return {drawn: sp.spark()?.activeSplats ?? -1, inScene: n};
+  });
+  ok('the eye empties the scan without waiting for the view to move', gone.drawn === 0, JSON.stringify(gone));
+  await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(1800);
+  ok('and bringing it back fills it again',
+     (await t.page.evaluate(() => window.__sp.spark()?.activeSplats ?? 0)) > 0);
+  await t.page.click('#items .itemrow[data-kind="studio"] .ico.eye'); await t.page.waitForTimeout(500);
   await t.page.screenshot({ path: `${OUT}/scan.png` });
 
   // 共有リンクには置き方だけ。実体（10 MB 級）は原理的に載らない
@@ -1538,7 +1582,14 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
   await t.page.waitForTimeout(2500);
   await t.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t.page.waitForTimeout(400);
-  ok('a location offers 切り取り', (await t.page.textContent('#selbody')).includes('切り取り'));
+  const panel0 = await t.page.textContent('#selbody');
+  ok('a 3DGS offers 切り取り', panel0.includes('切り取り'));
+  // 3DGS は現場そのもの。寸法を書いても図面にならないので、表示も設定も出さない
+  ok('and carries no dimension switches', !panel0.includes('寸法表示'), panel0.slice(0, 80));
+  // 向きは高さ調整の上。置き方を決める順に並べる
+  const order = await t.page.$$eval('#selbody label.f span:first-child', n => n.map(x => x.textContent));
+  ok('向き comes above 高さ調整',
+     order.indexOf('向き') >= 0 && order.indexOf('向き') < order.indexOf('高さ調整'), order.join('/'));
   await t.page.click('#selbody [data-set="cropOn"]'); await t.page.waitForTimeout(900);
   const on = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop);
   ok('switching it on starts at the scan\'s own size', on && Math.abs(on.x1 - on.x0 - 2) < 0.4 && on.y0 === 0,
@@ -1549,6 +1600,17 @@ async function open(name, viewport, mobile = false, hash = ''){
     return { handles: hg.children.filter(k => k.isMesh).length, frame: hg.children.filter(k => k.isLineSegments).length };
   });
   ok('six handles and the frame are drawn', gizmo.handles === 6 && gizmo.frame === 1, JSON.stringify(gizmo));
+  // つまみが 6 個あるのだから、数字も 6 個ある
+  const cropRanges = await t.page.$$eval('#selbody [data-range^="crop."]', n => n.map(x => x.dataset.range));
+  ok('and all six edges have a slider too', cropRanges.length === 6 &&
+     ['crop.x0','crop.x1','crop.y0','crop.y1','crop.z0','crop.z1'].every(k => cropRanges.includes(k)),
+     cropRanges.join(','));
+  // 左右も追い越せない（追い越すと箱が裏返って全部消える）
+  const clamped = await t.page.evaluate(() => {
+    const sp = window.__sp, s = sp.state().items.find(i => i.type === 'splat');
+    sp.setProp(s, 'crop.x1', -9); return sp.cropBox(s);
+  });
+  ok('the near edge cannot overtake the far one', clamped.x1 > clamped.x0, JSON.stringify(clamped));
   // 上端を下げると、上面の寸法もその範囲になる
   await t.page.evaluate(() => {
     const sp = window.__sp, s = sp.state().items.find(i => i.type === 'splat');
@@ -1558,12 +1620,12 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.waitForTimeout(600);
   await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(1200);
   const lab = await t.page.$$eval('#labels span', n => n.map(x => x.textContent).join(' | '));
-  ok('the plan writes the cropped size, not the whole scan', /ロケーション[^|]*：1 × 2 m/.test(lab), lab.slice(0, 160));
+  ok('the plan writes no size for a 3DGS', !/3DGS/.test(lab), lab.slice(0, 160));
   // 消したのは見た目だけ。データには触っていない
   const link = await t.page.evaluate(() => location.hash);
   ok('the crop rides along in the link, and it stays small', link.length < 700, `${link.length} chars`);
   await t.page.click('#selbody [data-set="cropOn"][data-val=""]'); await t.page.waitForTimeout(700);
-  ok('全部を出す puts it back',
+  ok('全体表示 puts it back',
      (await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop)) == null);
   ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
@@ -1618,6 +1680,84 @@ async function open(name, viewport, mobile = false, hash = ''){
      JSON.stringify({names: got.names, crop: got.crop}));
   fs.writeFileSync(path.join(OUT, 'bundle-file.png'), await page.screenshot());
   ok('bundle run clean', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+// --- 28. 3DGS が鏡に映る ------------------------------------------------------------
+// スキャンだけは「重いうえ、並べ替えが別視点で狂う」を理由に鏡から外していた。
+// 並べ替えは本体のカメラのぶんを使い回す（autoUpdate を切る）ことで入れてある
+{
+  const t = await open('splat-mirror', { width: 1200, height: 800 });
+  const ply = `${OUT}/scan-colour.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.waitForTimeout(2500);
+  await t.add('[data-add="mirror"]');
+  // 左手に立て鏡を構え、スキャンをその正面に置く
+  await t.page.evaluate(() => {
+    const sp = window.__sp, st = sp.state();
+    const m = st.items.find(i => i.type === 'mirror'); m.x = -4.4; m.z = 0.5;
+    sp.setProp(m, 'kind', 'wall'); sp.setProp(m, 'h', 3.5); sp.setProp(m, 'rot', 90); sp.setProp(m, 'w', 6);
+    const s = st.items.find(i => i.type === 'splat'); s.x = 0.5; s.z = 0.5; sp.setProp(s, 'lift', 0);
+    sp.select(null);
+  });
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(3500);
+  // 鏡の面のまん中あたりを読む。スキャンを消したときと比べて、そこが変わっていれば映っている
+  const readMirror = () => t.page.evaluate(() => {
+    const sp = window.__sp, m = sp.state().items.find(i => i.type === 'mirror');
+    const cv0 = document.querySelector('#view canvas'), box = cv0.getBoundingClientRect();
+    const p = new sp.THREE.Vector3(m.x, m.h * 0.5, m.z).project(sp.camera());
+    const cv = document.createElement('canvas'); cv.width = box.width; cv.height = box.height;
+    const cx = cv.getContext('2d'); cx.drawImage(cv0, 0, 0, box.width, box.height);
+    const x = Math.round((p.x + 1)/2 * box.width), y = Math.round((1 - p.y)/2 * box.height);
+    return [...cx.getImageData(x - 40, y - 40, 80, 80).data];
+  });
+  const withScan = await readMirror();
+  await t.page.screenshot({ path: `${OUT}/splat-mirror.png` });
+  await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(2500);
+  const without = await readMirror();
+  let moved = 0;
+  for (let i = 0; i < withScan.length; i += 4) if (Math.abs(withScan[i] - without[i]) > 10) moved++;
+  ok('the scan turns up in the mirror', moved > 400, `${moved} of ${withScan.length / 4} px changed`);
+  ok('splat mirror run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 29. 書き出しボタンの名前と、iPhone のファイル選び --------------------------------
+{
+  const t = await open('naming', { width: 1200, height: 820 });
+  await t.tab('share');
+  ok('the one-file export is called HTMLエクスポート',
+     (await t.page.textContent('#bundlebtn')).trim() === 'HTMLエクスポート',
+     await t.page.textContent('#bundlebtn'));
+  // PC では accept を残す。読める形式だけが並んで、選ぶのが速い
+  ok('a desktop browser keeps the accept list',
+     (await t.page.getAttribute('#file', 'accept') || '').includes('.spz'));
+  ok('naming run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+{
+  // iOS のファイル App は、accept に知らない拡張子が並ぶと中身をまとめてグレーアウトする。
+  // .spz / .ply / .glb / .fbx はどれも UTI を持たないので、iPhone では accept ごと外す
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    deviceScaleFactor: 1, serviceWorkers: 'block',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  await page.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', route => {
+    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/', '');
+    const f = path.join(NM, 'three', rel);
+    if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
+  });
+  await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
+  await page.goto('http://localhost:8765/');
+  await page.waitForTimeout(1500);
+  ok('an iPhone is given no accept list, so .spz and .ply can be picked',
+     (await page.getAttribute('#file', 'accept')) === null,
+     String(await page.getAttribute('#file', 'accept')));
+  ok('iphone picker run clean', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
 
