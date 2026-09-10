@@ -418,11 +418,12 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
-// --- 7. the project file round trip ----------------------------------------------------
+// --- 7. 書き出したファイルの渡し方（3 経路）------------------------------------------
+// **配置だけのプロジェクトファイル（.json）は外した**（中身が共有リンクと同じだった）。
+// saveFile() の 3 段構えは画像でも同じ道を通るので、そちらで見る
 {
-  const t = await open('projfile', { width: 1280, height: 800 });
+  const t = await open('savefile', { width: 1280, height: 800 });
   await t.add('[data-add="chroma"]');
-  await t.add('[data-add="mirror"]');
   await t.tab('cut');
   await t.page.fill('#m-cut', 'C-3');
   await t.page.waitForTimeout(200);
@@ -431,81 +432,50 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.fill('#m-project', '青山スタジオ 下見');
   await t.page.waitForTimeout(300);
   await t.page.click('#paperclose'); await t.page.waitForTimeout(300);
-  const before = await t.page.$$eval('#items .itemrow', n => n.length);
 
-  // desktop Chrome path: the real save dialog, stubbed so headless can watch it
+  ok('the project file is gone from the panel',
+     !(await t.page.$('#savefile')) && !(await t.page.$('#loadfile')) && !(await t.page.$('#projfile')));
+
+  // デスクトップの Chrome: OS の「名前を付けて保存」を開く
   await t.page.evaluate(() => {
-    window.__picked = null;
+    window.__picked = null; window.__written = null;
     window.showSaveFilePicker = async opts => {
       window.__picked = {name: opts.suggestedName, types: opts.types};
       return { createWritable: async () => ({
-        write: async b => { window.__written = typeof b === 'string' ? b : await b.text(); },
+        write: async b => { window.__written = b?.size ?? 0; },
         close: async () => {},
       }) };
     };
   });
-  await t.page.click('#savefile');
-  await t.page.waitForTimeout(400);
+  await t.page.click('#png'); await t.page.waitForTimeout(1500);
+  await t.page.click('#shotdl'); await t.page.waitForTimeout(500);
   const picked = await t.page.evaluate(() => ({p: window.__picked, w: window.__written}));
-  ok('save opens the save dialog rather than downloading',
+  ok('saving opens the save dialog rather than downloading',
      !!picked.p && picked.p.name.includes('青山スタジオ') && picked.p.name.includes('C-3')
-     && /\d{4}-\d{2}-\d{2}/.test(picked.p.name) && picked.p.name.endsWith('.json'), picked.p?.name);
-  const viaPicker = JSON.parse(picked.w);
-  ok('the dialog is handed the whole scene',
-     viaPicker.cuts?.[0].items.length === before - 1 && viaPicker.cuts[0].name === 'C-3',
-     JSON.stringify(Object.keys(viaPicker)));
+     && /\d{4}-\d{2}-\d{2}/.test(picked.p.name) && picked.p.name.endsWith('.png'), picked.p?.name);
+  ok('and the file itself really goes through it', picked.w > 1000, String(picked.w));
 
-  // a closed dialog leaves nothing behind
+  // 閉じただけなら何もしない（AbortError）
   await t.page.evaluate(() => {
     window.showSaveFilePicker = async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; };
   });
-  await t.page.click('#savefile');
+  await t.page.click('#shotdl');
   await t.page.waitForTimeout(300);
   ok('closing the dialog saves nothing', !await t.page.$eval('#namedlg', e => e.classList.contains('on')));
 
-  // everywhere else: the app asks for the name itself, then hands the file over
+  // ダイアログの無い場所（枠の中など）は、自前で名前を訊いてから渡す
   await t.page.evaluate(() => { delete window.showSaveFilePicker; });
-  await t.page.click('#savefile');
+  await t.page.click('#shotdl');
   await t.page.waitForTimeout(300);
   ok('without a save dialog the app asks for the name', await t.page.$eval('#namedlg', e => e.classList.contains('on')));
   const suggested = await t.page.inputValue('#namein');
   await t.page.fill('#namein', '下見メモ');
   const dl = await Promise.all([t.page.waitForEvent('download'), t.page.click('#nameok')]).then(r => r[0]);
-  const name = dl.suggestedFilename();
-  const file = path.join(OUT, 'project.json');
-  await dl.saveAs(file);
-  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  ok('the typed name is used, with the extension kept', name === '下見メモ.json', `${name} (suggested ${suggested})`);
-  ok('the file holds the whole scene', saved.cuts[0].items.length === before - 1 && saved.cuts[0].name === 'C-3',
-     `${saved.cuts[0].items.length} items in ${saved.cuts.length} cut(s)`);
-
-  // 別のセッションで開き直す。これが「来月また開く」の実際の手順でもある
-  const f = await open('projload', { width: 1280, height: 800 });
-  await f.tab('share');
-  await f.page.setInputFiles('#projfile', file);
-  await f.page.waitForTimeout(900);
-  const after = await f.page.$$eval('#items .itemrow', n => n.length);
-  ok('a saved file opens in a fresh session', after === before, `${after} rows, was ${before}`);
-  await f.tab('cut');
-  ok('and brings the meta back', await f.page.inputValue('#m-cut') === 'C-3');
-  await f.tab('share');
-  await f.page.setInputFiles('#projfile', path.join(HERE, 'package.json'));
-  await f.page.waitForTimeout(400);
-  ok('a file that is not a scene is refused, not applied',
-     (await f.page.textContent('#toast')).includes('読めません') && await f.page.$$eval('#items .itemrow', n => n.length) === after);
-  ok('project load run clean', f.errors.length === 0, f.errors.join(' | '));
-  await f.ctx.close();
-  // the PNG dialog hands over a file the same way
-  await t.page.click('#png');
-  await t.page.waitForTimeout(1200);
-  await t.page.click('#shotdl');
-  await t.page.waitForTimeout(300);
-  const pngSuggest = await t.page.inputValue('#namein');
-  const png = await Promise.all([t.page.waitForEvent('download'), t.page.click('#nameok')]).then(r => r[0]);
-  ok('the image dialog saves a named PNG', png.suggestedFilename().endsWith('.png') && pngSuggest.includes('青山スタジオ'), pngSuggest);
+  ok('the typed name is used, with the extension kept', dl.suggestedFilename() === '下見メモ.png',
+     `${dl.suggestedFilename()} (suggested ${suggested})`);
   await t.page.click('#shotclose');
 
-  ok('project file run clean', t.errors.length === 0, t.errors.join(' | '));
+  ok('save dialog run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 
@@ -1321,8 +1291,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the share tab carries no headings at all',
      (await t.page.$$('[data-sec="share"] h2')).length === 0);
   const btns = await t.page.$$eval('[data-sec="share"] .btn', n => n.map(x => x.textContent.trim()));
-  ok('every button says what it does on its own',
-     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/プロジェクト保存/プロジェクト読込/HTML書き出し',
+  ok('every button says what it does on its own (and the project file is gone)',
+     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/HTML書き出し',
      btns.join('/'));
   // どれか 1 つが既定の道具ではないので、オレンジ（primary）は付けない
   ok('and none of them is painted as the one to press',
@@ -1331,6 +1301,16 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the view-only button is gone', !(await t.page.$('#copyview')));
   // URL の欄はクリップボードが塞がれているときだけ出る
   ok('the URL box stays out of the way', await t.page.evaluate(() => document.getElementById('linkbox').hidden));
+  // リンクと QR のすぐ下で、実体が乗らないことを言う
+  const shareHint = await t.page.$eval('[data-sec="share"] .hint', e => e.textContent.trim());
+  ok('the link says the 3D data does not ride along', shareHint === '※外部3Dデータは含まれません。', shareHint);
+  // ＋ の取り込みは、名前と 3 行だけ
+  await t.page.click('#addfab'); await t.page.waitForTimeout(300);
+  ok('the import button is called 外部3Dデータ', (await t.page.textContent('#pick')).trim() === '外部3Dデータ');
+  const imp = (await t.page.$eval('#addpop .popbody .hint', e => e.textContent)).replace(/\s+/g, '');
+  ok('and its blurb is three short lines',
+     imp === '対応3Dデータ（GLB/glTF/FBX）120MB以下対応3DGS（.spz/.ply）240MB以下URL共有時には外部3Dデータは含まれません。', imp);
+  await t.page.click('#addclose'); await t.page.waitForTimeout(200);
   ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
   ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
 

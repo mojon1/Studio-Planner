@@ -354,17 +354,15 @@ label.f2 textarea{resize:vertical;line-height:1.5}
              書いても同じことを 2 回言うだけになる。色も付けない（どれか 1 つが
              既定の道具ではないので、オレンジは「押すべきボタン」の嘘になる） -->
         <div class="row"><button class="btn" id="copy">共有リンク</button><button class="btn" id="qrbtn">共有QRコード</button></div>
+        <p class="hint">※外部3Dデータは含まれません。</p>
         <!-- クリップボードが塞がれている場所でだけ出す、手でコピーするための欄 -->
         <input type="text" id="linkbox" readonly hidden>
         <div class="row"><button class="btn" id="makepdf">PDF資料作成</button></div>
         <p class="hint">用紙の向き・載せる図・タイトルは、押したあとの画面で選べます。</p>
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
-        <div class="row"><button class="btn" id="savefile">プロジェクト保存</button><button class="btn" id="loadfile">プロジェクト読込</button></div>
-        <input type="file" id="projfile" accept=".json,application/json" hidden>
-        <p class="hint">配置だけの軽いファイルです。取り込んだモデルと3DGSの実体は入りません（この端末に残ります）。</p>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
-        <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.5<br>© 2026 寺村太一</p>
+        <p class="hint" id="bundlestat">外部3Dデータも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
+        <p class="colophon">Studio Planner v1.11.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -427,12 +425,12 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button class="btn" data-add="mirror">ミラー</button>
       <button class="btn" data-add="chroma">背景布</button>
     </div>
-    <h2>3DGS・3D モデルを取り込む</h2>
-    <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
+    <h2>取り込む</h2>
+    <div class="row"><button class="btn primary" id="pick">外部3Dデータ</button></div>
     <input type="file" id="file" accept=".glb,.gltf,.fbx,.spz,.ply,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
-    <p class="hint"><b>ロケハンのスキャン（.spz / .ply）</b>を入れると、その現場の中で撮影計画を立てられます。Scaniverse などの 3D ガウシアンスプラッティング。<br>
-      3D モデルは GLB・glTF・FBX。テクスチャが別ファイルなら <b>.bin と画像も一緒に</b>、またはフォルダごとドラッグ。<br>
-      どちらも実体はこの端末に残り、<b>共有リンクには入りません</b>（PDF と画像には写ります）。</p>
+    <p class="hint">対応3Dデータ（GLB / glTF / FBX）120MB以下<br>
+      対応3DGS（.spz / .ply）240MB以下<br>
+      URL共有時には外部3Dデータは含まれません。</p>
   </div>
 </div></div>
 <div id="papermodal">
@@ -3912,31 +3910,15 @@ async function saveFile(filename, blob, mime){
   toast('保存しました');
 }
 
-// ---------- project file ----------
-// The link covers a quick hand-off; a job that comes back next month wants a file
-// on the desktop. Same JSON as the link, uncompressed so it stays readable.
+// ---------- 書き出すファイルの名前 ----------
+// **配置だけのプロジェクトファイル（.json）は外した。** 中身は共有リンクと同じ
+// JSON で、リンクを送るのと変わらなかった（寺村さんの指摘）。持ち帰るぶんは
+// 外部3Dデータごと入る「HTML書き出し」があるので、そちらのほうが素直。
+// 名前の作り方だけは画像と HTML が使うので残す。
 function projectName(){
   const m = state.meta;
   return [m.project, m.cut, new Date().toISOString().slice(0,10)].filter(Boolean).join('_') || 'StudioPlanner';
 }
-document.getElementById('savefile').addEventListener('click', () => {
-  saveFile(projectName() + '.json', new Blob([JSON.stringify(packState(), null, 1)], {type:'application/json'}), 'application/json');
-});
-document.getElementById('loadfile').addEventListener('click', () => document.getElementById('projfile').click());
-document.getElementById('projfile').addEventListener('change', async e => {
-  const f = e.target.files?.[0]; e.target.value = '';
-  if (!f) return;
-  try {
-    const st = JSON.parse(await f.text());
-    if (!st?.studio || !(Array.isArray(st.items) || Array.isArray(st.cuts))) throw new Error('not a Studio Planner file');
-    state = migrate(st);
-    select(null);
-    buildStudio(); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta(); layoutPip(); saveHash(); needRender = true;
-    restoreModels();                                  // models already in this browser come back
-    toast('読み込みました');
-  } catch(err){ console.warn('project load failed', err); toast('このファイルは読めません'); }
-});
-
 document.getElementById('edit').addEventListener('click', () => { viewerMode = false; document.body.classList.remove('viewer'); if (mainView === 'cam') setMain('plan'); resize(); saveHash(); });
 
 // png
