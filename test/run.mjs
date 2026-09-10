@@ -578,6 +578,19 @@ async function open(name, viewport, mobile = false, hash = ''){
     return +(b.max.y - b.min.y).toFixed(3);
   });
   ok('and she is drawn at that height', Math.abs(herH - 1.58) < 0.02, `${herH} m`);
+  // 子どもも同じ道で置ける（種別と既定の身長は + で決まる）
+  await t.page.click('#addfab'); await t.page.waitForTimeout(300);
+  await t.page.click('#people button[data-model="asia-casual-girl"]');
+  await t.page.waitForTimeout(2500);
+  const kid = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.at(-1);
+    const b = new sp.THREE.Box3().setFromObject(sp.group(it.id));
+    return {model: it.model, kind: it.kind, height: it.height, tall: +(b.max.y - b.min.y).toFixed(3), floor: +b.min.y.toFixed(3)};
+  });
+  ok('a child can be placed too, at a child height',
+     kid.model === 'asia-casual-girl' && kid.kind === 'girl'
+     && Math.abs(kid.height - 1.18) < 0.001 && Math.abs(kid.tall - 1.18) < 0.02 && Math.abs(kid.floor) < 0.02,
+     JSON.stringify(kid));
   await t.page.screenshot({ path: `${OUT}/cast.png` });
 
   ok('the + panel no longer offers mannequins', await t.page.$$eval('[data-person]', b => b.length) === 0);

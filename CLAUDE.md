@@ -167,10 +167,11 @@ sw.js                 オフライン用の Service Worker
 icon-192.png / icon-512.png / icon-maskable.png   ホーム画面のアイコン
 tools/make-icons.mjs  favicon と同じ絵柄からアイコンを焼く
 tools/shrink-glb.mjs  GLB のテクスチャを縮めて GLB を組み直す
+tools/fbx-to-glb.mjs  FBX を GLB にする。GLB で落とせないときの回り道
 tools/make-thumbs.mjs models/*.glb から models/thumbs/*.webp を焼く
 tools/make-ogp.mjs    ogp.png を撮り直す
 tools/make-poses.mjs  FBX からポーズ（models/poses.json）とサムネイルを作る
-models/poses.json     11 ポーズぶんの関節位置。6 KB。12 体で共通
+models/poses.json     11 ポーズぶんの関節位置。6 KB。14 体で共通
 tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実験。下の「ポーズ」参照
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
@@ -212,6 +213,25 @@ const p=j.meshes[0].primitives[0];console.log(j.asset.generator,Object.keys(p.at
 生きていれば `us-business-woman` のようにそのまま通る）。**ポリゴン削減やリメッシュは
 掛けないこと** — UV とボーンウェイトが落ちる。
 
+**FBX しか無いときは `tools/fbx-to-glb.mjs` を通す。** Tripo の「convert」で落ちてくる
+`*.fbx` ＋ 隣の `*.fbm/`（テクスチャ）の組を、そのまま GLB にする。子ども 2 体は
+この道で入れた。
+
+```
+node tools/fbx-to-glb.mjs 元.fbx 中間.glb     # .fbm は元の隣に置いたまま
+node tools/shrink-glb.mjs 中間.glb models/asia-casual-girl.glb 1024 0.86
+```
+
+- **テクスチャの読み終わりを待つこと。** `FBXLoader.loadAsync()` が解決した時点では
+  画像がまだ空で、そのまま `GLTFExporter` に渡すと
+  **「No valid image data found」**で止まる。`LoadingManager` の `onLoad` まで待つ。
+- FBXLoader は **Phong** でマテリアルを組む。glTF は PBR なので、色とテクスチャだけ
+  引き継いで `MeshStandardMaterial`（metalness 0 / roughness 0.9）に置き換える。
+  Tripo のモデルは陰影がテクスチャに焼いてあるので、これで見た目は変わらない。
+- **書き出した GLB のテクスチャは PNG になる**（GLTFExporter が canvas から出すため）。
+  20 MB 級になるので、**必ず `shrink-glb.mjs` を通してから** `models/` に入れる。
+- 骨・UV・身長・接地はツールが測って出す。1 m と y=0 からずれていたら警告する。
+
 登録は `PEOPLE_MODELS` に 1 行。`id` はファイル名（拡張子なし）、`kind` は
 `man` / `woman` / `boy` / `girl`、`wear` はサムネイルの下に出る一語、
 `label` は読み上げとツールチップ用。**ファイルは身長 1 m・A ポーズで作る**こと。
@@ -225,7 +245,7 @@ const p=j.meshes[0].primitives[0];console.log(j.asset.generator,Object.keys(p.at
 ### ポーズ（実装済み）
 
 寺村さんの C4D の FBX（`docs/pose-check/suwaru01.fbx`、椅子に座る姿）を使って、
-**別リグのポーズを Tripo の 12 体に移せることを確認した。** 絵は `docs/pose-check/`。
+**別リグのポーズを Tripo の 14 体に移せることを確認した。** 絵は `docs/pose-check/`。
 
 - C4D 側は **Mixamo 系のリグ**（`mocaprig_Hips` / `Spine` / `LeftUpLeg` …、指まである）。
   Tripo 側（`Hip` / `Waist` / `Spine01` / `L_Thigh` …）とは名前も本数も違う。
@@ -258,7 +278,7 @@ const p=j.meshes[0].primitives[0];console.log(j.asset.generator,Object.keys(p.at
   `docs/pose-check/all-poses.png`、元データは `docs/pose-check/src/`。
 
 **でき上がり**: FBX は実行時に読まない。`models/poses.json`（6 KB）に関節のワールド位置
-だけを持ち、向き合わせは `applyPose()` がアプリ側でやる。12 体で 1 ファイル共通、
+だけを持ち、向き合わせは `applyPose()` がアプリ側でやる。14 体で 1 ファイル共通、
 体格差も吸収する。人物の設定パネルにサムネイル 12 枚（素の姿勢＋11）の一覧を出し、
 押すとその場で着せ替わる。`it.posture` に ID が入り、共有リンクにも乗る。
 
@@ -956,7 +976,7 @@ iOS 向けの `-webkit-touch-callout:none` が入っていること）、
 寸法のリボン描画と項目ごとの寸法スイッチ、A4 の PDF 出力（横・縦とも 1 ページ、
 A4 実寸であることを Chromium の PDF 生成で確認済み）、用紙の中での再構図、
 画像と HTML の「名前を付けて保存」、固定サイズのマニピュレータ、
-人物モデル 12 体（アジア系・アフリカ系・欧米系 × スーツ・カジュアル × 男女）と
+人物モデル 14 体（大人 12 体と子ども 2 体）と
 サムネイルでの選択、起動時のパースビュー、ポーズ 11 種の適用、箱の上に立つこと、
 パースでの映り込み、見た目どおりの当たり判定、右クリック／長押しのメニュー、
 リストのロック・ゴミ箱・並べ替え・名前の変更、背景布と鏡の辺のドラッグと
@@ -993,8 +1013,7 @@ FBXLoader のモジュール解決までは確認済み）、
 共有しない。人物モデルは寺村さん本人が権利を持つものだけ同梱する（配布ライセンスのため
 拾い物は入れない）。人物モデルは外部ファイル。
 **マネキンは `+` から置けない**（人物モデルが揃ったので不要という判断）。描画側の
-コードは残してあるので、古いリンクやファイルは今までどおり開ける。そのぶん
-**男の子・女の子が置けなくなっている**。子どものモデルが入ったら復活する。
+コードは残してあるので、古いリンクやファイルは今までどおり開ける。**子どもも
+モデルで置ける**ようになったので、`+` から出せない種別はもう無い。
 
-**残り**: 子どものモデル（今は置く手段が無い）。
-座面高の突き合わせ（上記）。タイムコードや香盤との連携。
+**残り**: 座面高の突き合わせ（上記）。タイムコードや香盤との連携。
