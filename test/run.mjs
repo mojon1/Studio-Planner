@@ -1737,8 +1737,18 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
-// --- 29. 書き出しボタンの名前と、iPhone のファイル選び --------------------------------
+// --- 29. 書き出しボタンの名前、取り込みの上限、iPhone のファイル選び ------------------
 {
+  // 上限は「現場のスキャンが入らない」と言われて倍にしたもの。下げると元に戻るので、
+  // 数字そのものと、画面に出す文言が一致していることを見る（片方だけ直すのが怖い）
+  const appSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const caps = [...appSrc.matchAll(/f\.size > (\d+)\*1024\*1024\)\{ toast\(`\$\{f\.name\} は大きすぎます（(\d+)MB まで）/g)]
+    .map(m => [+m[1], +m[2]]);
+  ok('a 3D model may be 120 MB and a 3DGS scan 240 MB',
+     caps.map(c => c[0]).join('/') === '120/240', JSON.stringify(caps));
+  ok('and each cap says the number it actually enforces',
+     caps.length === 2 && caps.every(([n, said]) => n === said), JSON.stringify(caps));
+
   const t = await open('naming', { width: 1200, height: 820 });
   await t.tab('share');
   ok('the one-file export is called HTML書き出し',

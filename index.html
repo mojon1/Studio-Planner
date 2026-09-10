@@ -364,7 +364,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <p class="hint">配置だけの軽いファイルです。取り込んだモデルと3DGSの実体は入りません（この端末に残ります）。</p>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">取り込んだモデルも3DGSのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
-        <p class="colophon">Studio Planner v1.10.4<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.10.5<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -3387,13 +3387,13 @@ async function importFiles(files){
   const assets = {};
   let sideBytes = 0;
   for (const f of sides){
-    if (sideBytes + f.size > 120*1024*1024){ toast('付属ファイルが多すぎるので一部を読みませんでした'); break; }
+    if (sideBytes + f.size > 240*1024*1024){ toast('付属ファイルが多すぎるので一部を読みませんでした'); break; }
     sideBytes += f.size;
     assets[f.name] = await f.arrayBuffer();
   }
   const sliceAll = () => Object.fromEntries(Object.entries(assets).map(([k,v]) => [k, v.slice(0)]));
   for (const f of mains){
-    if (f.size > 60*1024*1024){ toast(`${f.name} は大きすぎます（60MB まで）`); continue; }
+    if (f.size > 120*1024*1024){ toast(`${f.name} は大きすぎます（120MB まで）`); continue; }
     const ext = extOf(f.name);
     toast(`${f.name} を読み込み中`);
     try {
@@ -3410,7 +3410,8 @@ async function importFiles(files){
       modelInfo.set(key, info);
       // keep only the files this model actually asked for, not the whole dropped folder
       const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
-      await idbPut(key, {buf, ext, name:f.name, assets:keep}).catch(() => toast('この端末に保存できませんでした'));
+      await idbPut(key, {buf, ext, name:f.name, assets:keep})
+        .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
       addItem('model', {key, name:f.name, scale, upFix:false,
         w:+(raw.x*scale).toFixed(3), d:+(raw.z*scale).toFixed(3), h:+(raw.y*scale).toFixed(3)});
       const note = textureNote(key);
@@ -3432,13 +3433,14 @@ async function importScan(f){
   if (state.items.filter(i => i.type === 'splat').length >= SPLAT_MAX){
     toast(`3DGSは 1 カットに ${SPLAT_MAX} 個までです`); return;
   }
-  if (f.size > 120*1024*1024){ toast(`${f.name} は大きすぎます（120MB まで）`); return; }
+  if (f.size > 240*1024*1024){ toast(`${f.name} は大きすぎます（240MB まで）`); return; }
   toast(`${f.name} を読み込み中`);
   try {
     const buf = await f.arrayBuffer();
     const key = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     splatBytes.set(key, new Uint8Array(buf));
-    await idbPut(key, {buf, ext:extOf(f.name), name:f.name, splat:true}).catch(() => toast('この端末に保存できませんでした'));
+    await idbPut(key, {buf, ext:extOf(f.name), name:f.name, splat:true})
+      .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
     const it = addItem('splat', {key, name:f.name, scale:1, lift:0, w:4, d:4, h:3});
     await makeSplat(it);                       // 大きさが分かるのは読み終えてから
     const bb = splatBox.get(key);
