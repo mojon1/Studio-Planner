@@ -361,7 +361,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.12.0<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.12.1<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -1282,7 +1282,7 @@ function buildPerson(it){
 // 入るまでセダンで置く。寸法はリンクに入っている値をそのまま使うので図は狂わない。
 const CAR_MODELS = [
   {id:'sedan',  label:'セダン', size:[1.80, 4.70, 1.45]},
-  {id:'modern', label:'モダン', size:[1.82, 4.75, 1.44]},
+  {id:'suv',    label:'SUV',   size:[1.85, 4.70, 1.70]},
 ];
 const CAR_BY_ID = Object.fromEntries(CAR_MODELS.map(c => [c.id, c]));
 const carModel = it => CAR_BY_ID[it.kind] ? asset(`models/car-${it.kind}.glb`) : null;

@@ -1149,11 +1149,18 @@ async function open(name, viewport, mobile = false, hash = ''){
   const thumbs = await t.page.$$eval('.cars img', n => n.map(x => x.naturalWidth));
   ok('the car models are offered as thumbnails', thumbs.length >= 2 && thumbs.every(w => w > 0), JSON.stringify(thumbs));
   ok('no block-car kinds are left', !(await t.page.$('[data-set="kind"][data-val="wagon"]')));
-  await t.page.click('[data-set="kind"][data-val="modern"]');
+  // 「モダン」は間違って入れたもの。消したので、古いリンクはセダンで置かれる
+  ok('and the mistaken モダン is gone', !(await t.page.$('[data-set="kind"][data-val="modern"]')));
+  await t.page.click('[data-set="kind"][data-val="suv"]');
   await t.page.waitForTimeout(2000);
-  const two = await t.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'car');
-    return {kind: it.kind, w: it.w, d: it.d, h: it.h}; });
-  ok('picking a model brings that car\u2019s real size', two.kind === 'modern' && two.d === 4.75, JSON.stringify(two));
+  const two = await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'car');
+    const b = new sp.THREE.Box3().setFromObject(sp.group(it.id));
+    return {kind: it.kind, w: it.w, d: it.d, h: it.h,
+            size: [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z].map(v => +v.toFixed(3))}; });
+  ok('picking a model brings that car\u2019s real size',
+     two.kind === 'suv' && two.w === 1.85 && two.d === 4.7 && two.h === 1.7, JSON.stringify(two));
+  ok('and the SUV is drawn at those dimensions',
+     two.size[0] === 1.85 && two.size[1] === 1.7 && two.size[2] === 4.7, JSON.stringify(two.size));
   // 古いリンクの「ワゴン」は、実物が入るまでセダンで置く。寸法はリンクのまま
   const old = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}},
     activeCam:'c1', items:[{id:'v1',type:'car',x:0,z:0,rot:0,kind:'wagon',w:1.80,d:4.80,h:1.55,color:'#b9c0cc'},
