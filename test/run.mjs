@@ -1304,6 +1304,11 @@ async function open(name, viewport, mobile = false, hash = ''){
   // リンクと QR のすぐ下で、実体が乗らないことを言う
   const shareHint = await t.page.$eval('[data-sec="share"] .hint', e => e.textContent.trim());
   ok('the link says the 3D data does not ride along', shareHint === '※外部3Dデータは含まれません。', shareHint);
+  // 説明はこの 2 行だけ。PDF の下の「押したあとの画面で選べます」は、押せば分かるので外した
+  const hints = await t.page.$$eval('[data-sec="share"] .hint', n => n.map(x => x.textContent.trim()));
+  ok('and the share tab carries no other blurb',
+     hints.join('|') === '※外部3Dデータは含まれません。|外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。',
+     hints.join('|'));
   // ＋ の取り込みは、名前と 3 行だけ
   await t.page.click('#addfab'); await t.page.waitForTimeout(300);
   ok('the import button is called 外部3Dデータ', (await t.page.textContent('#pick')).trim() === '外部3Dデータ');
