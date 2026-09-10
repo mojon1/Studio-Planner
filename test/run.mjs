@@ -1097,14 +1097,15 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the service worker takes over', await page.evaluate(() =>
     navigator.serviceWorker.ready.then(r => !!r.active).catch(() => false)));
   ok('the manifest is served', await page.evaluate(async () => (await fetch('manifest.webmanifest')).status) === 200);
+  // 「オフラインに保存」ボタンは外した。一度使ったものが runtime キャッシュに
+  // 残っていること（＝置いた人物のモデルが圏外でも出ること）を見る
   await page.click('#addfab'); await page.click('#people button[data-model="asia-casual-man"]');
-  await page.waitForTimeout(1200);
-  await page.click('[data-tab="share"]'); await page.waitForTimeout(150);
-  await page.click('#offlinebtn');
-  await page.waitForFunction(() => /保存しました|できません|使えません/.test(document.getElementById('offlinestat').textContent),
-    null, { timeout: 180000 });
-  const stat = await page.textContent('#offlinestat');
-  ok('オフラインに保存 finishes', /この端末に保存しました/.test(stat), stat);
+  await page.waitForTimeout(2500);
+  ok('the person model was fetched at least once', await page.evaluate(() => {
+    const it = window.__sp.state().items.find(i => i.type === 'person');
+    let skinned = 0; window.__sp.group(it.id).traverse(n => { if (n.isSkinnedMesh) skinned++; });
+    return skinned > 0;
+  }));
   const link = await page.evaluate(() => location.href);
   await ctx.setOffline(true);
   const off = await ctx.newPage();
@@ -1302,7 +1303,7 @@ async function open(name, viewport, mobile = false, hash = ''){
      await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/')));
   await t.tab('share');
   const secs = await t.page.$$eval('[data-sec="share"] h2', n => n.map(x => x.textContent).join('/'));
-  ok('the project file sits below PDF and 画像', secs === 'リンクで共有/PDF/画像/プロジェクト/オフライン', secs);
+  ok('the project file sits below PDF and 画像', secs === 'リンクで共有/PDF/画像/プロジェクト/まとめて書き出す', secs);
   ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
   ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
 
@@ -1526,6 +1527,98 @@ async function open(name, viewport, mobile = false, hash = ''){
      (await t2.page.textContent('#selbody')).slice(0, 60));
   ok('scan run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
   await t2.ctx.close(); await t.ctx.close();
+}
+
+// --- 26. cropping a location -------------------------------------------------------
+{
+  const t = await open('crop', { width: 1300, height: 860 });
+  const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.waitForTimeout(2500);
+  await t.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t.page.waitForTimeout(400);
+  ok('a location offers 切り取り', (await t.page.textContent('#selbody')).includes('切り取り'));
+  await t.page.click('#selbody [data-set="cropOn"]'); await t.page.waitForTimeout(900);
+  const on = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop);
+  ok('switching it on starts at the scan\'s own size', on && Math.abs(on.x1 - on.x0 - 2) < 0.4 && on.y0 === 0,
+     JSON.stringify(on));
+  // 6 面のつまみが出て、絵の中の箱も出る
+  const gizmo = await t.page.evaluate(() => {
+    const hg = window.__sp.handles();
+    return { handles: hg.children.filter(k => k.isMesh).length, frame: hg.children.filter(k => k.isLineSegments).length };
+  });
+  ok('six handles and the frame are drawn', gizmo.handles === 6 && gizmo.frame === 1, JSON.stringify(gizmo));
+  // 上端を下げると、上面の寸法もその範囲になる
+  await t.page.evaluate(() => {
+    const sp = window.__sp, s = sp.state().items.find(i => i.type === 'splat');
+    sp.setProp(s, 'crop.y1', 1.2);
+    s.crop = {...s.crop, x0: -0.5, x1: 0.5}; sp.refreshCrop(s);
+  });
+  await t.page.waitForTimeout(600);
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(1200);
+  const lab = await t.page.$$eval('#labels span', n => n.map(x => x.textContent).join(' | '));
+  ok('the plan writes the cropped size, not the whole scan', /ロケーション[^|]*：1 × 2 m/.test(lab), lab.slice(0, 160));
+  // 消したのは見た目だけ。データには触っていない
+  const link = await t.page.evaluate(() => location.hash);
+  ok('the crop rides along in the link, and it stays small', link.length < 700, `${link.length} chars`);
+  await t.page.click('#selbody [data-set="cropOn"][data-val=""]'); await t.page.waitForTimeout(700);
+  ok('全部を出す puts it back',
+     (await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop)) == null);
+  ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 27. まとめて書き出す: one file that opens with no network at all ----------------
+{
+  const t = await open('bundle', { width: 1200, height: 820 });
+  await t.addPerson('asia-casual-man');
+  const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.waitForTimeout(2500);
+  await t.page.evaluate(() => {
+    const sp = window.__sp, s = sp.state().items.find(i => i.type === 'splat');
+    sp.select(s.id); sp.setProp(s, 'cropOn', '1'); sp.setProp(s, 'crop.y1', 1.4);
+  });
+  await t.tab('share');
+  await t.page.evaluate(() => { delete window.showSaveFilePicker; });     // OS のダイアログは headless では出せない
+  await t.page.click('#bundlebtn');
+  await t.page.waitForSelector('#namedlg.on', { timeout: 300000 });
+  const dl = await Promise.all([t.page.waitForEvent('download'), t.page.click('#nameok')]).then(r => r[0]);
+  const file = `${OUT}/bundle.html`;
+  await dl.saveAs(file);
+  const mb = fs.statSync(file).size / 1024 / 1024;
+  ok('it writes one html file with everything in it', mb > 3, `${mb.toFixed(1)} MB`);
+  ok('and says so', /まとめました/.test(await t.page.textContent('#bundlestat')), await t.page.textContent('#bundlestat'));
+  await t.ctx.close();
+
+  // ---- ダブルクリック相当。通信は 1 本も出さない ----
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 820 } });
+  const page = await ctx.newPage();
+  const errors = [], outbound = [];
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  page.on('request', r => { if (/^https?:/.test(r.url())) outbound.push(r.url()); });
+  await page.goto('file://' + file);
+  await page.waitForTimeout(9000);
+  const got = await page.evaluate(() => {
+    const sp = window.__sp; if (!sp) return null;
+    const st = sp.state();
+    const person = st.items.find(i => i.type === 'person'), splat = st.items.find(i => i.type === 'splat');
+    let skinned = 0; if (person) sp.group(person.id).traverse(n => { if (n.isSkinnedMesh) skinned++; });
+    const names = []; if (splat) sp.group(splat.id).traverse(n => names.push(n.constructor.name));
+    return { items: st.items.length, skinned, names, crop: splat?.crop || null, bundled: !!window.__SPBUNDLE };
+  });
+  ok('the file opens from file:// on its own', !!got && got.bundled, JSON.stringify(got));
+  ok('with no network at all', outbound.length === 0, outbound.join(' '));
+  ok('the person model comes out of the file', got.skinned > 0, JSON.stringify(got.names));
+  ok('the scan too, cropped as it was left', got.names.some(n => /SplatMesh/.test(n)) && got.crop?.y1 === 1.4,
+     JSON.stringify({names: got.names, crop: got.crop}));
+  fs.writeFileSync(path.join(OUT, 'bundle-file.png'), await page.screenshot());
+  ok('bundle run clean', errors.length === 0, errors.join(' | '));
+  await ctx.close();
 }
 
 await browser.close(); server.close();

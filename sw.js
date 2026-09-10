@@ -6,7 +6,7 @@
 //  2. 人物と車のモデル（合計 12 MB ほど）は勝手に取りに行かない。共有パネルの
 //     「オフラインに保存」を押した人ぶんだけ、使ったものを溜める。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.9.0';
 const SHELL = 'sp-shell-' + VERSION;   // 起動に要るもの。版ごとに作り直す
 const RUNTIME = 'sp-runtime';          // 使ったものを溜める場所。版をまたいで残す
 

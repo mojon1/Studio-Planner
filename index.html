@@ -355,11 +355,11 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>プロジェクト</h2>
         <div class="row"><button class="btn" id="savefile">保存</button><button class="btn" id="loadfile">読み込み</button></div>
         <input type="file" id="projfile" accept=".json,application/json" hidden>
-        <p class="hint">取り込んだ 3D モデルの実体はこの端末に残ります。別の PC で開くと実寸の箱になります。</p>
-        <h2>オフライン</h2>
-        <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
-        <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <p class="colophon">Studio Planner v1.8.0<br>© 2026 寺村太一</p>
+        <p class="hint">配置だけの軽いファイルです。取り込んだモデルとロケーションの実体は入りません（この端末に残ります）。</p>
+        <h2>まとめて書き出す</h2>
+        <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">1 つのファイルにする</button></div>
+        <p class="hint" id="bundlestat">取り込んだモデルもロケーションのスキャンも入れて、1 枚の HTML にまとめます。ダブルクリックで開けて、通信もアプリも要りません。</p>
+        <p class="colophon">Studio Planner v1.9.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -511,6 +511,22 @@ const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 const norm = a => { const n = ((a % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
 const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'');
 const a1 = v => Math.round((+v || 0) * 10) / 10;      // 角度は小数第 1 位まで
+
+// ---------- 1 枚にまとめた HTML から開いたとき ----------
+// 「まとめて書き出す」で作ったファイルは、three も部品もモデルもスキャンも
+// 自分の中に持っている。開いた先はたいてい file://（ダブルクリック）なので、
+// **取りに行く先はすべてこの中に向ける**。
+const BUNDLE = window.__SPBUNDLE || null;
+function b64bytes(b){
+  const bin = atob(b), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+// blob: は file:// だと出所が null になって読めないことがある。data: なら確実
+const asset = path => {
+  const f = BUNDLE?.files?.[path];
+  return f ? `data:${f.t};base64,${f.b}` : path;
+};
 
 let state = defaultState();
 let selectedId = null;
@@ -902,6 +918,15 @@ function itemLabels(view){
       continue;
     }
     if (view === 'plan'){
+      // ロケーションは「いま床に残っている範囲」を書く。切り取ったのに元の大きさが
+      // 出ていると、図面としては嘘になる（拡大縮小も同じ理由でここで効かせる）
+      if (it.type === 'splat'){
+        const c = cropWorldBox(it), r = THREE.MathUtils.degToRad(it.rot || 0);
+        const mx = (c.x0 + c.x1)/2, mz = c.z1 + 0.4;
+        out.push({p:new V3(it.x + mx*Math.cos(r) + mz*Math.sin(r), 0.02, it.z - mx*Math.sin(r) + mz*Math.cos(r)),
+                  text:`${itemName(it)}：${num(c.x1-c.x0)} × ${num(c.z1-c.z0)} m`, cls:'dim', views:['plan']});
+        continue;
+      }
       const p = new V3(it.x, 0.02, it.z + (it.d || 0)/2 + 0.4);
       if (it.w > 0 && it.d > 0) out.push({p, text:`${itemName(it)}：${num(it.w)} × ${num(it.d)} m`, cls:'dim', views:['plan']});
       continue;
@@ -915,6 +940,7 @@ function itemLabels(view){
       top = drawn || (it.pose === 'lie' ? R.chestW*0.66 : it.pose === 'sit' ? clamp(it.height*0.26, 0.28, 0.48) + it.height - R.yCrotch : it.height);
       txt = `身長 ${fmt(it.height)} m`;
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
+    else if (it.type === 'splat'){ const c = cropWorldBox(it); top = c.y1; txt = `高さ ${num(c.y1-c.y0)} m`; }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
     out.push({p:new V3(it.x, standHeight(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side','front']});
@@ -1023,7 +1049,7 @@ const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
 // 11 体すべてで共通に使える。作り方は tools/make-poses.mjs。
 let POSES = null, posesReq = null;
 function loadPoses(){
-  return posesReq ||= fetch('models/poses.json').then(r => r.ok ? r.json() : null)
+  return posesReq ||= fetch(asset('models/poses.json')).then(r => r.ok ? r.json() : null)
     .then(j => { POSES = j; rebuildItems(); renderSel(); return j; })
     .catch(e => { console.warn('poses failed', e); return null; });
 }
@@ -1031,6 +1057,9 @@ const poseById = id => POSES?.poses.find(p => p.id === id) || null;
 // 一覧には出さないが models/poses.json からは消さない。古い共有リンクが
 // この ID を指していることがあり、消すとその人だけ素の姿勢に戻ってしまう
 const POSE_HIDDEN = new Set(['stand-1', 'stand-4', 'walk', 'dance']);
+// サムネイルは隠しているぶんも用意してある（古い共有リンクがその ID を指すため）
+const POSE_THUMBS = ['none','stand-1','stand-2','stand-3','stand-4','stand-5',
+                     'sit-chair','sit-floor','lie-up','lie-down','walk','dance'];
 // 骨の対応。ひねり用の骨（*Twist*）は動かさず、そのままにする
 const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
   LeftShoulder:'L_Clavicle', LeftArm:'L_Upperarm', LeftForeArm:'L_Forearm', LeftHand:'L_Hand',
@@ -1097,7 +1126,7 @@ function applyPose(root, pose){
   root.updateMatrixWorld(true);
 }
 
-const personModel = it => MODEL_BY_ID[it.model] ? `models/${it.model}.glb` : null;
+const personModel = it => MODEL_BY_ID[it.model] ? asset(`models/${it.model}.glb`) : null;
 // 同梱のモデル（人物・車）は使う人だけが取りに行く。人だけだったころの
 // realPeople を車と共有しているので、種類を足すときは modelFile() に 1 行足す。
 const builtIn = new Map();                          // file -> Object3D | 'loading' | 'fail'
@@ -1228,7 +1257,7 @@ const CAR_MODELS = [
   {id:'modern', label:'モダン', size:[1.82, 4.75, 1.44]},
 ];
 const CAR_BY_ID = Object.fromEntries(CAR_MODELS.map(c => [c.id, c]));
-const carModel = it => CAR_BY_ID[it.kind] ? `models/car-${it.kind}.glb` : null;
+const carModel = it => CAR_BY_ID[it.kind] ? asset(`models/car-${it.kind}.glb`) : null;
 const carSize = kind => (CAR_BY_ID[kind] || CAR_MODELS[0]).size;
 function buildCar(it){
   const g = new THREE.Group();
@@ -1409,6 +1438,53 @@ async function makeSplat(it){
   }
   rebuildItem(it); renderSel(); needRender = true;
 }
+// ---------- ロケーションの切り取り ----------
+// スキャンには要らないものが必ず写り込む（隣の建物、空、足元のノイズ）。箱で囲んで
+// 外側を消す。Spark の SplatEdit（SDF の箱）で**その場で**効くので、元のデータには
+// 一切触らない — いつでも戻せるし、共有リンクに乗るのは 6 個の数字だけ。
+// **消えたスプラットも並べ替えの対象には残る**ので、軽くなるわけではない。
+// 効くのは絵と図面の見た目のほう。
+const CROP_MIN = 0.2;                       // 箱をこれ以上つぶさない（m・拡大前）
+// 箱は「スキャン自身の寸法」で持つ。拡大縮小も高さ調整も後から掛かるので、
+// 置き方を変えても切り取った範囲がずれない
+function cropFull(it){
+  return {x0:-(it.w||4)/2, x1:(it.w||4)/2, y0:0, y1:(it.h||3), z0:-(it.d||4)/2, z1:(it.d||4)/2};
+}
+const cropBox = it => it.crop ? {...cropFull(it), ...it.crop} : cropFull(it);
+// 箱を「置いたあとの座標」へ。s は拡大率、lift は高さ調整
+function cropWorldBox(it){
+  const c = cropBox(it), s = it.scale || 1, lift = (it.lift || 0) * s;
+  return {x0:c.x0*s, x1:c.x1*s, y0:c.y0*s + lift, y1:c.y1*s + lift, z0:c.z0*s, z1:c.z1*s};
+}
+// SplatEdit はメッシュの子に付ける。scene 直下に置くと「全部のスキャンに効く」
+// 扱いになるので（Spark は SplatMesh の先祖を探している）、必ず m.add() で。
+function applyCropTo(it, m){
+  const prev = m.userData.o36crop;
+  if (!it.crop || !sparkMod){
+    if (prev){ m.remove(prev); m.userData.o36crop = null; }
+    return;
+  }
+  const bb = splatBox.get(it.key); if (!bb) return;
+  const c = cropBox(it);
+  // SDF はメッシュ自身の座標系。こちらの箱は「床が 0・中心が原点」なので戻す
+  const pos = [(c.x0+c.x1)/2 + bb.cx, (c.y0+c.y1)/2 - bb.floor, (c.z0+c.z1)/2 + bb.cz];
+  const half = [Math.max((c.x1-c.x0)/2, 0.01), Math.max((c.y1-c.y0)/2, 0.01), Math.max((c.z1-c.z0)/2, 0.01)];
+  // 辺をつまんで動かしているあいだは毎フレーム来る。作り直さず数字だけ入れ替える
+  if (prev){ prev.sdfs[0].position.set(...pos); prev.sdfs[0].scale.set(...half); return; }
+  const {SplatEdit, SplatEditSdf, SplatEditSdfType, SplatEditRgbaBlendMode} = sparkMod;
+  const sdf = new SplatEditSdf({type: SplatEditSdfType.BOX, opacity: 0});
+  sdf.position.set(...pos); sdf.scale.set(...half);
+  // invert = 「箱の外側に効かせる」。opacity 0 を掛けるので外側が消える
+  const edit = new SplatEdit({rgbaBlendMode: SplatEditRgbaBlendMode.MULTIPLY, sdfs:[sdf], invert:true});
+  edit.add(sdf); m.add(edit); m.userData.o36crop = edit;
+}
+// 切り取りだけを差し替える。作り直すと 1 秒近いデコードが挟まる
+function refreshCrop(it){
+  const cached = splatMeshes.get(it.id);
+  if (cached && cached.key === it.key) applyCropTo(it, cached.mesh);
+  else rebuildItem(it);                       // 枠だけのときは線の箱を引き直す
+  updateSelectionVisuals(); needRender = true;
+}
 function buildSplat(it){
   const g = new THREE.Group();
   const cached = splatMeshes.get(it.id);
@@ -1419,13 +1495,17 @@ function buildSplat(it){
     m.scale.setScalar(it.scale || 1);
     m.position.set(-bb.cx*(it.scale||1), (bb.floor + (it.lift||0))*(it.scale||1), -bb.cz*(it.scale||1));
     m.rotation.set(0, 0, 0);
+    applyCropTo(it, m);
     g.add(m);
   } else {
     if (splatBytes.has(it.key)) makeSplat(it);
-    // まだ読めていない／この端末に無い。図面の場所だけ押さえておく
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w || 4, it.h || 3, it.d || 4)),
+    // まだ読めていない／この端末に無い。図面の場所だけ押さえておく。
+    // 相手の画面でも大きさが合うよう、切り取りと拡大率はここでも効かせる
+    const c = cropWorldBox(it);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(
+        new THREE.BoxGeometry(Math.max(c.x1-c.x0, 0.1), Math.max(c.y1-c.y0, 0.1), Math.max(c.z1-c.z0, 0.1))),
       new THREE.LineBasicMaterial({color:COLORS.splat, transparent:true, opacity:0.5}));
-    e.position.y = (it.h || 3)/2; e.userData.noHit = true; g.add(e);
+    e.position.set((c.x0+c.x1)/2, (c.y0+c.y1)/2, (c.z0+c.z1)/2); e.userData.noHit = true; g.add(e);
   }
   return g;
 }
@@ -1714,6 +1794,14 @@ function edgeHandles(it){
   if (it.type === 'chroma')
     return wx.concat([{k:'h', ax:'y', s:1, p:[0, it.h, 0]},
                       {k:'drape', ax:'z', s:1, p:[0, 0.02, Math.max(it.drape || 0, 0.2)]}]);
+  // ロケーションは大きさではなく「切り取る箱の 6 面」をつまむ。
+  // 面の真ん中に置くので、6 個が互いに重ならない
+  if (it.type === 'splat' && it.crop){
+    const c = cropWorldBox(it), mx = (c.x0+c.x1)/2, my = (c.y0+c.y1)/2, mz = (c.z0+c.z1)/2;
+    return [{crop:'x1', ax:'x', p:[c.x1, my, mz]}, {crop:'x0', ax:'x', p:[c.x0, my, mz]},
+            {crop:'z1', ax:'z', p:[mx, my, c.z1]}, {crop:'z0', ax:'z', p:[mx, my, c.z0]},
+            {crop:'y1', ax:'y', p:[mx, c.y1, mz]}, {crop:'y0', ax:'y', p:[mx, c.y0, mz]}];
+  }
   return [];
 }
 function handleWorld(it, h){
@@ -1721,14 +1809,29 @@ function handleWorld(it, h){
   const base = itemObjs.get(it.id)?.group.position.y || 0;
   return new THREE.Vector3(it.x + h.p[0]*c + h.p[2]*sn, base + h.p[1], it.z - h.p[0]*sn + h.p[2]*c);
 }
+const cropLineMat = new THREE.LineBasicMaterial({color:0xe29a44, depthTest:false, transparent:true});
 function updateHandles(){
   handleGroup.clear();
   const it = sel();
+  // 切り取っている範囲は線の箱で見せる。どこを切ったか分からないまま
+  // 「消えた」と思われるのがいちばん困る
+  if (it && cropVisible(it)){
+    const c = cropWorldBox(it), r = THREE.MathUtils.degToRad(it.rot || 0);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(
+      new THREE.BoxGeometry(Math.max(c.x1-c.x0, 0.02), Math.max(c.y1-c.y0, 0.02), Math.max(c.z1-c.z0, 0.02))), cropLineMat);
+    e.position.set((c.x0+c.x1)/2, (c.y0+c.y1)/2, (c.z0+c.z1)/2);
+    e.applyMatrix4(new THREE.Matrix4().makeRotationY(r));
+    e.position.add(new THREE.Vector3(it.x, standHeight(it), it.z));
+    e.renderOrder = 10; handleGroup.add(e);
+  }
   for (const h of edgeHandles(it)){
     const m = new THREE.Mesh(handleGeo, handleMat); m.renderOrder = 11;
     m.position.copy(handleWorld(it, h)); handleGroup.add(m);
   }
 }
+// 箱を出すのは、選んでいて切り取っているとき。見るだけリンクと用紙には出さない
+// （現場に無いものなので、寸法リボンやマニピュレータと同じ扱い）
+const cropVisible = it => it.type === 'splat' && !!it.crop && !it.hidden && !viewerMode;
 const sel = () => state.items.find(i => i.id === selectedId) || null;
 // several cameras can stand in the room; one of them is the one being looked through
 const camItem = () => state.items.find(i => i.id === state.activeCam && i.type === 'camera')
@@ -2134,6 +2237,7 @@ canvas.addEventListener('wheel', e => {
 // つまんだ辺だけが動き、向かい側の辺はその場に残る
 function startHandle(h){
   const it = sel();
+  if (h.crop) return {handle:h, it, base: itemObjs.get(it.id)?.group.position.y || 0};
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   if (h.ax === 'y') return {handle:h, it, base: itemObjs.get(it.id)?.group.position.y || 0};
   const a = h.ax === 'x' ? new THREE.Vector2(c, -sn) : new THREE.Vector2(sn, c);
@@ -2141,8 +2245,36 @@ function startHandle(h){
   const perp = centre.clone().sub(a.clone().multiplyScalar(along));
   return {handle:h, it, a, perp, fixed: h.k === 'drape' ? along : along - h.s*it[h.k]/2};
 }
+// 切り取る箱の 6 面。掴んだ面だけが動き、向かい側はその場に残る
+function dragCrop(d, x, y){
+  const it = d.it, h = d.handle, s = it.scale || 1, full = cropFull(it), c = {...cropBox(it)};
+  if (h.ax === 'y'){
+    // 上下は床では取れない。視線の入っている垂直面との交点で見る
+    ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
+    const r = THREE.MathUtils.degToRad(it.rot || 0);
+    const pl = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(Math.sin(r), 0, Math.cos(r)), new THREE.Vector3(it.x, 0, it.z));
+    const p = new THREE.Vector3();
+    if (!ray.ray.intersectPlane(pl, p)) return;
+    const v = (p.y - d.base) / s - (it.lift || 0);
+    c.y1 = h.crop === 'y1' ? clamp(v, c.y0 + CROP_MIN, full.y1) : c.y1;
+    c.y0 = h.crop === 'y0' ? clamp(v, full.y0, c.y1 - CROP_MIN) : c.y0;
+  } else {
+    const p = floorHit(x, y); if (!p) return;
+    const r = THREE.MathUtils.degToRad(it.rot || 0), co = Math.cos(r), sn = Math.sin(r);
+    const dx = p.x - it.x, dz = p.z - it.z;
+    const lx = (dx*co - dz*sn) / s, lz = (dx*sn + dz*co) / s;
+    if (h.crop === 'x1') c.x1 = clamp(lx, c.x0 + CROP_MIN, full.x1);
+    if (h.crop === 'x0') c.x0 = clamp(lx, full.x0, c.x1 - CROP_MIN);
+    if (h.crop === 'z1') c.z1 = clamp(lz, c.z0 + CROP_MIN, full.z1);
+    if (h.crop === 'z0') c.z0 = clamp(lz, full.z0, c.z1 - CROP_MIN);
+  }
+  for (const k of Object.keys(c)) c[k] = +c[k].toFixed(2);
+  it.crop = c; refreshCrop(it);
+}
 function dragHandle(d, x, y){
   const h = d.handle, it = d.it, lim = SIZE_LIM[it.type]?.[h.k] || [0.3, 20];
+  if (h.crop) return dragCrop(d, x, y);
   if (h.ax === 'y'){
     ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
     const r = THREE.MathUtils.degToRad(it.rot || 0);
@@ -2387,7 +2519,7 @@ function buildPeoplePicker(){
   peopleBuilt = true;
   const el = document.getElementById('people');
   el.innerHTML = PEOPLE_MODELS.map(m => `<button data-model="${m.id}" title="${esc(m.label)}" aria-label="${esc(m.label)}">` +
-    `<img src="models/thumbs/${m.id}.webp" alt="" width="200" height="300"><small>${esc(m.wear)}</small></button>`).join('');
+    `<img src="${asset(`models/thumbs/${m.id}.webp`)}" alt="" width="200" height="300"><small>${esc(m.wear)}</small></button>`).join('');
   el.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => {
     closeAdd();
     const m = MODEL_BY_ID[b.dataset.model];
@@ -2708,7 +2840,7 @@ function renderSel(){
     // 車種はサムネイルで選ぶ。名前より絵のほうが速い（人物モデルと同じ考え）
     h += `<h2>車種</h2><div class="people cars">` + CAR_MODELS.map(c =>
       `<button data-set="kind" data-val="${c.id}" class="${it.kind === c.id ? 'on' : ''}" title="${esc(c.label)}" aria-label="${esc(c.label)}">` +
-      `<img src="models/thumbs/car-${c.id}.webp" alt="" width="200" height="140"><small>${esc(c.label)}</small></button>`).join('') + `</div>`;
+      `<img src="${asset(`models/thumbs/car-${c.id}.webp`)}" alt="" width="200" height="140"><small>${esc(c.label)}</small></button>`).join('') + `</div>`;
     h += `<p class="hint">車種を選ぶとその車の実寸が入ります。実際の車に合わせたいときは下の数字で。</p>`;
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
     { const g = itemObjs.get(it.id)?.group;
@@ -2742,6 +2874,18 @@ function renderSel(){
     h += range('lift','高さ調整',-5,5,0.01,it.lift || 0,'m');
     h += range('scale','拡大縮小',0.2,5,0.01,it.scale || 1,'倍');
     h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。</p>`;
+    // 現場のスキャンには要らないものが必ず入る。箱で囲んで外を消す
+    h += `<h2>切り取り</h2>`;
+    h += `<div class="row"><button class="btn ${it.crop?'on':''}" data-set="cropOn" data-val="${it.crop?'':'1'}">${it.crop?'切り取り中':'切り取る'}</button>`;
+    if (it.crop) h += `<button class="btn" data-set="cropOn" data-val="">全部を出す</button>`;
+    h += `</div>`;
+    if (it.crop){
+      const c = cropBox(it), f = cropFull(it);
+      h += range('crop.y0','下端',f.y0,f.y1,0.01,c.y0,'m') + range('crop.y1','上端',f.y0,f.y1,0.01,c.y1,'m');
+      h += `<p class="hint">残す範囲 ${fmt(+((c.x1-c.x0)*(it.scale||1)).toFixed(2))} × ${fmt(+((c.z1-c.z0)*(it.scale||1)).toFixed(2))} × 高 ${fmt(+((c.y1-c.y0)*(it.scale||1)).toFixed(2))} m。`
+         + `図に出ているオレンジの箱の白い四角をつまむと、前後左右が変わります。</p>`;
+      h += `<p class="hint">消えたぶんも並べ替えの手間には残るので、軽くはなりません。絵と図面が整うだけです。</p>`;
+    }
   } else if (it.type === 'model'){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
@@ -2795,7 +2939,7 @@ function renderSel(){
   if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
   if (it.type === 'person' && personModel(it) && POSES){
     const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
-      `<img src="models/thumbs/pose-${id}.webp" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
+      `<img src="${asset(`models/thumbs/pose-${id}.webp`)}" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
     h += `<h2>ポーズ</h2><div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
       POSES.poses.filter(p => !POSE_HIDDEN.has(p.id)).map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
   }
@@ -2926,7 +3070,16 @@ function setProp(it, k, v, live=false){
   if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale'].includes(k)) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
-  if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
+  if (k === 'cropOn'){ it.crop = v ? cropFull(it) : null; }
+  else if (k.startsWith('crop.')){
+    const c = {...cropBox(it)}, f = cropFull(it), n = k.slice(5);
+    c[n] = +parseFloat(v).toFixed(2);
+    // 上下は追い越させない。追い越すと箱が裏返って全部消える
+    if (n === 'y1') c.y1 = clamp(c.y1, c.y0 + CROP_MIN, f.y1);
+    if (n === 'y0') c.y0 = clamp(c.y0, f.y0, c.y1 - CROP_MIN);
+    it.crop = c;
+  }
+  else if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
   else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
   else if (k === 'kind' && it.type === 'koma'){ it.kind = v; Object.assign(it, komaDims(v)); }
   else if (k === 'kind' && it.type === 'car'){ it.kind = v; [it.w, it.d, it.h] = carSize(v); }
@@ -2935,6 +3088,7 @@ function setProp(it, k, v, live=false){
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
   if (k === 'rot') updateItemTransform(it);
   else if (it.type === 'camera') refreshCam(it);
+  else if (it.type === 'splat' && (k === 'cropOn' || k.startsWith('crop.'))) refreshCrop(it);
   else rebuildItem(it);
   if (!live){ renderSel(); renderList(); saveHash(); }
   needRender = true;
@@ -2949,7 +3103,12 @@ function idb(){ return new Promise((res, rej) => {
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
 }); }
 async function idbPut(key, val){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(val, key); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
-async function idbGet(key){ const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function idbGet(key){
+  // まとめたファイルから開いたときは、実体はこの中にある（IndexedDB は空）
+  const b = BUNDLE?.assets?.[key];
+  if (b) return {buf: b64bytes(b.b).buffer, ext: b.ext, name: b.name, splat: b.splat,
+                 assets: Object.fromEntries(Object.entries(b.assets || {}).map(([k,v]) => [k, b64bytes(v).buffer]))};
+  const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
 
 const MODEL_EXT = ['glb','gltf','fbx'];
@@ -4043,8 +4202,12 @@ document.getElementById('doprint').addEventListener('click', () => {
 addEventListener('resize', () => { if (paperModal.classList.contains('show')) fitPaper(); });
 
 // ---------- オフライン ----------
-// 現場は圏外のことがある。Service Worker がキャッシュを持つので、一度開いた端末は
-// そのまま開ける。人物と車のモデルは 12 MB あるので、押した人ぶんだけ溜める。
+// 現場は圏外のことがある。Service Worker は黙って入れておく。一度開いた端末は
+// そのまま開けるし、置いた人物や車のモデルも「一度見たもの」は runtime キャッシュに残る。
+//
+// **「オフラインに保存」ボタンは外した。** 何が保存されたのか誰にも見えず、
+// すぐ下の「プロジェクトの保存」とも区別がつかなかった。現場へ持ち出すぶんは、
+// 下の「まとめて書き出す」で 1 枚のファイルにする（そちらは中身が目に見える）。
 //
 // **プレビュー枠や file:// では登録しない。** claude.ai のプレビューには sw.js が
 // 無いので 404 になり、file:// はそもそも Service Worker を許さない。どちらも
@@ -4053,48 +4216,142 @@ const canSW = 'serviceWorker' in navigator && window.top === window.self &&
   (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 if (canSW) navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw register failed', e));
 
-const offlineBtn = document.getElementById('offlinebtn'), offlineStat = document.getElementById('offlinestat');
-function offlineFiles(){
-  const f = ['./', 'index.html', 'manifest.webmanifest', 'models/poses.json',
-             'icon-192.png', 'icon-512.png', 'icon-maskable.png', 'ogp.png'];
-  for (const m of PEOPLE_MODELS){ f.push(`models/${m.id}.glb`); f.push(`models/thumbs/${m.id}.webp`); }
-  for (const c of CAR_MODELS){ f.push(`models/car-${c.id}.glb`); f.push(`models/thumbs/car-${c.id}.webp`); }
-  for (const id of ['none','stand-1','stand-2','stand-3','stand-4','stand-5','sit-chair','sit-floor','lie-up','lie-down','walk','dance'])
-    f.push(`models/thumbs/pose-${id}.webp`);
-  // 3DGS の部品は 5 MB。ロケーションを置いている人のときだけ控える
-  if (state.cuts.some(c => (c.items || []).some(i => i.type === 'splat')))
-    f.push('https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js');
-  return f;
-}
-async function saveOffline(){
-  if (!canSW){ offlineStat.textContent = 'この開き方ではオフライン保存を使えません（https で開いてください）。'; return; }
-  offlineBtn.disabled = true;
+// ---------- まとめて書き出す（1 枚の HTML） ----------
+// 取り込んだモデルもロケーションのスキャンも、実体はこの端末の IndexedDB にある。
+// 共有リンクにもプロジェクトファイルにも入らないので、**渡した相手の画面では
+// 枠だけ**になる。そこで、アプリ本体・three・部品・モデル・スキャン・配置を
+// まるごと 1 枚の HTML に詰めて渡せるようにした。ダブルクリックで開く。
+//
+// file:// では ES モジュールを取りに行けない（CORS で落ちる）。**data: URL の
+// モジュールなら開ける**ので、部品はすべて data: にして importmap で名前を向ける。
+// data: のモジュールからは相対パスが解決できないので、`./three.core.js` のような
+// 参照は取り込むときに素の名前へ書き換える（`sp:3` など）。
+const bundleBtn = document.getElementById('bundlebtn'), bundleStat = document.getElementById('bundlestat');
+const b64of = bytes => {
+  let out = '', CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) out += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(out);
+};
+const b64text = t => b64of(new TextEncoder().encode(t));
+const jsDataURL = t => 'data:text/javascript;charset=utf-8;base64,' + b64text(t);
+// import / export の行から、その先を拾う。**コメントの中の URL も引っかかる**
+// （GLTFLoader の使用例に `https://my-cnd-server.com/.../model.bin` がある）ので、
+// モジュールらしくないものは追いかけない。取れなかったものは飛ばして先へ進む
+const SPEC_RE = [/\bfrom\s*["']([^"']+)["']/g, /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g, /\bimport\s+["']([^"']+)["']/g];
+const looksLikeModule = sp => /\.(m?js)$/.test(sp) || !/\.[a-z0-9]{1,5}$/i.test(sp);
+async function makeBundle(){
+  bundleBtn.disabled = true;
+  const say = t => { bundleStat.textContent = t; };
   try {
-    await navigator.serviceWorker.ready;
-    // 読み込み側の addon は「実際に import してみる」のがいちばん確実。
-    // GLTFLoader が何を引き連れてくるかを、こちらで数え上げなくて済む。
-    offlineStat.textContent = '読み込み部品を控えています…';
-    await Promise.allSettled([
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('three/addons/loaders/FBXLoader.js')
-    ]);
-    const files = offlineFiles();
-    let done = 0, failed = 0;
-    for (const f of files){
-      try { const r = await fetch(f, {cache:'reload'}); if (!r.ok) throw new Error(r.status); }
-      catch { failed++; }
-      done++;
-      offlineStat.textContent = `保存中… ${done} / ${files.length}`;
+    say('アプリ本体を読んでいます…');
+    const src = await (await fetch(location.href, {cache:'no-store'})).text();
+    const mapText = src.match(/<script type="importmap">([\s\S]*?)<\/script>/);
+    if (!mapText) throw new Error('importmap not found');
+    const map = JSON.parse(mapText[1]).imports || {};
+    const resolve = (spec, base) => {
+      if (/^(https?:|data:)/.test(spec)) return spec;
+      if (spec.startsWith('.') || spec.startsWith('/')) return base ? new URL(spec, base).href : null;
+      if (map[spec]) return map[spec];
+      const pre = Object.keys(map).filter(k => k.endsWith('/')).find(k => spec.startsWith(k));
+      return pre ? map[pre] + spec.slice(pre.length) : null;
+    };
+    // アプリが名指ししている部品を、ソースそのものから拾う。こちらで数え上げると
+    // 足し忘れる（GLTFLoader が引き連れてくるものは、下の walk が面倒を見る）
+    const entries = new Set(['three']);
+    for (const m of src.matchAll(/three\/addons\/[A-Za-z0-9_.\/-]+\.js/g)) entries.add(m[0]);
+    const items = state.cuts.flatMap(c => c.items || []);
+    if (items.some(i => i.type === 'splat')) entries.add('@sparkjsdev/spark');
+
+    // ---- 部品を辿って取り込む ----
+    const key = new Map(), text = new Map(), missed = [];
+    let n = 0, pulled = 0;
+    async function pull(url){
+      if (key.has(url)) return key.get(url);
+      const k = 'sp:' + (n++); key.set(url, k);
+      say(`部品を集めています… ${++pulled}`);
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(url + ' ' + r.status);
+      let out = await r.text();
+      const specs = new Set();
+      for (const re of SPEC_RE) for (const m of out.matchAll(re)) if (looksLikeModule(m[1])) specs.add(m[1]);
+      for (const sp of specs){
+        const u = resolve(sp, url); if (!u) continue;
+        let child;
+        try { child = await pull(u); }
+        catch(e){ key.delete(u); missed.push(u); continue; }   // コメントの中の URL などは飛ばす
+        out = out.split(`"${sp}"`).join(`"${child}"`).split(`'${sp}'`).join(`'${child}'`);
+      }
+      text.set(url, out);
+      return k;
     }
-    offlineStat.textContent = failed
-      ? `${files.length - failed} / ${files.length} を保存しました（${failed} 件は取れませんでした）。`
-      : 'この端末に保存しました。圏外でも開けます。';
+    const imports = {};
+    for (const spec of entries){
+      const u = resolve(spec, null); if (!u) continue;
+      await pull(u);
+      imports[spec] = null;                       // URL は下で入れる（data: を作るのは一度）
+    }
+    const urlData = new Map();
+    for (const [u, t] of text) urlData.set(u, jsDataURL(t));
+    for (const [u, k] of key) imports[k] = urlData.get(u);
+    for (const spec of entries){ const u = resolve(spec, null); if (u) imports[spec] = urlData.get(u); }
+
+    // ---- 同梱ファイル（人物・車・サムネイル・ポーズ）----
+    const files = {};
+    const want = [['models/poses.json','application/json']];
+    for (const m of PEOPLE_MODELS) want.push([`models/thumbs/${m.id}.webp`,'image/webp']);
+    for (const c of CAR_MODELS) want.push([`models/thumbs/car-${c.id}.webp`,'image/webp']);
+    for (const id of POSE_THUMBS) want.push([`models/thumbs/pose-${id}.webp`,'image/webp']);
+    for (const id of new Set(items.filter(i => i.type === 'person' && i.model).map(i => i.model)))
+      want.push([`models/${id}.glb`,'model/gltf-binary']);
+    for (const k of new Set(items.filter(i => i.type === 'car').map(i => i.kind)))
+      if (CAR_BY_ID[k]) want.push([`models/car-${k}.glb`,'model/gltf-binary']);
+    let got = 0;
+    for (const [path, mime] of want){
+      try {
+        const r = await fetch(asset(path));
+        if (!r.ok) continue;
+        files[path] = {t:mime, b:b64of(new Uint8Array(await r.arrayBuffer()))};
+        say(`モデルを詰めています… ${++got} / ${want.length}`);
+      } catch { /* 無いものは飛ばす。相手の画面では今までどおり枠になるだけ */ }
+    }
+
+    // ---- 取り込んだモデルとロケーションの実体 ----
+    const assets = {};
+    const keys = [...new Set(items.filter(i => (i.type === 'model' || i.type === 'splat') && i.key).map(i => i.key))];
+    for (const k of keys){
+      try {
+        const rec = await idbGet(k); if (!rec) continue;
+        assets[k] = {ext:rec.ext, name:rec.name, splat:!!rec.splat, b:b64of(new Uint8Array(rec.buf)),
+          assets:Object.fromEntries(Object.entries(rec.assets || {}).map(([nm,v]) => [nm, b64of(new Uint8Array(v))]))};
+        say(`取り込んだデータを詰めています… ${Object.keys(assets).length} / ${keys.length}`);
+      } catch(e){ console.warn('bundle asset failed', e); }
+    }
+
+    // ---- 組み立て ----
+    say('1 枚にまとめています…');
+    const payload = JSON.stringify({state:packState(), files, assets})
+      .replace(/</g, '\\u003c');                  // 中の文字列でこの script が切れないように
+    let out = src
+      .replace(/<script type="importmap">[\s\S]*?<\/script>/,
+               `<scr` + `ipt>window.__SPBUNDLE=${payload}</scr` + `ipt>\n<scr` + `ipt type="importmap">${JSON.stringify({imports})}</scr` + `ipt>`)
+      // まとめたファイルは通信しない。取りに行けないものは外しておく
+      .replace(/<link rel="manifest"[^>]*>\s*/, '')
+      .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
+      .replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/, '');
+    const mb = (out.length / 1024 / 1024).toFixed(1);
+    await saveFile(projectName() + '.html', new Blob([out], {type:'text/html'}), 'text/html');
+    if (missed.length) console.warn('bundle skipped', missed);
+    say(`${mb} MB のファイルにまとめました。ダブルクリックで開けます（通信は要りません）。`);
   } catch(e){
-    console.warn('offline save failed', e);
-    offlineStat.textContent = '保存できませんでした。通信を確かめてもう一度お試しください。';
-  } finally { offlineBtn.disabled = false; }
+    console.warn('bundle failed', e);
+    say('まとめられませんでした。通信を確かめてもう一度お試しください。');
+  } finally { bundleBtn.disabled = false; }
 }
-offlineBtn.addEventListener('click', saveOffline);
+if (BUNDLE){
+  // まとめたファイルの中からは、自分のソースを取りに行けない（file:// の fetch は塞がれる）
+  document.getElementById('bundlerow').hidden = true;
+  bundleStat.textContent = 'このファイルは「まとめて書き出した」ものです。モデルもロケーションも中に入っています。';
+} else bundleBtn.addEventListener('click', makeBundle);
 
 // ---------- ホーム画面から起動したとき ----------
 // display-mode のメディアクエリが使えない古い iOS のために、目印を付けておく。
@@ -4112,10 +4369,12 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup};
 (async () => {
   findDownloads();
-  await loadHash();
+  // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
+  if (BUNDLE?.state){ try { state = migrate(BUNDLE.state); } catch(e){ console.warn('bundle state failed', e); } }
+  else await loadHash();
   viewerMode = /m=v/.test(location.hash);
   if (viewerMode){ document.body.classList.add('viewer'); mainView = 'cam'; }
   syncViewBtns();
