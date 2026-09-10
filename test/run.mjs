@@ -1187,9 +1187,10 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('a camera inside the car sees the green screen, not the inside of a shell',
      mid[1] > 70 && mid[1] > mid[0] * 1.6 && mid[1] > mid[2] * 1.6, `rgb ${mid.slice(0,3).join(',')}`);
   await t3.page.screenshot({ path: `${OUT}/in-car.png` });
+  // 説明文は外した（押せば分かることを、押す前に読ませない）
   await t3.page.click('#items .itemrow[data-kind="car"] > button.name'); await t3.page.waitForTimeout(300);
-  ok('and the panel says why the car drops out',
-     (await t3.page.textContent('#selbody')).includes('ガラスになっていません'));
+  ok('and the panel does not lecture about it',
+     !(await t3.page.textContent('#selbody')).includes('ガラスになっていません'));
 
   // 名前に glass の入ったマテリアルは、書き出し側が alphaMode を立てていなくても透過にする
   const gglb = `${OUT}/glass-box.glb`; fs.writeFileSync(gglb, makeGlassGLB());

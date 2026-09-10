@@ -171,5 +171,5 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
 
 ## ライセンス
 
-コードは MIT。`models/` の 3D モデルは対象外で、著作権は寺村太一に帰属する。
+コードは MIT。`models/` の 3D モデルは対象外で、著作権は Taichi Teramura に帰属する。
 詳細は [LICENSE](LICENSE)。

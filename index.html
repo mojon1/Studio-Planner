@@ -1,14 +1,14 @@
 <meta charset="utf-8">
-<title>Studio Planner — スタジオ撮影の下見と打合せ</title>
+<title>Studio Planner — Free & Easy Shoot Planning on the Web</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="description" content="スタジオの広さ、演者の立ち位置、カメラの画角、反射面の映り込みをブラウザで確かめて、A4 の図面と共有リンクにする。登録もインストールも不要。">
+<meta name="description" content="Free &amp; Easy Shoot Planning on the Web. スタジオの広さ、演者の立ち位置、カメラの画角、反射面の映り込みをブラウザで確かめて、A4 の図面と共有リンクにする。登録もインストールも不要。">
 <meta name="theme-color" content="#1d2027">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Studio Planner">
-<meta property="og:description" content="スタジオ撮影の下見と打合せを、ブラウザだけで。">
+<meta property="og:description" content="Free &amp; Easy Shoot Planning on the Web">
 <meta property="og:image" content="https://mojon1.github.io/Studio-Planner/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2027'/%3E%3Cpath d='M5 21h22M8 21V11h16v10' stroke='%23e29a44' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%23e29a44'/%3E%3C/svg%3E">
@@ -361,7 +361,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.12.2<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.13.0<br>© 2026 Taichi Teramura</p>
       </div>
     </div>
   </div>
@@ -2915,10 +2915,9 @@ function renderSel(){
     h += `<h2>車種</h2><div class="people cars">` + CAR_MODELS.map(c =>
       `<button data-set="kind" data-val="${c.id}" class="${it.kind === c.id ? 'on' : ''}" title="${esc(c.label)}" aria-label="${esc(c.label)}">` +
       `<img src="${asset(`models/thumbs/car-${c.id}.webp`)}" alt="" width="200" height="140"><small>${esc(c.label)}</small></button>`).join('') + `</div>`;
-    h += `<p class="hint">車種を選ぶとその車の実寸が入ります。実際の車に合わせたいときは下の数字で。</p>`;
+    // 説明は出さない（寺村さんの指摘）。車種を押せば数字が変わるので見れば分かるし、
+    // 窓がガラスかどうかは、その車をファインダーに入れたときに初めて効く話
     h += range('d','全長',2.5,7.0,0.05,it.d,'m') + range('w','全幅',1.2,2.6,0.05,it.w,'m') + range('h','全高',1.0,3.2,0.05,it.h,'m');
-    { const g = itemObjs.get(it.id)?.group;
-      if (g && !hasGlass(g)) h += `<p class="hint">このモデルは窓がガラスになっていません。車内にカメラを置いたときは、ファインダーの絵からこの車を外します。</p>`; }
     if (carModel(it) && builtIn.get(carModel(it)) === 'fail')
       h += `<p class="hint">車のモデルはサーバーから開いたときだけ出ます。${location.protocol === 'file:' ? 'file:// では読めません。' : 'プレビュー枠では読めません。'}実寸の箱で表示しています。</p>`;
   } else if (it.type === 'chair'){
@@ -4044,14 +4043,8 @@ function cameraRows(){
   h += prow('カメラ高さ', `${ci.y.toFixed(2)} m`);
   h += prow('上下の向き', `${a1(ci.pitch)}°`);
   h += prow('パン', `${a1(rotShown(ci))}°（0° で奥）`);
-  h += prow('立ち位置', `左右 ${ci.x >= 0 ? '+' : ''}${ci.x.toFixed(2)} / 前後 ${ci.z >= 0 ? '+' : ''}${ci.z.toFixed(2)} m`);
-  const back = state.studio.d/2 + ci.z;
-  h += prow('奥壁まで', `${back.toFixed(2)} m`);
-  const people = state.items.filter(i => i.type === 'person' && !i.hidden);
-  if (people.length){
-    const d = Math.min(...people.map(p => Math.hypot(p.x - ci.x, p.z - ci.z)));
-    h += prow('最寄りの被写体まで', `${d.toFixed(2)} m`);
-  }
+  // 立ち位置と最寄りの被写体までは外した（寺村さんの指摘）。図を見れば分かる
+  h += prow('奥壁まで', `${(state.studio.d/2 + ci.z).toFixed(2)} m`);
   const others = cams().filter(c => c !== ci);
   if (others.length) h += prow('他のカメラ', others.map(c => `${camName(c)} ${c.focal}mm`).join('、'));
   return h;
