@@ -39,6 +39,25 @@
   --btn:#2a2e36; --btn-on:#eceef2; --btn-on-ink:#15171b; --danger:#e07b7b;
   --viewport:#0f1114;
 }
+/* ホーム画面から起動したときだけ、ノッチとホームバーを避ける。
+   viewport-fit=cover と black-translucent で画面いっぱいに広がるので、
+   そのままだと上のボタンがノッチの下に潜って押せない。
+   **ブラウザで開いたときは 0 のままにする**（今の見た目を変えないため）。
+   display-mode が使えない古い iOS 用に、JS が html.pwa も付ける */
+:root{--sat:0px; --sar:0px; --sab:0px; --sal:0px}
+@media (display-mode: standalone), (display-mode: fullscreen){
+  :root{--sat:env(safe-area-inset-top,0px); --sar:env(safe-area-inset-right,0px);
+        --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px)}
+}
+html.pwa{--sat:env(safe-area-inset-top,0px); --sar:env(safe-area-inset-right,0px);
+         --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px)}
+/* パネルが下（携帯）や左（PC）に居るあいだ、ビューはその辺に接していない。
+   そこで余白を取ると、パネルのぶんと二重になってボタンが浮き上がる */
+#view{--vsab:var(--sab); --vsal:var(--sal)}
+body:not(.folded):not(.viewer) #view{--vsal:0px}
+@media (max-width:760px){
+  body:not(.folded):not(.viewer) #view{--vsal:var(--sal); --vsab:0px}
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5}
@@ -46,7 +65,8 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
 #view canvas{display:block;width:100%;height:100%;touch-action:none}
 #view.drop::after{content:"ここに落とすと取り込みます";position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,22,26,.55);font-weight:700;z-index:6;pointer-events:none}
-#panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2}
+#panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2;
+  padding-left:var(--sal);padding-bottom:var(--sab)}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
 #tabs,#sheet{zoom:.78}
 /* 見るだけリンクはパネルごと消えるので、カットの切り替えだけ画面の下に出す */
@@ -58,16 +78,16 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #tabs button{flex:1;height:48px;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:3px solid transparent}
 #tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
 #tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
-#pipbtn{position:absolute;right:20px;bottom:20px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#b9bec9;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#pipbtn{position:absolute;right:calc(20px + var(--sar));bottom:calc(20px + var(--vsab));z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#b9bec9;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
 #pipbtn.on{background:var(--accent);color:#fff}
 #pipbtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #pipbtn{display:none}
-#undobtn,#redobtn{position:absolute;bottom:16px;z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
-#undobtn{left:76px}#redobtn{left:128px}
+#undobtn,#redobtn{position:absolute;bottom:calc(16px + var(--vsab));z-index:4;width:44px;height:44px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#undobtn{left:calc(76px + var(--vsal))}#redobtn{left:calc(128px + var(--vsal))}
 #undobtn:disabled,#redobtn:disabled{opacity:.32;cursor:default}
 #undobtn:focus-visible,#redobtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #undobtn,body.viewer #redobtn{display:none}
-#gear{position:absolute;left:12px;bottom:12px;z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
+#gear{position:absolute;left:calc(12px + var(--vsal));bottom:calc(12px + var(--vsab));z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:rgba(20,22,26,.8);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;backdrop-filter:blur(6px)}
 #gear.on{background:var(--accent)}
 #gear:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #gear{display:none}
@@ -137,17 +157,17 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #ctx button.danger{color:var(--danger)}
 .list .sw{width:12px;height:12px;border-radius:50%;margin-right:10px;flex:none;display:inline-block}
 .list small{color:var(--muted);font-size:.78rem}
-#viewbtns{position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:3;flex-wrap:nowrap}
+#viewbtns{position:absolute;top:calc(10px + var(--sat));left:calc(10px + var(--vsal));display:flex;gap:6px;z-index:3;flex-wrap:nowrap}
 #viewbtns button{height:40px;padding:0 14px;border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.85rem;white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
 #viewbtns button.on{background:var(--accent)}
 #viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
 #viewbtns button.icon:not(.on){color:#b9bec9}
-#recenter{position:absolute;top:58px;left:10px;z-index:3;display:none;align-items:center;gap:6px;height:34px;padding:0 12px 0 9px;
+#recenter{position:absolute;top:calc(58px + var(--sat));left:calc(10px + var(--vsal));z-index:3;display:none;align-items:center;gap:6px;height:34px;padding:0 12px 0 9px;
   border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.8rem;
   white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
 #recenter.on{display:flex}
 #recenter:focus-visible{outline:2px solid #fff;outline-offset:2px}
-#info{position:absolute;top:10px;right:10px;z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
+#info{position:absolute;top:calc(10px + var(--sat));right:calc(10px + var(--sar));z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
 #info.hide{display:none}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 #labels span{position:absolute;transform:translate(-50%,-50%);font-family:"IBM Plex Mono",monospace;font-size:.74rem;font-weight:500;color:#fff;background:rgba(20,22,26,.72);padding:1px 6px;border-radius:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -161,7 +181,7 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
 /* ＋ と設定は同じ大きさで縦並び。下が設定 */
-#addfab{position:absolute;left:12px;bottom:74px;z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
+#addfab{position:absolute;left:calc(12px + var(--vsal));bottom:calc(74px + var(--vsab));z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
 #addfab:active{transform:translateY(1px)}
 #addfab:focus-visible{outline:3px solid #fff;outline-offset:2px}
 body.viewer #addfab{display:none}
@@ -192,7 +212,7 @@ body.viewer #addfab{display:none}
 #qrdlg .btn{background:#f1f2f4;color:#111;border:1px solid #d5d7db}
 #qrdlg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #namein{font-family:"IBM Plex Mono",monospace;font-size:.85rem;margin-bottom:4px}
-#toast{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast{position:absolute;left:50%;bottom:calc(72px + var(--vsab));transform:translateX(-50%);background:#1d2027;color:#fff;padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:5;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 #shot{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
 #shot.show{display:flex}
@@ -200,7 +220,7 @@ body.viewer #addfab{display:none}
 #shot p{color:#ddd;font-size:.85rem;margin:0}
 #shot .row{justify-content:center}
 #linkbox{font-family:"IBM Plex Mono",monospace;font-size:.75rem}
-#viewerbar{display:none;position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:3}
+#viewerbar{display:none;position:absolute;left:50%;bottom:calc(16px + var(--vsab));transform:translateX(-50%);z-index:3}
 body.viewer #panel{display:none}
 body.viewer #app{grid-template-columns:1fr}
 body.viewer #viewerbar{display:block}
@@ -212,7 +232,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 /* --- the printed sheet ---------------------------------------------------------- */
 #papermodal{position:fixed;inset:0;z-index:30;background:#3a3d44;display:none;flex-direction:column}
 #papermodal.show{display:flex}
-.pmbar{flex:none;display:flex;gap:10px;row-gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:#22252c;border-bottom:1px solid #000}
+.pmbar{flex:none;display:flex;gap:10px;row-gap:8px;flex-wrap:wrap;align-items:center;
+  padding:calc(10px + var(--sat)) calc(14px + var(--sar)) 10px calc(14px + var(--sal));background:#22252c;border-bottom:1px solid #000}
 .pmbar .btn{flex:0 0 auto;min-height:40px}
 .pmgrp{display:flex;align-items:center;gap:5px;flex:0 0 auto}
 .pmgrp>span{color:#9aa1ad;font-size:.74rem;white-space:nowrap;margin-right:2px}
@@ -280,22 +301,22 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #pipout{display:none}
 }
 @media (max-width:760px){
-  #addpop,#namedlg{align-items:flex-end;padding:0}
+  #addpop,#namedlg{align-items:flex-end;padding:0 0 var(--sab)}
   #addpop .pop,#namedlg .pop{width:100%;max-height:80vh;border-radius:14px 14px 0 0}
-  #addfab{width:48px;height:48px;font-size:1.6rem;bottom:68px}
+  #addfab{width:48px;height:48px;font-size:1.6rem;bottom:calc(68px + var(--vsab))}
   #gear{width:48px;height:48px}
-  #undobtn,#redobtn{width:40px;height:40px;bottom:16px}
-  #undobtn{left:70px}#redobtn{left:118px}
+  #undobtn,#redobtn{width:40px;height:40px;bottom:calc(16px + var(--vsab))}
+  #undobtn{left:calc(70px + var(--vsal))}#redobtn{left:calc(118px + var(--vsal))}
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   body.folded:not(.viewer) #app{grid-template-rows:1fr}
-  #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh}
+  #panel{border-right:0;border-top:1px solid var(--rule);order:2;max-height:46vh;padding-left:0}
   #view{order:1}
   #sheet{padding:12px 14px 20px}
   #tabs button{height:44px;font-size:.85rem}
   #viewbtns{gap:4px}
   #viewbtns button{height:34px;padding:0 6px;font-size:.72rem}
   #viewbtns button.icon{width:32px}
-  #recenter{top:52px;height:30px;font-size:.72rem;padding:0 10px 0 7px}
+  #recenter{top:calc(52px + var(--sat));height:30px;font-size:.72rem;padding:0 10px 0 7px}
   #info{font-size:.68rem;padding:4px 8px}
   label.f{grid-template-columns:5em 1fr auto}
 }
@@ -338,7 +359,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <p class="colophon">Studio Planner v1.7.1<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.7.2<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -3897,6 +3918,18 @@ async function saveOffline(){
   } finally { offlineBtn.disabled = false; }
 }
 offlineBtn.addEventListener('click', saveOffline);
+
+// ---------- ホーム画面から起動したとき ----------
+// display-mode のメディアクエリが使えない古い iOS のために、目印を付けておく。
+// CSS 側はこの class でも同じ変数を立てる
+function markStandalone(){
+  const pwa = navigator.standalone === true
+    || matchMedia('(display-mode: standalone)').matches
+    || matchMedia('(display-mode: fullscreen)').matches;
+  document.documentElement.classList.toggle('pwa', pwa);
+}
+markStandalone();
+try { matchMedia('(display-mode: standalone)').addEventListener('change', markStandalone); } catch {}
 
 // ---------- boot ----------
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on

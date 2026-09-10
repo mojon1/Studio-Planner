@@ -1382,6 +1382,44 @@ async function open(name, viewport, mobile = false, hash = ''){
   await m.ctx.close();
 }
 
+// --- 23. home-screen app: keep clear of the notch and the home bar -----------------
+{
+  // iPhone にホーム画面から入れると viewport-fit=cover で画面いっぱいに広がり、
+  // 上のボタンがノッチの下に潜る。ブラウザで開いたときは 0 のままであること。
+  // Chromium に本物のノッチは無いので、変数を差し込んで配線だけ見る。
+  const t = await open('safearea', { width: 390, height: 844 }, true);
+  await t.page.waitForTimeout(600);
+  const vars = await t.page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    return ['--sat','--sar','--sab','--sal'].map(v => cs.getPropertyValue(v).trim()).join('/');
+  });
+  ok('a plain browser keeps every inset at zero', vars === '0px/0px/0px/0px', vars);
+  const box = () => t.page.evaluate(() => Object.fromEntries(
+    ['viewbtns','gear','addfab','pipbtn','undobtn'].map(id => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return [id, {t:Math.round(r.top), b:Math.round(r.bottom), l:Math.round(r.left)}];
+    })));
+  const before = await box();
+  await t.page.addStyleTag({ content: ':root{--sat:59px;--sab:34px;--sal:0px;--sar:0px}' });
+  await t.page.waitForTimeout(300);
+  const after = await box();
+  ok('the view buttons drop below the notch', after.viewbtns.t - before.viewbtns.t === 59,
+     `${before.viewbtns.t} -> ${after.viewbtns.t}`);
+  const up = k => before[k].b - after[k].b;
+  ok('and the corner buttons lift off the home bar',
+     up('gear') === 34 && up('addfab') === 34 && up('pipbtn') === 34 && up('undobtn') === 34,
+     JSON.stringify({gear:up('gear'), addfab:up('addfab'), pipbtn:up('pipbtn'), undobtn:up('undobtn')}));
+  await t.page.screenshot({ path: `${OUT}/safearea.png` });
+  // パネルを開くと下の辺はパネルが受け持つので、ボタンは二重に上がらない
+  await t.page.click('#gear'); await t.page.waitForTimeout(400);
+  const panelOpen = await t.page.evaluate(() => { const r = document.getElementById('panel').getBoundingClientRect();
+    return {b: Math.round(r.bottom), h: innerHeight}; });
+  ok('with the panel out, its background still reaches the edge', panelOpen.b === panelOpen.h,
+     JSON.stringify(panelOpen));
+  ok('safe-area run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
