@@ -16,8 +16,8 @@ http.createServer((q,s)=>{const p=path.join(ROOT,q.url==='/'?'index.html':q.url.
 const b = await chromium.launch({ executablePath: process.env.PW_CHROME, args:['--use-gl=swiftshader','--enable-unsafe-swiftshader'], env:{...process.env, LANG:'C.UTF-8'} });
 const p = await (await b.newContext({viewport:{width:1200,height:630}, deviceScaleFactor:1})).newPage();
 p.on('pageerror', e => console.log('PAGEERROR', e.message));
-await p.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', r => {
-  const f = path.join(NM,'three', r.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.170.0/',''));
+await p.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', r => {
+  const f = path.join(NM,'three', r.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/',''));
   fs.existsSync(f) ? r.fulfill({body:fs.readFileSync(f),contentType:'text/javascript'}) : r.fulfill({status:404});});
 await p.route('https://fonts.googleapis.com/**', r => r.fulfill({body:'',contentType:'text/css'}));
 await p.goto('http://localhost:8770/#s=' + enc(state));

@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"}}
 </script>
 <style>
 :root{
@@ -359,7 +359,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <p class="colophon">Studio Planner v1.7.3<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.8.0<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -422,10 +422,12 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button class="btn" data-add="mirror">ミラー</button>
       <button class="btn" data-add="chroma">背景布</button>
     </div>
-    <h2>3D モデルを取り込む</h2>
+    <h2>ロケーション・3D モデルを取り込む</h2>
     <div class="row"><button class="btn primary" id="pick">ファイルを選ぶ</button></div>
-    <input type="file" id="file" accept=".glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
-    <p class="hint">GLB・glTF・FBX。テクスチャが別ファイルなら <b>.bin と画像も一緒に</b>、またはフォルダごとドラッグ。共有リンクでは相手に実寸の箱として見えます。</p>
+    <input type="file" id="file" accept=".glb,.gltf,.fbx,.spz,.ply,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
+    <p class="hint"><b>ロケハンのスキャン（.spz / .ply）</b>を入れると、その現場の中で撮影計画を立てられます。Scaniverse などの 3D ガウシアンスプラッティング。<br>
+      3D モデルは GLB・glTF・FBX。テクスチャが別ファイルなら <b>.bin と画像も一緒に</b>、またはフォルダごとドラッグ。<br>
+      どちらも実体はこの端末に残り、<b>共有リンクには入りません</b>（PDF と画像には写ります）。</p>
   </div>
 </div></div>
 <div id="papermodal">
@@ -484,9 +486,9 @@ function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stri
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d,
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'ロケーション',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -806,7 +808,7 @@ function dimLine(a, b, tickDir, views, parent = dimGroup, mat = dimMat, dash = f
 function buildDims(){
   dimGroup.clear(); labels = [];
   buildMeasures();
-  if (!dimOn(state.studio)) return;
+  if (!dimOn(state.studio) || state.studio.hidden) return;
   const {w,d,h} = state.studio; const o = 0.6;
   const X = new V3(1,0,0), Y = new V3(0,1,0), Z = new V3(0,0,1);
   dimLine(new V3(-w/2,0.01,d/2+o), new V3(w/2,0.01,d/2+o), Z, ['plan','pers']);
@@ -959,7 +961,7 @@ const modelCache = new Map();   // key -> parsed Object3D for models this device
 const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox,
-                  koma:buildKoma, model:buildModel};
+                  koma:buildKoma, model:buildModel, splat:buildSplat};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
 function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
 function footDisc(r, color){
@@ -1363,6 +1365,72 @@ function modelEnv(){
   return envTex;
 }
 // imported model: the real mesh when this device has the file, a labelled box otherwise
+// ---------- ロケーション（3D ガウシアンスプラッティング） ----------
+// Scaniverse などで撮った現場をそのまま持ち込んで、その中で撮影計画を立てる。
+// three 本体には WebGPU 向けの実装しか無い（r186 の GaussianSplatMesh は
+// WebGPURenderer 専用）ので、WebGLRenderer のまま使える Spark を、
+// **スキャンを置いた人のときだけ**取りに行く（本体 5 MB）。
+const SPLAT_MAX = 3;                       // 1 カットに置ける上限。並べ替えの負担が効く
+const splatBytes = new Map();              // key -> Uint8Array（この端末にあるスキャン）
+const splatMeshes = new Map();             // item id -> {key, mesh}
+const splatBox = new Map();                // key -> {w, d, h, floor}
+let sparkMod = null, sparkRenderer = null, sparkLoading = null;
+async function loadSpark(){
+  if (sparkRenderer) return sparkMod;
+  sparkLoading ||= (async () => {
+    sparkMod = await import('@sparkjsdev/spark');
+    // 並べ替えは別スレッドで、終わったら onDirty が来る。この描画は必要なときだけ
+    // 走る作りなので、ここで needRender を立てないと古い並びのまま止まる
+    sparkRenderer = new sparkMod.SparkRenderer({ renderer, onDirty: () => { needRender = true; } });
+    scene.add(sparkRenderer);
+    return sparkMod;
+  })();
+  return sparkLoading;
+}
+const splatBusy = () => !!sparkRenderer && (sparkRenderer.sorting || sparkRenderer.sortDirty);
+// 並べ替えが落ち着くまで待つ。用紙や画像に古い並びを焼き付けないため
+async function splatSettle(ms = 4000){
+  if (!sparkRenderer) return;
+  const t0 = performance.now();
+  while (splatBusy() && performance.now() - t0 < ms) await new Promise(r => setTimeout(r, 60));
+}
+async function makeSplat(it){
+  const bytes = splatBytes.get(it.key); if (!bytes) return;
+  const {SplatMesh} = await loadSpark();
+  const old = splatMeshes.get(it.id);
+  if (old && old.key === it.key) return;
+  const mesh = new SplatMesh({ fileBytes: bytes.slice(0), fileName: it.name || 'scan.spz' });
+  await mesh.initialized;
+  splatMeshes.set(it.id, {key: it.key, mesh});
+  if (!splatBox.has(it.key)){
+    const b = mesh.getBoundingBox(true), sz = b.getSize(new THREE.Vector3());
+    splatBox.set(it.key, {w:+sz.x.toFixed(2), d:+sz.z.toFixed(2), h:+sz.y.toFixed(2),
+      floor:-b.min.y, cx:(b.min.x + b.max.x)/2, cz:(b.min.z + b.max.z)/2});
+  }
+  rebuildItem(it); renderSel(); needRender = true;
+}
+function buildSplat(it){
+  const g = new THREE.Group();
+  const cached = splatMeshes.get(it.id);
+  if (cached && cached.key === it.key){
+    const m = cached.mesh;
+    const bb = splatBox.get(it.key) || {floor:0, cx:0, cz:0};
+    // スキャンの床を y=0 に、中心を原点に置いてから、こちらの寸法で動かす
+    m.scale.setScalar(it.scale || 1);
+    m.position.set(-bb.cx*(it.scale||1), (bb.floor + (it.lift||0))*(it.scale||1), -bb.cz*(it.scale||1));
+    m.rotation.set(0, 0, 0);
+    g.add(m);
+  } else {
+    if (splatBytes.has(it.key)) makeSplat(it);
+    // まだ読めていない／この端末に無い。図面の場所だけ押さえておく
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w || 4, it.h || 3, it.d || 4)),
+      new THREE.LineBasicMaterial({color:COLORS.splat, transparent:true, opacity:0.5}));
+    e.position.y = (it.h || 3)/2; e.userData.noHit = true; g.add(e);
+  }
+  return g;
+}
+// スキャンはクリックでは選ばない。現場ぜんぶを覆っているので、拾えるようにすると
+// 中に置いた人もカメラも選べなくなる。選ぶのはオブジェクトの一覧から
 function buildModel(it){
   const g = new THREE.Group(), src = modelCache.get(it.key);
   if (src){
@@ -1489,7 +1557,9 @@ function buildMirror(it){
   // 映り込みの間だけ地色を明るいスタジオ色にしておく。
   const draw = refl.onBeforeRender;
   refl.onBeforeRender = function(...a){
-    const off = [dimGroup, measGroup, frustumGroup, gizmo, handleGroup, tiltGiz].filter(o => o.visible);
+    const off = [dimGroup, measGroup, frustumGroup, gizmo, handleGroup, tiltGiz]
+      .concat(sparkRenderer ? [sparkRenderer] : [])   // スキャンは映さない（重いうえ並べ替えが別視点で狂う）
+      .filter(o => o.visible);
     for (const o of off) o.visible = false;
     const walls = studioGroup.children.filter(n => n.userData.sides && n.material);
     const was = walls.map(n => [n.visible, n.material.opacity, n.material.depthWrite]);
@@ -1537,7 +1607,7 @@ function overTop(o, u){
 function standHeight(it){
   const top = new Map();                              // 台ごとの天面の高さ
   const base = (o, ordered) => {
-    if (o.type === 'chroma') return 0;
+    if (o.type === 'chroma' || o.type === 'splat') return 0;   // 布とスキャンは何にも乗らない
     let y = 0;
     for (const u of state.items){
       if (u === o){ if (ordered) break; continue; }    // 台は自分より前の台にだけ
@@ -1799,6 +1869,7 @@ function renderView(view, rect, isMain){
     // パースでも映り込む。1 枚につきシーンをもう 1 度描くので、置いた枚数ぶん重くなる
     if (n.userData.reflector) n.visible = view === 'cam' || view === 'pers';
   });
+  studioGroup.visible = !state.studio.hidden;     // ロケーションのスキャンだけで使うとき
   studioGroup.traverse(n => { if (n.userData.camOnly) n.visible = view === 'cam' || view === 'pers'; });
   applyWallVisibility(view);
   for (const g of [dimGroup, measGroup]) g.traverse(n => { if (n.userData.views) n.visible = showDims && isMain && n.userData.views.includes(view); });
@@ -1873,6 +1944,7 @@ let capturing = false;   // true while rendering frames destined for the printed
 let needRender = true;
 function frame(){
   requestAnimationFrame(frame);
+  if (capturing) return;            // 用紙や画像を撮っている最中。大きさも視点も別物
   if (!needRender) return; needRender = false;
   fitOrtho();
   drawPop();                                     // 先に描いて写し、この後の本体描画で上書きする
@@ -2091,7 +2163,12 @@ function dragHandle(d, x, y){
   }
   rebuildItem(it); needRender = true;
 }
-function setPos(it, x, z){ const {w,d} = state.studio; it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2); }
+function setPos(it, x, z){
+  const {w,d} = state.studio;
+  // スキャンは現場そのもの。部屋の外にも置けないと、スタジオを消して使えない
+  if (it.type === 'splat'){ const L = Math.max(w, d)*2 + 20; it.x = +clamp(x,-L,L).toFixed(2); it.z = +clamp(z,-L,L).toFixed(2); return; }
+  it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2);
+}
 function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildCamera(ci); g.userData.id = ci.id; g.position.copy(o.group.position); g.rotation.y = THREE.MathUtils.degToRad(ci.rot); itemsGroup.remove(o.group); itemsGroup.add(g); o.group = g; } buildFrustum(ci); updateSelectionVisuals(); }
 
 // ---------- camera window (pip): move / resize / look ----------
@@ -2335,11 +2412,13 @@ function addItem(type, opt){
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
   else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
+  // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
+  else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
   else it = {id, type, x:0, z:0.5, rot:0, kind:'floor', w:3, h:2};
   // drop it next to what is already there rather than on top of it
   const foot = o => Math.max(o.w || 0.4, o.d || 0.4, 0.4) * 0.5;
-  let tries = 0;
-  while (tries++ < 60 && state.items.some(o => Math.hypot(o.x - it.x, o.z - it.z) < foot(o) + foot(it) + 0.2)){
+  let tries = type === 'splat' ? 99 : 0;
+  while (tries++ < 60 && state.items.some(o => o.type !== 'splat' && Math.hypot(o.x - it.x, o.z - it.z) < foot(o) + foot(it) + 0.2)){
     it.x += 0.5;
     if (it.x > w/2 - 0.3){ it.x = -w/2 + 0.5; it.z += 0.8; if (it.z > d/2 - 0.3) break; }
   }
@@ -2347,6 +2426,7 @@ function addItem(type, opt){
   state.items.push(it);
   if (type === 'camera') state.activeCam = id;                 // show what the new one sees
   rebuildItems(); select(id, true); if (mainView === 'cam') setMain('plan'); needRender = true; saveHash();
+  return it;
 }
 function itemColor(it){ return it.color || '#' + (COLORS[it.type] || 0x888888).toString(16).padStart(6,'0'); }
 const personLabel = it => PERSON_KIND[it.kind]?.label || '人';
@@ -2491,11 +2571,18 @@ addEventListener('pointermove', () => document.body.classList.remove('nohover'),
 function renderList(){
   const el = document.getElementById('items'); el.innerHTML = '';
   {                                              // the room itself, edited like anything else
-    const row = document.createElement('div'); row.className = 'itemrow'; row.dataset.kind = STUDIO;
+    const row = document.createElement('div'); row.className = 'itemrow' + (state.studio.hidden ? ' hidden-item' : '');
+    row.dataset.kind = STUDIO;
     const b = document.createElement('button'); b.className = 'name'; b.classList.toggle('on', selectedId === STUDIO);
     b.innerHTML = `<span><span class="sw" style="background:#8d8f94"></span>スタジオ</span>`;
     b.addEventListener('click', () => select(STUDIO, true));
-    row.append(b); el.appendChild(row);
+    // ロケーションのスキャンを置いたら、部屋のほうは消したい
+    const eye = document.createElement('button');
+    eye.className = 'ico eye'; eye.title = state.studio.hidden ? '表示する' : '隠す';
+    eye.setAttribute('aria-label', eye.title); eye.innerHTML = state.studio.hidden ? EYE_OFF : EYE_ON;
+    eye.addEventListener('click', e => { e.stopPropagation();
+      state.studio.hidden = !state.studio.hidden; buildDims(); renderList(); renderSel(); needRender = true; saveHash(); });
+    row.append(b, eye); el.appendChild(row);
   }
   const counts = {};
   for (const it of state.items){
@@ -2644,6 +2731,17 @@ function renderSel(){
     h += `<h2>置き方</h2>` + btns('kind', KOMA_LAY.map(([k, label]) => [k, label]), it.kind);
     h += `<p class="hint">300 × 450 × 150 mm。標準寸法なので大きさは変わりません。</p>`;
     h += colors(PROP_SWATCHES, it.color || '#d8c4a0');
+  } else if (it.type === 'splat'){
+    const here = splatMeshes.get(it.id)?.key === it.key;
+    const bb = splatBox.get(it.key);
+    h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
+    if (!here) h += splatBytes.has(it.key)
+      ? `<p class="hint">読み込み中…</p>`
+      : `<p class="hint">スキャンの実体はこの端末にありません。共有リンクには置き方だけが乗ります（PDF と画像には写ります）。</p>`;
+    else if (bb) h += `<p class="hint">実寸 ${fmt(bb.w*(it.scale||1))} × ${fmt(bb.d*(it.scale||1))} × 高 ${fmt(bb.h*(it.scale||1))} m</p>`;
+    h += range('lift','高さ調整',-5,5,0.01,it.lift || 0,'m');
+    h += range('scale','拡大縮小',0.2,5,0.01,it.scale || 1,'倍');
+    h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。</p>`;
   } else if (it.type === 'model'){
     const here = modelCache.has(it.key);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
@@ -2756,6 +2854,11 @@ function deleteItem(it){
   if (!it || viewerMode) return;
   state.items = state.items.filter(i => i !== it);
   if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
+  if (it.type === 'splat'){
+    splatMeshes.get(it.id)?.mesh?.dispose?.();
+    splatMeshes.delete(it.id);
+    if (it.key && !state.items.some(i => i.key === it.key)){ splatBytes.delete(it.key); splatBox.delete(it.key); idbDel(it.key); }
+  }
   if (it.id === state.activeCam) state.activeCam = firstCamId(state);
   select(null); rebuildItems(); layoutPip(); saveHash();
 }
@@ -2820,7 +2923,7 @@ const CAM_FACE = 180;
 const rotShown = it => it.type === 'camera' ? norm(it.rot - CAM_FACE) : it.rot;
 const rotStored = (it, v) => it.type === 'camera' ? norm(v + CAM_FACE) : v;
 function setProp(it, k, v, live=false){
-  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH'].includes(k)) v = parseFloat(v);
+  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale'].includes(k)) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
   if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
@@ -2850,6 +2953,8 @@ async function idbGet(key){ const db = await idb(); return new Promise((res, rej
 async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
 
 const MODEL_EXT = ['glb','gltf','fbx'];
+// 3D ガウシアンスプラッティング。Scaniverse などのスキャンはこの 2 つで出てくる
+const SPLAT_EXT = ['spz','ply'];
 // what a "glTF Separate" or non-embedded FBX export drops next to the model file
 const ASSET_EXT = ['bin','png','jpg','jpeg','webp','ktx2','basis','bmp','gif','tga','dds','tif','tiff','hdr','exr'];
 const extOf = name => (String(name).split('.').pop() || '').toLowerCase();
@@ -2890,7 +2995,7 @@ function gltfJSON(buf, ext){
     return JSON.parse(new TextDecoder().decode(bytes));
   } catch { return null; }
 }
-const DECODER_BASE = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/';
+const DECODER_BASE = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/';
 let draco = null, ktx2 = null, meshopt = null;
 async function attachDecoders(loader, used){
   if (used.has('KHR_draco_mesh_compression')){
@@ -3025,15 +3130,17 @@ const yn = v => v ? '可' : '不可';
 const capsText = c => c ? `data ${yn(c.data)}・blob ${yn(c.blob)}・fetch ${yn(c.fetch)}・bitmap ${yn(c.bitmap)}` : '';
 const sizeOf = obj => new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
 async function importFiles(files){
-  const mains = [], sides = [];
+  const mains = [], sides = [], scans = [];
   for (const f of files){
     const ext = extOf(f.name);
-    if (MODEL_EXT.includes(ext)) mains.push(f);
+    if (SPLAT_EXT.includes(ext)) scans.push(f);
+    else if (MODEL_EXT.includes(ext)) mains.push(f);
     else if (ASSET_EXT.includes(ext)) sides.push(f);
     else if (files.length === 1) toast(`${f.name} は読めない種類です`);
   }
+  for (const f of scans) await importScan(f);
   if (!mains.length){
-    toast(sides.length ? 'GLB / glTF / FBX の本体も一緒に選んでください' : 'GLB / glTF / FBX を選んでください');
+    if (!scans.length) toast(sides.length ? 'GLB / glTF / FBX の本体も一緒に選んでください' : 'GLB / glTF / FBX を選んでください');
     return;
   }
   const assets = {};
@@ -3077,6 +3184,30 @@ async function importFiles(files){
     }
   }
 }
+// 3DGS のスキャン。**共有リンクには載らない**（10 MB 級なので原理的に無理）。
+// 実体はこの端末の IndexedDB に置き、リンクには名前と置き方だけが乗る。
+// 相手の画面では枠だけが出て、その旨をパネルに書く。
+async function importScan(f){
+  if (state.items.filter(i => i.type === 'splat').length >= SPLAT_MAX){
+    toast(`ロケーションは 1 カットに ${SPLAT_MAX} 個までです`); return;
+  }
+  if (f.size > 120*1024*1024){ toast(`${f.name} は大きすぎます（120MB まで）`); return; }
+  toast(`${f.name} を読み込み中`);
+  try {
+    const buf = await f.arrayBuffer();
+    const key = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    splatBytes.set(key, new Uint8Array(buf));
+    await idbPut(key, {buf, ext:extOf(f.name), name:f.name, splat:true}).catch(() => toast('この端末に保存できませんでした'));
+    const it = addItem('splat', {key, name:f.name, scale:1, lift:0, w:4, d:4, h:3});
+    await makeSplat(it);                       // 大きさが分かるのは読み終えてから
+    const bb = splatBox.get(key);
+    if (bb){ it.w = bb.w; it.d = bb.d; it.h = bb.h; rebuildItem(it); renderList(); renderSel(); saveHash(); }
+    toast(`${f.name} を置きました。共有リンクには入りません（PDF と画像には写ります）`);
+  } catch(e){
+    console.warn('scan import failed', e);
+    toast(`${f.name} を読めませんでした`);
+  }
+}
 // three.js dropped spec/gloss in r155; files written that way arrive untextured
 const SPEC_GLOSS = 'KHR_materials_pbrSpecularGlossiness';
 // one line for the panel and the toast; null when the model came in whole
@@ -3103,7 +3234,18 @@ function textureDetail(key){
   if (i.exts?.length) bits.push(i.exts.join(' / '));
   return bits.join('　');
 }
+async function restoreScans(){
+  for (const it of state.items){
+    if (it.type !== 'splat' || !it.key) continue;
+    if (!splatBytes.has(it.key)){
+      try { const rec = await idbGet(it.key); if (!rec) continue; splatBytes.set(it.key, new Uint8Array(rec.buf)); }
+      catch(e){ console.warn('scan restore failed', e); continue; }
+    }
+    await makeSplat(it);
+  }
+}
 async function restoreModels(){
+  restoreScans();
   const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
   let any = false;
   for (const key of keys){
@@ -3557,12 +3699,17 @@ function pill(ctx, x, y, w, h, r){
   if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); return; }
   ctx.fillRect(x, y, w, h);
 }
-function capture(view, name){
+async function capture(view, name){
   const prevMain = mainView, pr = renderer.getPixelRatio();
   mainView = view;
+  capturing = true;                                   // rAF の描画を止める（await のすきに割り込ませない）
   renderer.setPixelRatio(pr * PNG_SCALE);
   fitOrtho();
   renderView(view, mainRect(), true);                 // isMain draws the dimensions
+  if (sparkRenderer && state.items.some(i => i.type === 'splat' && !i.hidden)){
+    await splatSettle(3000);                          // スキャンの並べ替えを待って撮り直す
+    renderView(view, mainRect(), true);
+  }
   renderer.setScissorTest(false);
   const out = document.createElement('canvas');
   out.width = canvas.width; out.height = canvas.height;
@@ -3579,7 +3726,7 @@ function capture(view, name){
     ctx.fillText(L.text, x, y);
   }
   const url = out.toDataURL('image/png');
-  renderer.setPixelRatio(pr); mainView = prevMain; resize();
+  renderer.setPixelRatio(pr); mainView = prevMain; capturing = false; resize();
   const s = document.getElementById('shot'); document.getElementById('shotimg').src = url; document.getElementById('shotname').textContent = `${name}（${out.width} × ${out.height} px）`;
   out.toBlob(b => { shotBlob = b; shotName = `${projectName()}_${name}.png`; }, 'image/png');
   s.classList.add('show');
@@ -3625,7 +3772,7 @@ function paneLayout(){
 const pageStyle = document.createElement('style'); document.head.appendChild(pageStyle);
 
 // render one view off-screen at print resolution and return its labels as percentages
-function captureView(view, cw, ch){
+async function captureView(view, cw, ch){
   const oW = W, oH = H, oMain = mainView;
   capturing = true; mainView = view;
   // scene.background is painted by render() over any clear colour, so the light
@@ -3637,6 +3784,12 @@ function captureView(view, cw, ch){
   fitOrtho();
   const rect = {x:0, y:0, w:cw, h:ch};
   renderView(view, rect, true);                                 // isMain so the dimension ribbons draw
+  // スキャンは並べ替えが別スレッドで走る。終わる前に焼くと、前のアングルの
+  // 並び順のまま紙に残る。この 1 枚のあいだだけ待って、もう一度描く
+  if (sparkRenderer && state.items.some(i => i.type === 'splat' && !i.hidden)){
+    await splatSettle(3000);
+    renderView(view, rect, true);
+  }
   renderer.setScissorTest(false);
   const url = canvas.toDataURL('image/png');
   const cam = view==='plan' ? planCam : view==='side' ? sideCam : view==='pers' ? persCam : shotCam;
@@ -3696,14 +3849,25 @@ function withCut(i, fn){
   if (i !== back){ stashCut(); put(i); }
   try { return fn(); } finally { if (i !== back) put(back); }
 }
-function sheetPage(ci){
+// スキャンの並べ替えを待つあいだに切り替わっては困るので、待つ版を別に持つ
+async function withCutAsync(i, fn){
+  const back = state.cutIx;
+  const put = j => { state.cutIx = j; const c = state.cuts[j];
+    state.meta.cut = c.name; state.meta.memo = c.memo; state.meta.frames = c.frames;
+    state.activeCam = c.activeCam; state.items = c.items;
+    rebuildItems(); buildDims(); };
+  if (i !== back){ stashCut(); put(i); }
+  try { return await fn(); } finally { if (i !== back) put(back); }
+}
+async function sheetPage(ci){
   const c = state.cuts[ci], cam = camItem();
   const {cols, rows, panes} = paneLayout();
   // 図は 1 枠ぶんの縦横比そのままで撮る。枠と比が違うと object-fit の切り取りで
   // 寸法ラベル（% で置いてある）が絵からずれる
-  const shots = panes.map(p => ({...p,
+  const shots = [];
+  for (const p of panes) shots.push({...p,
     name: p.view === 'cam' ? (cam ? `ファインダー（${camName(cam)}）` : 'ファインダー') : p.name,
-    ...captureView(p.view, p.cw, p.ch)}));
+    ...await captureView(p.view, p.cw, p.ch)});
   const stamp = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
   const panels = shots.map(sh =>
     `<div class="pv" data-pane="${sh.view}"${sh.span ? ' style="grid-column:1/-1"' : ''}><div class="pvin" style="${frameCSS(sh.view, ci)}">` +
@@ -3743,7 +3907,9 @@ async function buildSheet(){
   stashCut();
   const list = pdfScope === 'all' ? state.cuts.map((_, i) => i) : [state.cutIx];
   await preloadCutModels(list);
-  papersEl.innerHTML = list.map(i => withCut(i, () => sheetPage(i))).join('');
+  const pages = [];
+  for (const i of list) pages.push(await withCutAsync(i, () => sheetPage(i)));
+  papersEl.innerHTML = pages.join('');
   pageStyle.textContent = `@page { size: A4 ${orient}; margin: 8mm; }`;
 }
 const frameOf = (v, ci) => ((state.cuts[ci] || state.cuts[state.cutIx]).frames[v] ||= {s:1, x:0, y:0});
@@ -3895,6 +4061,9 @@ function offlineFiles(){
   for (const c of CAR_MODELS){ f.push(`models/car-${c.id}.glb`); f.push(`models/thumbs/car-${c.id}.webp`); }
   for (const id of ['none','stand-1','stand-2','stand-3','stand-4','stand-5','sit-chair','sit-floor','lie-up','lie-down','walk','dance'])
     f.push(`models/thumbs/pose-${id}.webp`);
+  // 3DGS の部品は 5 MB。ロケーションを置いている人のときだけ控える
+  if (state.cuts.some(c => (c.items || []).some(i => i.type === 'splat')))
+    f.push('https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js');
   return f;
 }
 async function saveOffline(){

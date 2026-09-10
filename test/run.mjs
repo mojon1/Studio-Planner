@@ -59,6 +59,20 @@ function makeGlassGLB(){
   const bc = Buffer.alloc(8); bc.writeUInt32LE(bin.length, 0); bc.writeUInt32LE(0x004E4942, 4);
   return Buffer.concat([header, jc, js, bc, bin]);
 }
+// 3DGS の PLY を手で組む。8 個のガウシアンを 2 m の立方体の角に置くだけ。
+// scale_* は対数、opacity はロジット、rot_0 が w。テストに 10 MB の実データは要らない
+function makeSplatPLY(){
+  const props = ['x','y','z','f_dc_0','f_dc_1','f_dc_2','opacity','scale_0','scale_1','scale_2','rot_0','rot_1','rot_2','rot_3'];
+  const head = `ply\nformat binary_little_endian 1.0\nelement vertex 8\n` +
+    props.map(p => `property float ${p}`).join('\n') + `\nend_header\n`;
+  const body = Buffer.alloc(8 * props.length * 4);
+  let o = 0;
+  for (const x of [-1, 1]) for (const y of [0, 2]) for (const z of [-1, 1]){
+    for (const v of [x, y, z, 1.0, 1.0, 1.0, 4.0, Math.log(0.05), Math.log(0.05), Math.log(0.05), 1, 0, 0, 0])
+      { body.writeFloatLE(v, o); o += 4; }
+  }
+  return Buffer.concat([Buffer.from(head, 'ascii'), body]);
+}
 const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(st)))
   .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
@@ -88,9 +102,15 @@ async function open(name, viewport, mobile = false, hash = ''){
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
-  await page.route('https://cdn.jsdelivr.net/npm/three@0.170.0/**', route => {
-    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.170.0/', '');
+  await page.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', route => {
+    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/', '');
     const f = path.join(NM, 'three', rel);
+    if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
+  });
+  // 3DGS の Spark も、本物の CDN ではなく手元のものを配る
+  await page.route('https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/**', route => {
+    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/', '');
+    const f = path.join(NM, '@sparkjsdev/spark', rel);
     if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
   });
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
@@ -1051,7 +1071,7 @@ async function open(name, viewport, mobile = false, hash = ''){
 {
   // Service Worker はページの route を通らないので、この確認だけは three も
   // 同じサーバーから配る。index.html と sw.js の CDN の宛先を差し替えて出す。
-  const CDN = 'https://cdn.jsdelivr.net/npm/three@0.170.0/';
+  const CDN = 'https://cdn.jsdelivr.net/npm/three@0.180.0/';
   const swServer = http.createServer((req, res) => {
     const u = req.url.split('?')[0].split('#')[0];
     if (u.startsWith('/vendor/three/')){
@@ -1458,6 +1478,54 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.screenshot({ path: `${OUT}/camhit.png` });
   ok('camera hit run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 25. a location scan (3D gaussian splatting) -----------------------------------
+{
+  const t = await open('scan', { width: 1300, height: 860 });
+  const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.waitForTimeout(2500);
+  const it = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat'));
+  ok('a .ply scan comes in as a location', it.type === 'splat' && !!it.key, JSON.stringify(it));
+  ok('and it is measured at its real size', Math.abs(it.w - 2) < 0.4 && Math.abs(it.h - 2) < 0.4,
+     `${it.w} x ${it.d} x ${it.h} m`);
+  ok('it sits at the origin, not nudged aside', it.x === 0 && it.z === 0);
+  ok('the list calls it ロケーション',
+     (await t.page.textContent('#items .itemrow[data-kind="splat"] > button.name')).includes('ロケーション'));
+
+  // 現場ぜんぶを覆うので、クリックでは拾わない（中の人やカメラが選べなくなる）
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(600);
+  const overIt = await t.page.evaluate(() => {
+    const sp = window.__sp; sp.select(null);
+    const s = sp.state().items.find(i => i.type === 'splat');
+    const box = document.querySelector('#view canvas').getBoundingClientRect();
+    const p = new sp.THREE.Vector3(s.x, (s.h || 2) * 0.5, s.z).project(sp.camera());
+    return sp.pick((p.x + 1)/2 * box.width, (1 - p.y)/2 * box.height)?.id || null;
+  });
+  ok('clicking the scan does not select it', overIt === null, String(overIt));
+
+  // スタジオを消せる
+  await t.page.click('#items .itemrow[data-kind="studio"] .ico.eye'); await t.page.waitForTimeout(500);
+  ok('the studio can be switched off for a location',
+     await t.page.evaluate(() => window.__sp.state().studio.hidden === true));
+  await t.page.screenshot({ path: `${OUT}/scan.png` });
+
+  // 共有リンクには置き方だけ。実体（10 MB 級）は原理的に載らない
+  const link = await t.page.evaluate(() => location.href);
+  ok('the link stays small', link.length < 1200, `${link.length} chars`);
+  const t2 = await open('scan-shared', { width: 1100, height: 760 }, false, link.slice(link.indexOf('#')));
+  await t2.page.waitForTimeout(1500);
+  const there = await t2.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat'));
+  ok('the other device gets the placement', !!there && there.key === it.key);
+  await t2.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t2.page.waitForTimeout(400);
+  ok('and is told the scan itself is not there',
+     (await t2.page.textContent('#selbody')).includes('この端末にありません'),
+     (await t2.page.textContent('#selbody')).slice(0, 60));
+  ok('scan run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
+  await t2.ctx.close(); await t.ctx.close();
 }
 
 await browser.close(); server.close();
