@@ -409,21 +409,12 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   <div class="popbody">
     <h2>人</h2>
     <div class="people" id="people"></div>
+    <!-- 小道具と機材も絵で選ぶ（人と同じ）。中身は buildPeoplePicker が入れる。
+         絵は tools/make-prop-thumbs.mjs が焼く -->
     <h2>小道具</h2>
-    <div class="row">
-      <button class="btn" data-add="car">車</button>
-      <button class="btn" data-add="chair">椅子</button>
-      <button class="btn" data-add="table">テーブル</button>
-      <button class="btn" data-add="box">箱</button>
-      <button class="btn" data-add="koma">箱馬</button>
-    </div>
+    <div class="people props" id="props"></div>
     <h2>撮影機材と背景</h2>
-    <div class="row">
-      <button class="btn" data-add="camera">カメラ</button>
-      <button class="btn" data-add="light">ライト</button>
-      <button class="btn" data-add="mirror">ミラー</button>
-      <button class="btn" data-add="chroma">背景布</button>
-    </div>
+    <div class="people props" id="gearlist"></div>
     <h2>取り込む</h2>
     <div class="row"><button class="btn primary" id="pick">外部3Dデータ</button></div>
     <input type="file" id="file" accept=".glb,.gltf,.fbx,.spz,.ply,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
@@ -1053,24 +1044,37 @@ function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.Sphere
 // them and quietly stays on the mannequin, and so does file://.
 // Adding one is a line here plus the .glb and its thumbnail; see tools/make-thumbs.mjs.
 // 地域ごとに 1 行ずつ並ぶ順序。4 列なので、この並びだと行が地域で揃う。
+// id は「地域-服装-種別」。**`+` の一覧に出すのはカジュアルだけ**で、スーツは
+// 置いたあと設定パネルの「服装」で着替える（寺村さんの指示）。誰を置くかは今までどおり
+// `+` で決まり、服装だけが後から変わる（地域も種別も変わらないので別人にはならない）
+const WEARS = [['casual','カジュアル'], ['business','スーツ']];
 const PEOPLE_MODELS = [
-  {id:'asia-casual-man',     kind:'man',   wear:'カジュアル', label:'アジア系 男性 カジュアル'},
-  {id:'asia-business-man',   kind:'man',   wear:'スーツ',     label:'アジア系 男性 スーツ'},
-  {id:'asia-casual-woman',   kind:'woman', wear:'カジュアル', label:'アジア系 女性 カジュアル'},
-  {id:'asia-business-woman', kind:'woman', wear:'スーツ',     label:'アジア系 女性 スーツ'},
-  {id:'af-casual-man',       kind:'man',   wear:'カジュアル', label:'アフリカ系 男性 カジュアル'},
-  {id:'af-business-man',     kind:'man',   wear:'スーツ',     label:'アフリカ系 男性 スーツ'},
-  {id:'af-casual-woman',     kind:'woman', wear:'カジュアル', label:'アフリカ系 女性 カジュアル'},
-  {id:'af-business-woman',   kind:'woman', wear:'スーツ',     label:'アフリカ系 女性 スーツ'},
-  {id:'us-casual-man',       kind:'man',   wear:'カジュアル', label:'欧米系 男性 カジュアル'},
-  {id:'us-business-man',     kind:'man',   wear:'スーツ',     label:'欧米系 男性 スーツ'},
-  {id:'us-casual-woman',     kind:'woman', wear:'カジュアル', label:'欧米系 女性 カジュアル'},
-  {id:'us-business-woman',   kind:'woman', wear:'スーツ',     label:'欧米系 女性 スーツ'},
-  // 子どもは大人のあとにまとめる（4 列なので、地域ごとの行が崩れない）
-  {id:'asia-casual-boy',     kind:'boy',   wear:'男の子',     label:'アジア系 男の子 カジュアル'},
-  {id:'asia-casual-girl',    kind:'girl',  wear:'女の子',     label:'アジア系 女の子 カジュアル'},
+  {id:'asia-casual-man',     kind:'man',   region:'asia', wear:'casual',   short:'男性'},
+  {id:'asia-business-man',   kind:'man',   region:'asia', wear:'business', short:'男性'},
+  {id:'asia-casual-woman',   kind:'woman', region:'asia', wear:'casual',   short:'女性'},
+  {id:'asia-business-woman', kind:'woman', region:'asia', wear:'business', short:'女性'},
+  {id:'af-casual-man',       kind:'man',   region:'af',   wear:'casual',   short:'男性'},
+  {id:'af-business-man',     kind:'man',   region:'af',   wear:'business', short:'男性'},
+  {id:'af-casual-woman',     kind:'woman', region:'af',   wear:'casual',   short:'女性'},
+  {id:'af-business-woman',   kind:'woman', region:'af',   wear:'business', short:'女性'},
+  {id:'us-casual-man',       kind:'man',   region:'us',   wear:'casual',   short:'男性'},
+  {id:'us-business-man',     kind:'man',   region:'us',   wear:'business', short:'男性'},
+  {id:'us-casual-woman',     kind:'woman', region:'us',   wear:'casual',   short:'女性'},
+  {id:'us-business-woman',   kind:'woman', region:'us',   wear:'business', short:'女性'},
+  // 子どもは大人のあとにまとめる（4 列なので、地域ごとの行が崩れない）。スーツは無い
+  {id:'asia-casual-boy',     kind:'boy',   region:'asia', wear:'casual',   short:'男の子'},
+  {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子'},
 ];
+// `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
+const PROPS = ['car','chair','table','box','koma'];
+const GEAR = ['camera','light','mirror','chroma'];
+const REGIONS = {asia:'アジア系', af:'アフリカ系', us:'欧米系'};
+const KIND_LABEL = {man:'男性', woman:'女性', boy:'男の子', girl:'女の子'};
+const WEAR_LABEL = Object.fromEntries(WEARS);
+const modelLabel = m => `${REGIONS[m.region]} ${KIND_LABEL[m.kind]} ${WEAR_LABEL[m.wear]}`;
 const MODEL_BY_ID = Object.fromEntries(PEOPLE_MODELS.map(m => [m.id, m]));
+// 同じ人の別の服装。無ければ空（子どもはスーツを持っていない）
+const wardrobe = m => m ? PEOPLE_MODELS.filter(o => o.region === m.region && o.kind === m.kind) : [];
 
 // ポーズは別リグ（Mixamo など）から起こしたもの。書き出してあるのは関節の位置だけで、
 // 回転は入っていない。骨の長さも初期姿勢も関係なくなるので、この 1 ファイルを
@@ -2563,18 +2567,31 @@ function buildPeoplePicker(){
   if (peopleBuilt) return;
   peopleBuilt = true;
   const el = document.getElementById('people');
-  el.innerHTML = PEOPLE_MODELS.map(m => `<button data-model="${m.id}" title="${esc(m.label)}" aria-label="${esc(m.label)}">` +
-    `<img src="${asset(`models/thumbs/${m.id}.webp`)}" alt="" width="200" height="300"><small>${esc(m.wear)}</small></button>`).join('');
+  // 出すのはカジュアルだけ。同じ顔が服違いで 2 つ並ぶと、選ぶ数が倍になるわりに
+  // 決まるのは服だけだった（服は置いたあとパネルで着替えられる）
+  el.innerHTML = PEOPLE_MODELS.filter(m => m.wear === 'casual').map(m =>
+    `<button data-model="${m.id}" title="${esc(modelLabel(m))}" aria-label="${esc(modelLabel(m))}">` +
+    `<img src="${asset(`models/thumbs/${m.id}.webp`)}" alt="" width="200" height="200"><small>${esc(m.short)}</small></button>`).join('');
   el.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => {
     closeAdd();
     const m = MODEL_BY_ID[b.dataset.model];
     addItem('person', {kind:m.kind, model:m.id, height:PERSON_KIND[m.kind].height});
   }));
+  // 小道具と機材も同じ形で並べる。**`asset()` を通すこと** — まとめて書き出した
+  // 1 枚の中では models/… を data: に差し替えるので、素の src では絵が出ない
+  for (const [box, list] of [['props', PROPS], ['gearlist', GEAR]])
+    document.getElementById(box).innerHTML = list.map(t =>
+      `<button data-add="${t}" title="${esc(NAMES[t])}" aria-label="${esc(NAMES[t])}">` +
+      `<img src="${asset(`models/thumbs/prop-${t}.webp`)}" alt="" width="200" height="200">` +
+      `<small>${esc(NAMES[t])}</small></button>`).join('');
 }
-document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+// 一覧はパネルを初めて開いたときに組み立てるので、クリックは親で受ける
+document.getElementById('addpop').addEventListener('click', e => {
+  const b = e.target.closest('[data-add]');
+  if (!b) return;
   closeAdd();
-  const p = b.dataset.person; addItem(b.dataset.add, p ? {kind:PEOPLE[+p][0], height:PEOPLE[+p][3]} : null);
-}));
+  addItem(b.dataset.add, null);
+});
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
@@ -3016,6 +3033,13 @@ function renderSel(){
       + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
                               : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
     if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
+  }
+  // 服装はポーズの上（寺村さんの指示）。同じ地域・同じ種別の別の服に着替えるだけで、
+  // 誰かは変わらない。子どもはスーツを持っていないので、そのときは出さない
+  if (it.type === 'person' && personModel(it)){
+    const wears = wardrobe(MODEL_BY_ID[it.model]);
+    if (wears.length > 1)
+      h += `<h2>服装</h2>` + btns('model', wears.map(m => [m.id, WEAR_LABEL[m.wear]]), it.model);
   }
   if (it.type === 'person' && personModel(it) && POSES){
     const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
@@ -4369,6 +4393,7 @@ async function makeBundle(){
     for (const m of PEOPLE_MODELS) want.push([`models/thumbs/${m.id}.webp`,'image/webp']);
     for (const c of CAR_MODELS) want.push([`models/thumbs/car-${c.id}.webp`,'image/webp']);
     for (const id of POSE_THUMBS) want.push([`models/thumbs/pose-${id}.webp`,'image/webp']);
+    for (const t of [...PROPS, ...GEAR]) want.push([`models/thumbs/prop-${t}.webp`,'image/webp']);
     for (const id of new Set(items.filter(i => i.type === 'person' && i.model).map(i => i.model)))
       want.push([`models/${id}.glb`,'model/gltf-binary']);
     for (const k of new Set(items.filter(i => i.type === 'car').map(i => i.kind)))

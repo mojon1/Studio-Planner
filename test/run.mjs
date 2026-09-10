@@ -139,7 +139,7 @@ async function open(name, viewport, mobile = false, hash = ''){
 // --- 1. desktop: place things, drive the manipulator, check the sensor panel ----------
 {
   const t = await open('desktop', { width: 1500, height: 950 });
-  for (const m of ['asia-casual-man','asia-casual-woman','af-business-man','us-casual-woman']) await t.addPerson(m);
+  for (const m of ['asia-casual-man','asia-casual-woman','af-casual-man','us-casual-woman']) await t.addPerson(m);
   for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
   const rows = await t.page.$$eval('#items .itemrow > button.name', b => b.map(x => x.textContent.trim()));
   ok('all presets placed', rows.length === 13, `${rows.length} rows`);
@@ -557,19 +557,22 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.click('#addfab');
   await t.page.waitForTimeout(400);
   const cast = await t.page.$$eval('#people button[data-model]', b => b.map(x => x.dataset.model));
-  // 数は書かない（増えるものなので）。一覧そのものと突き合わせる
-  const roster = await t.page.evaluate(() => window.__sp.people().map(m => m.id));
-  ok('every model is offered as a thumbnail', cast.join(',') === roster.join(','), cast.join(', '));
+  // 数は書かない（増えるものなので）。一覧そのものと突き合わせる。
+  // 出るのは**カジュアルだけ** — スーツは置いたあとパネルで着替える
+  const roster = await t.page.evaluate(() => window.__sp.people().filter(m => m.wear === 'casual').map(m => m.id));
+  ok('every casual model is offered as a thumbnail', cast.join(',') === roster.join(','), cast.join(', '));
+  ok('and the suits are not in the picker',
+     !cast.some(id => id.includes('business')), cast.join(', '));
   const thumbs = await t.page.$$eval('#people img', imgs => imgs.map(i => i.naturalWidth));
   ok('the thumbnails actually load',
      thumbs.length === roster.length && thumbs.every(w => w === 200), thumbs.join(','));
-  await t.page.click('#people button[data-model="af-business-woman"]');
+  await t.page.click('#people button[data-model="af-casual-woman"]');
   await t.page.waitForTimeout(2500);
   const placed = await t.page.evaluate(() => {
     const it = window.__sp.state().items.at(-1);
     return {model: it.model, kind: it.kind, height: it.height};
   });
-  ok('the placed person carries that model', placed.model === 'af-business-woman' && placed.kind === 'woman',
+  ok('the placed person carries that model', placed.model === 'af-casual-woman' && placed.kind === 'woman',
      JSON.stringify(placed));
   ok('and the height that goes with her', Math.abs(placed.height - 1.58) < 0.001, String(placed.height));
   const herH = await t.page.evaluate(() => {
@@ -578,6 +581,28 @@ async function open(name, viewport, mobile = false, hash = ''){
     return +(b.max.y - b.min.y).toFixed(3);
   });
   ok('and she is drawn at that height', Math.abs(herH - 1.58) < 0.02, `${herH} m`);
+  // 服装はパネルで着替える。地域も種別も変わらない
+  await t.page.click('#items .itemrow.on > button.name').catch(() => {});
+  await t.page.waitForTimeout(300);
+  const wearBtns = await t.page.$$eval('[data-set="model"]', b => b.map(x => [x.dataset.val, x.textContent.trim(), x.className]));
+  ok('the panel offers the same person in a suit',
+     wearBtns.map(w => w[0]).join(',') === 'af-casual-woman,af-business-woman'
+     && wearBtns.map(w => w[1]).join(',') === 'カジュアル,スーツ'
+     && wearBtns[0][2].includes('on'), JSON.stringify(wearBtns));
+  // 服装はポーズの上
+  const orderH = await t.page.$$eval('#selbody h2', n => n.map(x => x.textContent.trim()));
+  ok('and it sits above the poses',
+     orderH.indexOf('服装') >= 0 && orderH.indexOf('服装') < orderH.indexOf('ポーズ'), orderH.join(' / '));
+  await t.page.click('[data-set="model"][data-val="af-business-woman"]');
+  await t.page.waitForTimeout(2500);
+  const dressed = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.model && i.model.startsWith('af-'));
+    const b = new sp.THREE.Box3().setFromObject(sp.group(it.id));
+    return {model: it.model, kind: it.kind, height: it.height, tall: +(b.max.y - b.min.y).toFixed(3)};
+  });
+  ok('changing clothes keeps who they are and how tall',
+     dressed.model === 'af-business-woman' && dressed.kind === 'woman'
+     && Math.abs(dressed.height - 1.58) < 0.001 && Math.abs(dressed.tall - 1.58) < 0.02, JSON.stringify(dressed));
   // 子どもも同じ道で置ける（種別と既定の身長は + で決まる）
   await t.page.click('#addfab'); await t.page.waitForTimeout(300);
   await t.page.click('#people button[data-model="asia-casual-girl"]');
@@ -591,6 +616,10 @@ async function open(name, viewport, mobile = false, hash = ''){
      kid.model === 'asia-casual-girl' && kid.kind === 'girl'
      && Math.abs(kid.height - 1.18) < 0.001 && Math.abs(kid.tall - 1.18) < 0.02 && Math.abs(kid.floor) < 0.02,
      JSON.stringify(kid));
+  // 子どもはスーツを持っていないので、着替えは出さない
+  await t.page.click('#items .itemrow.on > button.name').catch(() => {});
+  await t.page.waitForTimeout(300);
+  ok('a child is offered no change of clothes', (await t.page.$$('[data-set="model"]')).length === 0);
   await t.page.screenshot({ path: `${OUT}/cast.png` });
 
   ok('the + panel no longer offers mannequins', await t.page.$$eval('[data-person]', b => b.length) === 0);

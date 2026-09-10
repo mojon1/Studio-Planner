@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, 'models'), OUT = path.join(DIR, 'thumbs');
 const NM = path.join(ROOT, 'test', 'node_modules');
-// 人は立ち姿の縦長、車は斜め前からの横長。canvas は大きいほうで取って、
-// 撮るときにビューポートを切る
-const W = 200, H = 300, CW = 200, CH = 140;
+// 人は**上半身のアップ**（全身だと + の一覧で小さくて誰か分からない — 寺村さんの指摘）、
+// 車は斜め前からの横長。canvas は大きいほうで取って、撮るときにビューポートを切る
+const W = 200, H = 200, CW = 200, CH = 140;
 fs.mkdirSync(OUT, { recursive: true });
 const files = fs.readdirSync(DIR).filter(f => f.endsWith('.glb')).sort();
 const html = `<canvas id=c width=${W} height=${H}></canvas>
@@ -32,8 +32,10 @@ window.__shoot = async (file, car) => {
   const b = new THREE.Box3().setFromObject(o), c = new THREE.Vector3(); b.getCenter(c);
   const cam = new THREE.PerspectiveCamera(car ? 26 : 24, w/h, 0.05, 50);
   // 車は斜め前から。真横だとどれも同じ影絵になって選べない
-  if (car) cam.position.set(1.05, c.y * 2.4, 2.0); else cam.position.set(0.12, c.y, 2.9);
-  cam.lookAt(0, car ? c.y * 0.9 : c.y, 0);
+  // 人はモデルが身長 1 m に揃っているので、頭から腰までを決め打ちで切り取れる
+  const eye = b.max.y * 0.90;
+  if (car) cam.position.set(1.05, c.y * 2.4, 2.0); else cam.position.set(0.08, eye, 1.00);
+  cam.lookAt(0, car ? c.y * 0.9 : eye, 0);
   r.render(sc, cam);
   return cv.toDataURL('image/webp', 0.82);
 };
