@@ -359,9 +359,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <input type="text" id="linkbox" readonly hidden>
         <div class="row"><button class="btn" id="makepdf">PDF資料作成</button></div>
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
+        <div class="row"><button class="btn" id="fbx">3Dデータ書き出し</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.13.0<br>© 2026 Taichi Teramura</p>
+        <p class="colophon">Studio Planner v1.14.0<br>© 2026 Taichi Teramura</p>
       </div>
     </div>
   </div>
@@ -3994,6 +3995,167 @@ const VIEW_NAME = {plan:'上面', side:'側面', front:'正面', pers:'パース
 document.getElementById('png').addEventListener('click', () => capture(mainView, VIEW_NAME[mainView]));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
 
+// ---------- 3D データ書き出し（FBX） ----------
+// C4D などで続きをやるための出口。**書き出すのは現場に在るものだけ**で、
+// 寸法リボン・撮影範囲・グリッド・マニピュレータ・上面図の記号は入れない
+// （図面の上書きであって、現場には無いものなので）。
+//
+// three に FBX の書き出しは無いので、ASCII FBX 7.4 をここで組み立てる。
+// **単位は cm**（FBX の慣習で、C4D もそう読む）。頂点を 100 倍して出し、
+// UnitScaleFactor に 100 を書く。軸は three と同じ Y-up の右手系。
+const FBX_SCALE = 100;
+let fbxUid = 1000000;
+const fbxId = () => ++fbxUid;
+const fbxStr = s => String(s).replace(/["\r\n\t]/g, ' ');
+// 「Geometry: id, "Geometry::名前", "Mesh" {」の 3 つ目は**種類**（Mesh / Camera）で、
+// クラス名ではない。ここを間違えると、読み込み側は 1 つも拾わずに黙って空になる
+const fbxName = (cls, name, sub) => `"${cls}::${fbxStr(name)}", "${sub}"`;
+const f4 = v => +v.toFixed(4);
+// スキニングは頂点をそのまま動かす。ポーズの付いた人はポーズのまま出したいので、
+// **焼いた位置**を読む（applyBoneTransform は three が用意しているもの）
+function fbxVertices(m){
+  const pos = m.geometry.attributes.position, n = pos.count;
+  const v = new THREE.Vector3(), out = new Array(n * 3);
+  m.updateMatrixWorld(true);
+  for (let i = 0; i < n; i++){
+    v.fromBufferAttribute(pos, i);
+    if (m.isSkinnedMesh && m.applyBoneTransform) m.applyBoneTransform(i, v);
+    v.applyMatrix4(m.matrixWorld);
+    out[i*3] = f4(v.x * FBX_SCALE); out[i*3+1] = f4(v.y * FBX_SCALE); out[i*3+2] = f4(v.z * FBX_SCALE);
+  }
+  return out;
+}
+function fbxNormals(m){
+  const na = m.geometry.attributes.normal;
+  if (!na) return null;
+  const nm = new THREE.Matrix3().getNormalMatrix(m.matrixWorld);
+  const v = new THREE.Vector3(), out = new Array(na.count * 3);
+  for (let i = 0; i < na.count; i++){
+    v.fromBufferAttribute(na, i).applyMatrix3(nm).normalize();
+    out[i*3] = f4(v.x); out[i*3+1] = f4(v.y); out[i*3+2] = f4(v.z);
+  }
+  return out;
+}
+// 現場に在るものだけを集める。名前はオブジェクトの一覧と揃える
+function fbxMeshes(){
+  const out = [];
+  const walk = (root, label) => root.traverseVisible(n => {
+    if (!n.isMesh || n.isLine || n.isPoints) return;
+    if (n.userData.plan || n.userData.noHit || n.userData.grid) return;
+    const mat = Array.isArray(n.material) ? n.material[0] : n.material;
+    if (!mat || mat.opacity === 0) return;
+    if (!n.geometry?.attributes?.position?.count) return;
+    out.push({mesh:n, label});
+  });
+  if (!state.studio.hidden) walk(studioGroup, 'Studio');
+  for (const it of state.items){
+    if (it.hidden || it.type === 'splat') continue;   // 3DGS は点の集まりなので FBX にできない
+    const o = itemObjs.get(it.id);
+    if (o?.group) walk(o.group, itemName(it));
+  }
+  return out;
+}
+// **Lcl Rotation はアプリの中の姿勢そのまま**（-Z を向いた形）で書く。
+// FBX のカメラは素で +X を向いているので、そのぶんは `PostRotation` に預ける
+// （実効の回転は R = Lcl * Post⁻¹。Post = Y まわり -90° なら +X が -Z に向く）。
+// three の FBXLoader は PostRotation を読まないので、読み返しはアプリと一致する。
+// **C4D 側での向きは実機で確かめること** — ここでは確かめようがない。
+const FBX_CAM_POST = [0, -90, 0];
+function fbxCameraRot(it){
+  const q = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(THREE.MathUtils.degToRad(it.pitch || 0),
+                    THREE.MathUtils.degToRad((it.rot || 0) + 180),
+                    THREE.MathUtils.degToRad(it.roll || 0), 'YXZ'));
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  return [f4(THREE.MathUtils.radToDeg(e.x)), f4(THREE.MathUtils.radToDeg(e.y)), f4(THREE.MathUtils.radToDeg(e.z))];
+}
+function buildFBX(){
+  fbxUid = 1000000;
+  const meshes = fbxMeshes();
+  const cameras = state.items.filter(i => i.type === 'camera' && !i.hidden);
+  const objs = [], conns = [];
+  const seen = new Map();
+  const uniq = base => { const n = (seen.get(base) || 0) + 1; seen.set(base, n); return n === 1 ? base : `${base} ${n}`; };
+  for (const {mesh, label} of meshes){
+    const name = uniq(label), gid = fbxId(), mid = fbxId(), matid = fbxId();
+    const V = fbxVertices(mesh), N = fbxNormals(mesh), idx = mesh.geometry.index;
+    const tri = (idx ? idx.count : mesh.geometry.attributes.position.count) / 3;
+    const pvi = new Array(tri * 3);
+    for (let t = 0; t < tri; t++){
+      const a = idx ? idx.getX(t*3) : t*3, b = idx ? idx.getX(t*3+1) : t*3+1, c = idx ? idx.getX(t*3+2) : t*3+2;
+      pvi[t*3] = a; pvi[t*3+1] = b; pvi[t*3+2] = ~c;    // 最後の頂点だけビット反転で面の終わり
+    }
+    let g = `\tGeometry: ${gid}, ${fbxName('Geometry', name, 'Mesh')} {\n\t\tGeometryVersion: 124\n`;
+    g += `\t\tVertices: *${V.length} {\n\t\t\ta: ${V.join(',')}\n\t\t}\n`;
+    g += `\t\tPolygonVertexIndex: *${pvi.length} {\n\t\t\ta: ${pvi.join(',')}\n\t\t}\n`;
+    if (N) g += `\t\tLayerElementNormal: 0 {\n\t\t\tVersion: 101\n\t\t\tName: ""\n\t\t\tMappingInformationType: "ByVertice"\n\t\t\tReferenceInformationType: "Direct"\n\t\t\tNormals: *${N.length} {\n\t\t\t\ta: ${N.join(',')}\n\t\t\t}\n\t\t}\n`;
+    g += `\t\tLayerElementMaterial: 0 {\n\t\t\tVersion: 101\n\t\t\tName: ""\n\t\t\tMappingInformationType: "AllSame"\n\t\t\tReferenceInformationType: "IndexToDirect"\n\t\t\tMaterials: *1 {\n\t\t\t\ta: 0\n\t\t\t}\n\t\t}\n`;
+    g += `\t\tLayer: 0 {\n\t\t\tVersion: 100\n`;
+    if (N) g += `\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementNormal"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n`;
+    g += `\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementMaterial"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n\t\t}\n\t}\n`;
+    objs.push(g);
+    // 頂点はワールドに焼いてあるので、Model 自身は原点に置く
+    objs.push(`\tModel: ${mid}, ${fbxName('Model', name, 'Mesh')} {\n\t\tVersion: 232\n\t\tProperties70:  {\n` +
+      `\t\t\tP: "Lcl Translation", "Lcl Translation", "", "A",0,0,0\n\t\t}\n\t\tShading: T\n\t\tCulling: "CullingOff"\n\t}\n`);
+    const mm = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const col = mm.color || new THREE.Color(0xcccccc);
+    objs.push(`\tMaterial: ${matid}, ${fbxName('Material', name, '')} {\n\t\tVersion: 102\n\t\tShadingModel: "lambert"\n\t\tMultiLayer: 0\n\t\tProperties70:  {\n` +
+      `\t\t\tP: "DiffuseColor", "Color", "", "A",${f4(col.r)},${f4(col.g)},${f4(col.b)}\n` +
+      `\t\t\tP: "Opacity", "double", "Number", "",${f4(mm.transparent ? mm.opacity : 1)}\n\t\t}\n\t}\n`);
+    conns.push(`\tC: "OO",${gid},${mid}\n\tC: "OO",${matid},${mid}\n\tC: "OO",${mid},0\n`);
+  }
+  for (const it of cameras){
+    const name = uniq(camName(it)), aid = fbxId(), mid = fbxId();
+    const [rx, ry, rz] = fbxCameraRot(it);
+    const ar = ASPECTS[it.aspect] || 16/9;
+    // 注視点も添える。回転を読まずに向きを決める実装のための保険
+    const fwd = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(
+      THREE.MathUtils.degToRad(it.pitch || 0), THREE.MathUtils.degToRad((it.rot || 0) + 180), 0, 'YXZ'));
+    const look = [f4((it.x + fwd.x)*FBX_SCALE), f4((it.y + fwd.y)*FBX_SCALE), f4((it.z + fwd.z)*FBX_SCALE)];
+    const filmW = sensorW(it) / 25.4, filmH = filmW / ar;   // FBX の film はインチ
+    objs.push(`\tNodeAttribute: ${aid}, ${fbxName('NodeAttribute', name, 'Camera')} {\n\t\tProperties70:  {\n` +
+      `\t\t\tP: "ApertureMode", "enum", "", "",3\n` +           // 3 = 焦点距離で決める
+      `\t\t\tP: "FocalLength", "double", "Number", "A",${f4(it.focal)}\n` +
+      `\t\t\tP: "FilmWidth", "double", "Number", "",${f4(filmW)}\n` +
+      `\t\t\tP: "FilmHeight", "double", "Number", "",${f4(filmH)}\n` +
+      `\t\t\tP: "FilmAspectRatio", "double", "Number", "",${f4(ar)}\n` +
+      // **綴りは AspectWidth / AspectHeight**。AspectW と書くと読み手は画面の
+      // 縦横比で代用してしまい、画角がまるで違う値になる（実際に踏んだ）
+      `\t\t\tP: "AspectWidth", "double", "Number", "",${f4(ar * 1000)}\n` +
+      `\t\t\tP: "AspectHeight", "double", "Number", "",1000\n` +
+      `\t\t\tP: "FieldOfView", "FieldOfView", "", "A",${f4(THREE.MathUtils.radToDeg(hfov(it)))}\n` +
+      `\t\t\tP: "NearPlane", "double", "Number", "",${f4(0.05 * FBX_SCALE)}\n` +
+      `\t\t\tP: "FarPlane", "double", "Number", "",${f4(200 * FBX_SCALE)}\n` +
+      `\t\t\tP: "Position", "Vector", "", "A",${f4(it.x*FBX_SCALE)},${f4(it.y*FBX_SCALE)},${f4(it.z*FBX_SCALE)}\n` +
+      `\t\t\tP: "InterestPosition", "Vector", "", "A",${look.join(',')}\n\t\t}\n\t\tTypeFlags: "Camera"\n\t\tGeometryVersion: 124\n\t}\n`);
+    objs.push(`\tModel: ${mid}, ${fbxName('Model', name, 'Camera')} {\n\t\tVersion: 232\n\t\tProperties70:  {\n` +
+      `\t\t\tP: "RotationOrder", "enum", "", "",0\n` +
+      `\t\t\tP: "RotationActive", "bool", "", "",1\n` +
+      `\t\t\tP: "PostRotation", "Vector3D", "Vector", "",${FBX_CAM_POST.join(',')}\n` +
+      `\t\t\tP: "Lcl Translation", "Lcl Translation", "", "A",${f4(it.x*FBX_SCALE)},${f4(it.y*FBX_SCALE)},${f4(it.z*FBX_SCALE)}\n` +
+      `\t\t\tP: "Lcl Rotation", "Lcl Rotation", "", "A",${rx},${ry},${rz}\n\t\t}\n\t\tShading: Y\n\t\tCulling: "CullingOff"\n\t}\n`);
+    conns.push(`\tC: "OO",${aid},${mid}\n\tC: "OO",${mid},0\n`);
+  }
+  const stamp = new Date().toISOString().replace('T',' ').slice(0,19);
+  const head = `; FBX 7.4.0 project file\n; Studio Planner\n\nFBXHeaderExtension:  {\n\tFBXHeaderVersion: 1003\n\tFBXVersion: 7400\n\tCreator: "Studio Planner"\n\tCreationTimeStamp:  {\n\t\tVersion: 1000\n\t}\n\tComment: "${stamp}"\n}\n\n` +
+    `GlobalSettings:  {\n\tVersion: 1000\n\tProperties70:  {\n\t\tP: "UpAxis", "int", "Integer", "",1\n\t\tP: "UpAxisSign", "int", "Integer", "",1\n` +
+    `\t\tP: "FrontAxis", "int", "Integer", "",2\n\t\tP: "FrontAxisSign", "int", "Integer", "",1\n\t\tP: "CoordAxis", "int", "Integer", "",0\n\t\tP: "CoordAxisSign", "int", "Integer", "",1\n` +
+    `\t\tP: "UnitScaleFactor", "double", "Number", "",100\n\t}\n}\n\n`;
+  const defs = `Definitions:  {\n\tVersion: 100\n\tCount: ${meshes.length*3 + cameras.length*2}\n` +
+    `\tObjectType: "Geometry" {\n\t\tCount: ${meshes.length}\n\t}\n\tObjectType: "Model" {\n\t\tCount: ${meshes.length + cameras.length}\n\t}\n` +
+    `\tObjectType: "Material" {\n\t\tCount: ${meshes.length}\n\t}\n\tObjectType: "NodeAttribute" {\n\t\tCount: ${cameras.length}\n\t}\n}\n\n`;
+  return {text: head + defs + `Objects:  {\n${objs.join('')}}\n\nConnections:  {\n${conns.join('')}}\n`,
+          meshes: meshes.length, cameras: cameras.length,
+          splats: state.items.filter(i => i.type === 'splat' && !i.hidden).length};
+}
+document.getElementById('fbx').addEventListener('click', () => {
+  const out = buildFBX();
+  if (!out.meshes && !out.cameras){ toast('書き出すものがありません'); return; }
+  saveFile(projectName() + '.fbx', new Blob([out.text], {type:'application/octet-stream'}), 'application/octet-stream');
+  // 3DGS は点の集まりなので入らない。黙って落とすと現場で気づけない
+  toast(out.splats ? `${out.meshes} 個と カメラ ${out.cameras} 台（3DGS は入りません）` : `${out.meshes} 個と カメラ ${out.cameras} 台`);
+});
+
 let toastT; function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
 
 // ---------- PDF sheet ----------
@@ -4462,7 +4624,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, fbx: () => buildFBX()};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

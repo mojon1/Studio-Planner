@@ -1345,7 +1345,7 @@ async function open(name, viewport, mobile = false, hash = ''){
      (await t.page.$$('[data-sec="share"] h2')).length === 0);
   const btns = await t.page.$$eval('[data-sec="share"] .btn', n => n.map(x => x.textContent.trim()));
   ok('every button says what it does on its own (and the project file is gone)',
-     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/HTML書き出し',
+     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/3Dデータ書き出し/HTML書き出し',
      btns.join('/'));
   // どれか 1 つが既定の道具ではないので、オレンジ（primary）は付けない
   ok('and none of them is painted as the one to press',
@@ -1913,6 +1913,88 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.page.screenshot({ path: `${OUT}/touchmenu.png` });
   ok('touch menu run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 32. 3D データ書き出し（FBX） --------------------------------------------------
+// C4D などで続きをやるための出口。書き出した ASCII FBX を three の FBXLoader で
+// 読み返して形とカメラを確かめる。**カメラの向きは読み手で解釈が違う** — FBX の
+// カメラは素で +X を向き、three のカメラは -Z を向く。FBX の規約に合わせてあるので、
+// three で読み返すと 90 度横を向いて見えるのが正しい。C4D での見え方は実機で。
+{
+  const t = await open('fbx', { width: 1100, height: 800 });
+  await t.addPerson('asia-casual-woman');
+  await t.add('[data-add="box"]');
+  await t.page.evaluate(() => {
+    const sp = window.__sp, c = sp.state().items.find(i => i.type === 'camera');
+    Object.assign(c, {x:1.2, y:1.5, z:3.0, rot:160, pitch:-8, roll:0});
+    sp.setProp(c, 'focal', 35);
+    return null;
+  });
+  // ファインダーに切り替えてから読む（sp.camera() は今見ているビューのカメラ）
+  await t.page.click('[data-view="cam"]'); await t.page.waitForTimeout(600);
+  const want = await t.page.evaluate(() => {
+    const sp = window.__sp, d = new sp.THREE.Vector3();
+    sp.camera().getWorldDirection(d);
+    return {dir:[+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)]};
+  });
+  const out = await t.page.evaluate(() => window.__sp.fbx());
+  ok('the FBX has the scene and the camera in it',
+     out.meshes > 10 && out.cameras === 1, `${out.meshes} meshes / ${out.cameras} cameras`);
+  ok('and it declares centimetres', /UnitScaleFactor", "double", "Number", "",100/.test(out.text));
+  ok('and writes the lens as a focal length, not a guess at the angle',
+     /"FocalLength", "double", "Number", "A",35/.test(out.text) && /"FilmWidth"/.test(out.text)
+     && /"AspectWidth"/.test(out.text));
+  const before = out.meshes;
+  await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'box');
+    it.hidden = true; sp.render(); });
+  await t.page.waitForTimeout(200);
+  const out2 = await t.page.evaluate(() => window.__sp.fbx());
+  ok('what is switched off does not go into the file', out2.meshes < before, `${before} -> ${out2.meshes}`);
+
+  fs.writeFileSync(`${OUT}/scene.fbx`, out.text);
+  fs.writeFileSync(`${OUT}/fbx-reader.html`, `<script type="importmap">{"imports":{"three":"/test/node_modules/three/build/three.module.js","three/addons/":"/test/node_modules/three/examples/jsm/"}}<` + `/script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+window.__read = async () => {
+  const o = await new FBXLoader().loadAsync('/test/out/scene.fbx');
+  o.updateMatrixWorld(true);
+  let verts = 0, meshes = 0; const cams = [];
+  o.traverse(n => {
+    if (n.isMesh){ meshes++; verts += n.geometry.attributes.position.count; }
+    if (n.isCamera){ const w = new THREE.Vector3(), d = new THREE.Vector3();
+      n.getWorldPosition(w); n.getWorldDirection(d);
+      cams.push({pos:[+w.x.toFixed(2), +w.y.toFixed(2), +w.z.toFixed(2)],
+                 dir:[+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)]}); }
+  });
+  const b = new THREE.Box3().setFromObject(o), sz = new THREE.Vector3(); b.getSize(sz);
+  return {meshes, verts, cams, size:[+sz.x.toFixed(1), +sz.z.toFixed(1)]};
+};
+window.__ready = true;
+<` + `/script>`);
+  const r = await open('fbx-read', { width: 600, height: 400 });
+  await r.page.goto('http://localhost:8765/test/out/fbx-reader.html');
+  await r.page.waitForFunction(() => window.__ready, null, {timeout:30000});
+  const back = await r.page.evaluate(() => window.__read());
+  ok('a loader reads it back with every mesh intact',
+     back.meshes === out.meshes && back.verts > 20000, JSON.stringify({meshes:back.meshes, verts:back.verts}));
+  ok('at centimetre scale', Math.abs(back.size[0] - 1000) < 1 && Math.abs(back.size[1] - 800) < 1, back.size.join(' x '));
+  ok('with the camera where it stands', back.cams.length === 1
+     && Math.abs(back.cams[0].pos[0] - 120) < 1 && Math.abs(back.cams[0].pos[1] - 150) < 1
+     && Math.abs(back.cams[0].pos[2] - 300) < 1, JSON.stringify(back.cams[0]?.pos));
+  const [wx,, wz] = want.dir, [gx,, gz] = back.cams[0].dir;
+  ok('and pointing where the FBX convention says it points',
+     Math.abs(gx - wz) < 0.05 && Math.abs(gz + wx) < 0.05,
+     `app ${want.dir.join(',')} -> file ${back.cams[0].dir.join(',')}`);
+  // ボタンから押しても、名前を付けて保存の道を通る
+  await t.tab('share');
+  await t.page.evaluate(() => { window.__saved = null;
+    window.showSaveFilePicker = async o => { window.__saved = o.suggestedName; throw Object.assign(new Error('x'), {name:'AbortError'}); }; });
+  await t.page.click('#fbx'); await t.page.waitForTimeout(600);
+  const saved = await t.page.evaluate(() => window.__saved);
+  ok('the button offers it as a .fbx to save', /\.fbx$/.test(saved || ''), String(saved));
+  ok('fbx run clean', t.errors.length === 0 && r.errors.length === 0, t.errors.concat(r.errors).join(' | '));
+  await t.ctx.close(); await r.ctx.close();
 }
 
 await browser.close(); server.close();
