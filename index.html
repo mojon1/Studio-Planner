@@ -359,7 +359,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <h2>オフライン</h2>
         <div class="row"><button class="btn" id="offlinebtn">オフラインに保存</button></div>
         <p class="hint" id="offlinestat">現場で圏外でも開けるよう、この端末に丸ごと控えます。人物と車のモデルを含めて 13 MB ほど。</p>
-        <p class="colophon">Studio Planner v1.7.2<br>© 2026 寺村太一</p>
+        <p class="colophon">Studio Planner v1.7.3<br>© 2026 寺村太一</p>
       </div>
     </div>
   </div>
@@ -1406,6 +1406,14 @@ function buildCamera(it){
   const lens = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.04,0.09,12), mat(0x222)));
   lens.rotation.x = Math.PI/2; lens.position.set(0,it.y,0.09); g.add(lens);
   const base = new THREE.Mesh(new THREE.RingGeometry(0.2,0.24,4), new THREE.MeshBasicMaterial({color:0xe29a44})); base.rotation.x=-Math.PI/2; base.rotation.z = Math.PI/4; base.position.y=0.006; base.userData.plan=true; g.add(base);
+  // **脚と脚のあいだも掴めるようにする。** 三脚は細い棒 3 本なので、見た目の
+  // ほとんどが隙間で、現場では「カメラが選べない」になる。3 本の足を底面、
+  // 脚の集まる点を頂点とした三角錐を、見えない当たり判定として置く
+  // （thetaStart = π で底面の角が 3 本の足とちょうど重なる）。
+  // 薄い板ではないので、真上からのレイでも三角形判定が落ちない。
+  const hit = new THREE.Mesh(new THREE.ConeGeometry(spread, top, 3, 1, false, Math.PI),
+    new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
+  hit.position.y = top/2; g.add(hit);
   return g;
 }
 // 3D frustum, clipped by the studio (floor, walls, coves, ceiling)

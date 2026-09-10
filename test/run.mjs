@@ -1420,6 +1420,46 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 24. the camera can be grabbed between the tripod legs ------------------------
+{
+  const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
+    activeCam:'c1', items:[{id:'c1',type:'camera',x:0,z:2,y:1.3,rot:180,pitch:-6,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
+  const t = await open('camhit', { width: 1200, height: 820 }, false, '#s=' + encodeState(scene));
+  await t.page.waitForTimeout(1200);
+  for (const v of ['plan','pers','side','front']){
+    await t.page.click(`[data-view="${v}"]`); await t.page.waitForTimeout(400);
+    const r = await t.page.evaluate(() => {
+      const sp = window.__sp; sp.select(null);
+      const it = sp.state().items[0], g = sp.group(it.id);
+      const cam = sp.camera(), box = document.querySelector('#view canvas').getBoundingClientRect();
+      // 脚 2 本のあいだ（三角錐の面の真ん中あたり）を狙う。軸の上だと、
+      // 上面と正面では 1 本目の脚がちょうど重なって「隙間」にならない。
+      // 三脚は spread = max(0.14, y*0.34)、脚の集まる高さ top = max(0.10, y-0.12)、
+      // 足は a = i/3*2π + π に置いてある（buildCamera と同じ）
+      const spread = Math.max(0.14, it.y*0.34), top = Math.max(0.10, it.y - 0.12);
+      const a2 = Math.PI + Math.PI/3, rr = spread*0.3;           // 足 0 と 1 のあいだ
+      // 脚はグループのローカル座標に置いてあり、グループ全体が向き（rot）ぶん
+      // 回っている。世界座標で角度を作ると、回った先で脚と重なる
+      g.updateMatrixWorld(true);
+      const p = g.localToWorld(new sp.THREE.Vector3(Math.sin(a2)*rr, top*0.25, Math.cos(a2)*rr)).project(cam);
+      const x = (p.x + 1)/2 * box.width, y = (1 - p.y)/2 * box.height;
+      const withCone = sp.pick(x, y)?.id || null;
+      const cones = []; g.traverse(n => { if (n.isMesh && n.geometry.type === 'ConeGeometry' && n.material.opacity === 0) cones.push(n); });
+      for (const c of cones) c.userData.noHit = true;
+      const without = sp.pick(x, y)?.id || null;
+      for (const c of cones) c.userData.noHit = false;
+      return {withCone, without, cones: cones.length, invisible: cones.every(c => c.material.opacity === 0)};
+    });
+    ok(`${v}: the gap between the legs selects the camera`, r.withCone === 'c1' && r.cones === 1, JSON.stringify(r));
+    ok(`${v}: and it was the added volume that did it`, r.without === null, JSON.stringify(r));
+    ok(`${v}: the volume itself stays invisible`, r.invisible);
+  }
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(400);
+  await t.page.screenshot({ path: `${OUT}/camhit.png` });
+  ok('camera hit run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
