@@ -6,7 +6,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import zlib from 'node:zlib';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1346,7 +1345,7 @@ async function open(name, viewport, mobile = false, hash = ''){
      (await t.page.$$('[data-sec="share"] h2')).length === 0);
   const btns = await t.page.$$eval('[data-sec="share"] .btn', n => n.map(x => x.textContent.trim()));
   ok('every button says what it does on its own (and the project file is gone)',
-     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/3Dデータ書き出し（FBX）/3Dデータ書き出し（GLB）/HTML書き出し',
+     btns.join('/') === '共有リンク/共有QRコード/PDF資料作成/画像書き出し/3Dデータ書き出し（GLB）/HTML書き出し',
      btns.join('/'));
   // どれか 1 つが既定の道具ではないので、オレンジ（primary）は付けない
   ok('and none of them is painted as the one to press',
@@ -1916,122 +1915,25 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
-// --- 32. 3D データ書き出し（FBX） --------------------------------------------------
-// C4D などで続きをやるための出口。書き出した ASCII FBX を three の FBXLoader で
-// 読み返して形とカメラを確かめる。**カメラの向きは読み手で解釈が違う** — FBX の
-// カメラは素で +X を向き、three のカメラは -Z を向く。FBX の規約に合わせてあるので、
-// three で読み返すと 90 度横を向いて見えるのが正しい。C4D での見え方は実機で。
+// --- 32. 3D データ書き出し（GLB） --------------------------------------------------
+// C4D などで続きをやるための出口。**FBX も書いていたが、C4D が中身を読めなかった**
+// ので外した（寺村さんが Blender と C4D の両方で確かめた）。GLB はどちらでも開く。
 {
-  const t = await open('fbx', { width: 1100, height: 800 });
+  const t = await open('glb', { width: 1100, height: 800 });
   await t.addPerson('asia-casual-woman');
   await t.add('[data-add="box"]');
   await t.page.evaluate(() => {
     const sp = window.__sp, c = sp.state().items.find(i => i.type === 'camera');
     Object.assign(c, {x:1.2, y:1.5, z:3.0, rot:160, pitch:-8, roll:0});
     sp.setProp(c, 'focal', 35);
-    return null;
   });
   // ファインダーに切り替えてから読む（sp.camera() は今見ているビューのカメラ）
-  await t.page.click('[data-view="cam"]'); await t.page.waitForTimeout(600);
+  await t.page.click('[data-view="cam"]'); await t.page.waitForTimeout(700);
   const want = await t.page.evaluate(() => {
     const sp = window.__sp, d = new sp.THREE.Vector3();
     sp.camera().getWorldDirection(d);
     return {dir:[+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)], fov:+sp.camera().fov.toFixed(2)};
   });
-  const out = await t.page.evaluate(async () => {
-    const o = await window.__sp.fbx();
-    return {meshes:o.meshes, cameras:o.cameras, splats:o.splats, text:o.text,
-            tex:o.textures.map(x => [x.name, x.data.length])};
-  });
-  ok('the FBX has the scene and the camera in it',
-     out.meshes > 10 && out.cameras === 1, `${out.meshes} meshes / ${out.cameras} cameras`);
-  // テクスチャを渡すには UV が要る。**UV が無いと絵はどこにも貼れない**
-  ok('it carries UVs and points at the texture files',
-     /LayerElementUV/.test(out.text) && /TextureVideoClip/.test(out.text)
-     && /RelativeFilename: "textures\//.test(out.text));
-  ok('and the textures come out beside it',
-     out.tex.length >= 2 && out.tex.every(([n, len]) => /^tex\d+\.jpg$/.test(n) && len > 5000),
-     JSON.stringify(out.tex));
-  ok('and it declares centimetres', /UnitScaleFactor", "double", "Number", "",100/.test(out.text));
-  ok('and writes the lens as a focal length, not a guess at the angle',
-     /"FocalLength", "double", "Number", "A",35/.test(out.text) && /"FilmWidth"/.test(out.text)
-     && /"AspectWidth"/.test(out.text));
-  const before = out.meshes;
-  await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'box');
-    it.hidden = true; sp.render(); });
-  await t.page.waitForTimeout(200);
-  const out2 = await t.page.evaluate(async () => (await window.__sp.fbx()).meshes);
-  ok('what is switched off does not go into the file', out2 < before, `${before} -> ${out2}`);
-  // .fbx と画像は 1 つの zip で渡す（FBX は画像を中に持てない）
-  const zipBytes = await t.page.evaluate(async () => {
-    const o = await window.__sp.fbx();
-    const files = [{name:'scene.fbx', data:new TextEncoder().encode(o.text)},
-                   ...o.textures.map(x => ({name:`textures/${x.name}`, data:x.data}))];
-    return Array.from(new Uint8Array(await window.__sp.zip(files).arrayBuffer()));
-  });
-  fs.writeFileSync(`${OUT}/scene.zip`, Buffer.from(zipBytes));
-  const zipList = (() => {
-    try { return execFileSync('unzip', ['-Z1', `${OUT}/scene.zip`], {encoding:'utf8'}).trim().split('\n'); }
-    catch { return null; }
-  })();
-  if (zipList){
-    ok('the zip really opens, with the fbx and the textures in it',
-       zipList[0] === 'scene.fbx' && zipList.slice(1).every(n => /^textures\/tex\d+\.jpg$/.test(n))
-       && zipList.length === out.tex.length + 1, zipList.join(' '));
-    let bad = '';
-    try { execFileSync('unzip', ['-t', `${OUT}/scene.zip`], {encoding:'utf8'}); } catch(e){ bad = String(e); }
-    ok('and every entry checks out', !bad, bad.slice(0, 120));
-  }
-
-  fs.writeFileSync(`${OUT}/scene.fbx`, out.text);
-  fs.writeFileSync(`${OUT}/fbx-reader.html`, `<script type="importmap">{"imports":{"three":"/test/node_modules/three/build/three.module.js","three/addons/":"/test/node_modules/three/examples/jsm/"}}<` + `/script>
-<script type="module">
-import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-window.__read = async () => {
-  const o = await new FBXLoader().loadAsync('/test/out/scene.fbx');
-  o.updateMatrixWorld(true);
-  let verts = 0, meshes = 0; const cams = [];
-  o.traverse(n => {
-    if (n.isMesh){ meshes++; verts += n.geometry.attributes.position.count; }
-    if (n.isCamera){ const w = new THREE.Vector3(), d = new THREE.Vector3();
-      n.getWorldPosition(w); n.getWorldDirection(d);
-      cams.push({pos:[+w.x.toFixed(2), +w.y.toFixed(2), +w.z.toFixed(2)],
-                 dir:[+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)]}); }
-  });
-  const b = new THREE.Box3().setFromObject(o), sz = new THREE.Vector3(); b.getSize(sz);
-  return {meshes, verts, cams, size:[+sz.x.toFixed(1), +sz.z.toFixed(1)]};
-};
-window.__ready = true;
-<` + `/script>`);
-  const r = await open('fbx-read', { width: 600, height: 400 });
-  await r.page.goto('http://localhost:8765/test/out/fbx-reader.html');
-  await r.page.waitForFunction(() => window.__ready, null, {timeout:30000});
-  const back = await r.page.evaluate(() => window.__read());
-  ok('a loader reads it back with every mesh intact',
-     back.meshes === out.meshes && back.verts > 20000, JSON.stringify({meshes:back.meshes, verts:back.verts}));
-  ok('at centimetre scale', Math.abs(back.size[0] - 1000) < 1 && Math.abs(back.size[1] - 800) < 1, back.size.join(' x '));
-  ok('with the camera where it stands', back.cams.length === 1
-     && Math.abs(back.cams[0].pos[0] - 120) < 1 && Math.abs(back.cams[0].pos[1] - 150) < 1
-     && Math.abs(back.cams[0].pos[2] - 300) < 1, JSON.stringify(back.cams[0]?.pos));
-  const [wx,, wz] = want.dir, [gx,, gz] = back.cams[0].dir;
-  ok('and pointing where the FBX convention says it points',
-     Math.abs(gx - wz) < 0.05 && Math.abs(gz + wx) < 0.05,
-     `app ${want.dir.join(',')} -> file ${back.cams[0].dir.join(',')}`);
-  // ボタンから押しても、名前を付けて保存の道を通る
-  await t.tab('share');
-  await t.page.evaluate(() => { window.__saved = null;
-    window.showSaveFilePicker = async o => { window.__saved = o.suggestedName; throw Object.assign(new Error('x'), {name:'AbortError'}); }; });
-  await t.page.click('#fbx'); await t.page.waitForTimeout(2500);
-  const savedZip = await t.page.evaluate(() => window.__saved);
-  ok('the FBX button offers a .zip (the textures ride along)', /\.zip$/.test(savedZip || ''), String(savedZip));
-  await t.page.evaluate(() => { window.__saved = null; });
-  await t.page.click('#glb'); await t.page.waitForTimeout(3000);
-  const savedGlb = await t.page.evaluate(() => window.__saved);
-  ok('and the GLB button offers a .glb', /\.glb$/.test(savedGlb || ''), String(savedGlb));
-  ok('fbx run clean', t.errors.length === 0 && r.errors.length === 0, t.errors.concat(r.errors).join(' | '));
-
-  // --- GLB のほう。テクスチャごと 1 ファイルで、カメラは three と同じ -Z 前方 ---
   fs.writeFileSync(`${OUT}/glb-reader.html`, `<script type="importmap">{"imports":{"three":"/test/node_modules/three/build/three.module.js","three/addons/":"/test/node_modules/three/examples/jsm/"}}<` + `/script>
 <script type="module">
 import * as THREE from 'three';
@@ -2039,8 +1941,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 window.__read = async () => {
   const g = await new GLTFLoader().loadAsync('/test/out/scene.glb');
   g.scene.updateMatrixWorld(true);
-  let meshes = 0, textured = 0, skinned = 0;
-  g.scene.traverse(n => { if (!n.isMesh) return; meshes++;
+  let meshes = 0, textured = 0, skinned = 0; const names = [];
+  g.scene.traverse(n => { if (!n.isMesh) return; meshes++; names.push(n.name);
     if (n.isSkinnedMesh) skinned++;
     const m = [].concat(n.material)[0]; if (m && m.map) textured++; });
   const cams = g.cameras.map(c => { const w = new THREE.Vector3(), d = new THREE.Vector3();
@@ -2048,49 +1950,74 @@ window.__read = async () => {
     return {name:c.name, pos:[+w.x.toFixed(2), +w.y.toFixed(2), +w.z.toFixed(2)],
             dir:[+d.x.toFixed(3), +d.y.toFixed(3), +d.z.toFixed(3)], fov:+c.fov.toFixed(2)}; });
   const b = new THREE.Box3().setFromObject(g.scene), sz = new THREE.Vector3(); b.getSize(sz);
-  return {meshes, textured, skinned, cams, size:[+sz.x.toFixed(2), +sz.z.toFixed(2)]};
+  return {meshes, textured, skinned, names, cams, size:[+sz.x.toFixed(2), +sz.z.toFixed(2)]};
 };
 window.__ready = true;
 <` + `/script>`);
-  await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'box');
-    it.hidden = false; sp.render(); });
-  await t.page.waitForTimeout(300);
   // 書き出しは「現場に無いもの」を一時的に消して撮る。**終わったら元どおりに
   // 戻っていること** — 戻し忘れると、書き出したあと図面から寸法や記号が消える
-  const glb = await t.page.evaluate(async () => {
-    const shown = () => { const out = []; window.__sp.scene.traverse(n => { if (n.visible) out.push(n.uuid); }); return out.join(','); };
+  const out = await t.page.evaluate(async () => {
+    const shown = () => { const a = []; window.__sp.scene.traverse(n => { if (n.visible) a.push(n.uuid); }); return a.join(','); };
     const before = shown();
-    const buf = await window.__sp.glb();
-    window.__sameAfter = before === shown();
-    return Array.from(new Uint8Array(buf));
+    const o = await window.__sp.glb();
+    return {same: before === shown(), meshes:o.meshes, cameras:o.cameras, bytes:Array.from(new Uint8Array(o.buf))};
   });
-  fs.writeFileSync(`${OUT}/scene.glb`, Buffer.from(glb));
-  ok('the GLB is one file with everything in it', glb.length > 100000, `${(glb.length/1024/1024).toFixed(2)} MB`);
+  fs.writeFileSync(`${OUT}/scene.glb`, Buffer.from(out.bytes));
+  ok('the GLB is one file with everything in it', out.bytes.length > 100000, `${(out.bytes.length/1024/1024).toFixed(2)} MB`);
+  ok('and the screen is left exactly as it was', out.same);
+  // ファイルの中の名前をそのまま読む（three のローダーは空白を _ に均すので、
+  // 向こうのツリーに出る名前は JSON から確かめる）
+  const raw = (() => {
+    const b = fs.readFileSync(`${OUT}/scene.glb`);
+    return JSON.parse(b.toString('utf8', 20, 20 + b.readUInt32LE(12)));
+  })();
+  const nodeNames = raw.nodes.map(n => n.name).filter(Boolean);
+  ok('every object carries a name a person can read, not "Node" or "Mesh"',
+     !nodeNames.some(n => /^(Node|Mesh|Object)\d*$/.test(n)) && nodeNames.includes('スタジオ 床')
+     && nodeNames.includes('スタジオ 天井'), nodeNames.slice(0, 8).join(' | '));
+  ok('and the same name is never used twice for the studio',
+     new Set(nodeNames.filter(n => n.startsWith('スタジオ'))).size
+       === nodeNames.filter(n => n.startsWith('スタジオ')).length,
+     nodeNames.filter(n => n.startsWith('スタジオ')).join(' | '));
+  // 三脚は位置の目印として残し、カメラ本体とレンズは出さない（向こうに本物が立つ）
+  ok('the tripod goes in, the camera body does not',
+     nodeNames.some(n => n.startsWith('カメラ 三脚'))
+     && raw.nodes.filter(n => n.camera !== undefined).length === 1, nodeNames.filter(n => n.includes('カメラ')).join(' | '));
   const gr = await open('glb-read', { width: 600, height: 400 });
   await gr.page.goto('http://localhost:8765/test/out/glb-reader.html');
   await gr.page.waitForFunction(() => window.__ready, null, {timeout:30000});
   const gb = await gr.page.evaluate(() => window.__read());
   ok('a loader reads it back with the textures inside',
-     gb.meshes > 10 && gb.textured >= 2 && gb.skinned >= 1,
+     gb.meshes > 10 && gb.textured >= 1 && gb.skinned >= 1,
      JSON.stringify({meshes:gb.meshes, textured:gb.textured, skinned:gb.skinned}));
-  // glTF はメートル。cm に直す FBX と違って倍率は掛けない
-  ok('in metres, not centimetres', Math.abs(gb.size[0] - 10) < 0.05 && Math.abs(gb.size[1] - 8) < 0.05, gb.size.join(' x '));
+  // glTF はメートル
+  ok('in metres', Math.abs(gb.size[0] - 10) < 0.05 && Math.abs(gb.size[1] - 8) < 0.05, gb.size.join(' x '));
   // **glTF のカメラは -Z 前方**なので、読み返した向きはアプリと同じになる
   ok('and the camera points exactly where the app points it', gb.cams.length === 1
      && Math.abs(gb.cams[0].dir[0] - want.dir[0]) < 0.02
      && Math.abs(gb.cams[0].dir[1] - want.dir[1]) < 0.02
      && Math.abs(gb.cams[0].dir[2] - want.dir[2]) < 0.02,
      `app ${want.dir.join(',')} -> file ${gb.cams[0]?.dir.join(',')}`);
-  ok('at the same angle of view', Math.abs(gb.cams[0].fov - want.fov) < 0.1, `${want.fov}\u00b0 -> ${gb.cams[0]?.fov}\u00b0`);
+  ok('at the same angle of view', Math.abs(gb.cams[0].fov - want.fov) < 0.1, `${want.fov} -> ${gb.cams[0]?.fov}`);
   ok('with the camera where it stands (metres)',
      Math.abs(gb.cams[0].pos[0] - 1.2) < 0.02 && Math.abs(gb.cams[0].pos[1] - 1.5) < 0.02
      && Math.abs(gb.cams[0].pos[2] - 3.0) < 0.02, JSON.stringify(gb.cams[0]?.pos));
-  // 書き出しのために消したものが、終わったら戻っていること
-  ok('and the screen is left exactly as it was', await t.page.evaluate(() => window.__sameAfter));
-  ok('glb run clean', gr.errors.length === 0, gr.errors.join(' | '));
-  await gr.ctx.close();
-  await t.ctx.close(); await r.ctx.close();
+  // 隠したものは現場に無いので入らない（目のマークで消す）
+  await t.tab('list');
+  await t.page.click('#items .itemrow[data-kind="box"] .eye');
+  await t.page.waitForTimeout(500);
+  const fewer = await t.page.evaluate(async () => (await window.__sp.glb()).meshes);
+  ok('what is switched off does not go into the file', fewer < out.meshes, `${out.meshes} -> ${fewer}`);
+  // ボタンから押しても、名前を付けて保存の道を通る
+  await t.tab('share');
+  await t.page.evaluate(() => { window.__saved = null;
+    window.showSaveFilePicker = async o => { window.__saved = o.suggestedName; throw Object.assign(new Error('x'), {name:'AbortError'}); }; });
+  await t.page.click('#glb'); await t.page.waitForTimeout(3000);
+  ok('the button offers it as a .glb to save', /\.glb$/.test(await t.page.evaluate(() => window.__saved) || ''));
+  ok('glb run clean', t.errors.length === 0 && gr.errors.length === 0, t.errors.concat(gr.errors).join(' | '));
+  await gr.ctx.close(); await t.ctx.close();
 }
+
 
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');

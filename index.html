@@ -359,10 +359,10 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <input type="text" id="linkbox" readonly hidden>
         <div class="row"><button class="btn" id="makepdf">PDF資料作成</button></div>
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
-        <div class="row"><button class="btn" id="fbx">3Dデータ書き出し（FBX）</button><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
+        <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.15.0<br>© 2026 Taichi Teramura</p>
+        <p class="colophon">Studio Planner v1.16.0<br>© 2026 Taichi Teramura</p>
       </div>
     </div>
   </div>
@@ -1591,9 +1591,13 @@ function buildCamera(it){
   col.position.y = (top + y)/2; g.add(col);
   const head = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.038, 0.035, 12), c));
   head.position.y = y - 0.065; g.add(head);
-  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.16,0.11,0.09), c)); body.position.y = it.y; g.add(body);
+  // 本体とレンズには印を付ける。**3D データに書き出すときは外す** — 向こうには
+  // 本物のカメラオブジェクトが立つので、その場所に箱が居ると邪魔になる。
+  // 三脚は位置の目印として要るので残す（寺村さんの指示）
+  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.16,0.11,0.09), c)); body.position.y = it.y;
+  body.userData.camBody = true; g.add(body);
   const lens = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.04,0.09,12), mat(0x222)));
-  lens.rotation.x = Math.PI/2; lens.position.set(0,it.y,0.09); g.add(lens);
+  lens.rotation.x = Math.PI/2; lens.position.set(0,it.y,0.09); lens.userData.camBody = true; g.add(lens);
   const base = new THREE.Mesh(new THREE.RingGeometry(0.2,0.24,4), new THREE.MeshBasicMaterial({color:0xe29a44})); base.rotation.x=-Math.PI/2; base.rotation.z = Math.PI/4; base.position.y=0.006; base.userData.plan=true; g.add(base);
   // **脚と脚のあいだも掴めるようにする。** 三脚は細い棒 3 本なので、見た目の
   // ほとんどが隙間で、現場では「カメラが選べない」になる。3 本の足を底面、
@@ -3995,73 +3999,9 @@ const VIEW_NAME = {plan:'上面', side:'側面', front:'正面', pers:'パース
 document.getElementById('png').addEventListener('click', () => capture(mainView, VIEW_NAME[mainView]));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
 
-// ---------- ZIP（無圧縮） ----------
-// FBX は**画像を中に持てない**（マテリアルはファイル名を参照するだけ）ので、
-// テクスチャごと渡すには .fbx と画像を 1 つの入れ物に入れるしかない。
-// 展開だけなら無圧縮（store）で十分——テクスチャは JPEG で、もう縮んでいる。
-const CRC_T = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++){
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-function crc32(u8){
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-}
-function zipStore(files){                            // [{name, data: Uint8Array}]
-  const enc = new TextEncoder(), parts = [], dir = [];
-  let off = 0;
-  const u16 = v => [v & 255, (v >>> 8) & 255];
-  const u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
-  // DOS の日付と時刻。0 のままだと展開したファイルが 1980 年より前になり、
-  // 並べ替えたときに迷子になる
-  const now = new Date();
-  const dTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
-  const dDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
-  for (const f of files){
-    const name = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
-    // 名前を UTF-8 と宣言する（フラグの 11 ビット目）。日本語のファイル名を入れない
-    // 作りではあるが、宣言しておかないと展開側の既定文字コード次第で化ける
-    const local = Uint8Array.from([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0),
-      ...u16(dTime), ...u16(dDate), ...u32(crc), ...u32(n), ...u32(n), ...u16(name.length), ...u16(0)]);
-    dir.push(Uint8Array.from([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0),
-      ...u16(dTime), ...u16(dDate), ...u32(crc), ...u32(n), ...u32(n), ...u16(name.length),
-      ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
-    parts.push(local, name, f.data);
-    off += local.length + name.length + n;
-  }
-  const cd = dir.length ? dir.reduce((a, b) => a + b.length, 0) : 0;
-  const end = Uint8Array.from([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length),
-    ...u16(files.length), ...u32(cd), ...u32(off), ...u16(0)]);
-  return new Blob([...parts, ...dir, end], {type:'application/zip'});
-}
-// three のテクスチャを JPEG のバイト列にする。同じ絵を何度も焼かないよう uuid で覚える
-const texBytes = new Map();
-async function fbxTexture(tex){
-  if (texBytes.has(tex.uuid)) return texBytes.get(tex.uuid);
-  const im = tex.image;
-  const w = im?.width | 0, h = im?.height | 0;
-  if (!w || !h) return null;
-  const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
-  cv.getContext('2d').drawImage(im, 0, 0);
-  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9));
-  if (!blob) return null;
-  const rec = {name: `tex${texBytes.size + 1}.jpg`, data: new Uint8Array(await blob.arrayBuffer())};
-  texBytes.set(tex.uuid, rec);
-  return rec;
-}
-
 // ---------- 3D データ書き出し（GLB） ----------
-// テクスチャごと 1 ファイルで渡せるほう。**glTF のカメラは -Z 前方**で three と
-// 同じなので、FBX のような向きの読み替えが要らない。代わりに **glTF は画角しか
-// 持てない**（焦点距離とセンサー幅は入らない）ので、レンズの数字ごと渡したいときは
-// FBX を使う。
+// C4D などで続きをやるための出口。**Blender でも C4D でも開けることを確認済み**
+// （FBX も書いていたが、C4D が中身を読めなかったので外した）。
 //
 // 出す／出さないの選別は `visible` に寄せて、GLTFExporter の onlyVisible に任せる。
 // 一時的に消して、書き出しが終わったら必ず戻すこと。
@@ -4074,6 +4014,9 @@ function exportHide(){
   scene.traverse(n => {
     if (!n.visible) return;
     if (n.userData.plan || n.userData.noHit || n.userData.grid || n.isLine || n.isPoints) return hide(n);
+    // カメラ本体とレンズは出さない。向こうには本物のカメラが立つので、その場所に
+    // 箱が居ると邪魔になる。三脚は位置の目印として残す
+    if (n.userData.camBody) return hide(n);
     if (!n.isMesh) return;
     const m = Array.isArray(n.material) ? n.material[0] : n.material;
     if (m && m.opacity === 0) return hide(n);
@@ -4086,6 +4029,40 @@ function exportHide(){
     }
   });
   return () => { for (const f of back.reverse()) f(); };
+}
+// **名前を付けてから書き出す。** 付けないと向こうのツリーが「Node」「Mesh」ばかりに
+// なって、どれが何か分からない（寺村さんの指摘）。glTF はノードに名前を持てるので、
+// 仕様どおりのやり方。アプリ側は名前を読まないので、**書き出しのあいだだけ**付けて戻す
+const SIDE_NAME = {floor:'床', back:'奥壁', left:'左壁', right:'右壁', ceil:'天井'};
+function exportName(){
+  const back = [];
+  const set = (o, name) => { back.push([o, o.name]); o.name = name; };
+  // **名前を付けるのはメッシュと、その入れ物だけ。骨には触らない**
+  // （骨の名前は向こうでも骨の名前として出る）。同じ名前が 2 つ以上になるときは
+  // 通し番号を足す — 「スタジオ 奥壁」が 5 枚あると、どれがどれか分からない
+  const nameTree = (root, base, sideOf) => {
+    set(root, base);
+    const used = new Map();
+    const tag = t => { const n = (used.get(t) || 0) + 1; used.set(t, n); return n === 1 ? t : `${t} ${n}`; };
+    const walk = o => {
+      for (const c of o.children){
+        if (!c.visible || c.isBone) continue;
+        if (c.isMesh || c.isSkinnedMesh) set(c, `${base} ${tag(sideOf ? sideOf(c) : '')}`.replace(/\s+/g, ' ').trim());
+        walk(c);
+      }
+    };
+    walk(root);
+  };
+  if (!state.studio.hidden)
+    nameTree(studioGroup, 'スタジオ', c => SIDE_NAME[c.userData.camOnly ? 'ceil' : c.userData.sides?.[0]] || '部材');
+  for (const it of state.items){
+    if (it.hidden || it.type === 'splat') continue;
+    const g = itemObjs.get(it.id)?.group;
+    // カメラは本体を出さないので、残るのは三脚だけ。**「カメラ」という名前は
+    // 本物のカメラオブジェクトに取っておく**（同じ名前が 2 つ並ぶと紛らわしい）
+    if (g) nameTree(g, it.type === 'camera' ? `${itemName(it)} 三脚` : itemName(it));
+  }
+  return () => { for (const [o, name] of back.reverse()) o.name = name; };
 }
 // 箱に乗せたカメラは天面ぶん上がる（setShotCam と同じ）。書き出しでも忘れない
 const camY = it => standHeight(it) + it.y;
@@ -4107,230 +4084,32 @@ function exportCams(){
 async function buildGLB(){
   const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
   capturing = true;                                  // 消しているあいだ rAF に描かせない
-  const restore = exportHide();
+  const restore = exportHide();                      // ← 先に消してから
+  const named = exportName();                        //   名前を付ける（消したものは飛ばす）
   const cams = exportCams();
   for (const c of cams) scene.add(c);
+  let meshes = 0;
+  scene.traverseVisible(n => { if (n.isMesh || n.isSkinnedMesh) meshes++; });
   try {
-    return await new GLTFExporter().parseAsync(scene, {binary:true, onlyVisible:true});
+    const buf = await new GLTFExporter().parseAsync(scene, {binary:true, onlyVisible:true});
+    return {buf, meshes, cameras: cams.length,
+            splats: state.items.filter(i => i.type === 'splat' && !i.hidden).length};
   } finally {
     for (const c of cams) scene.remove(c);
-    restore(); capturing = false; needRender = true;
+    named(); restore(); capturing = false; needRender = true;
   }
 }
 
-// ---------- 3D データ書き出し（FBX） ----------
-// C4D などで続きをやるための出口。**書き出すのは現場に在るものだけ**で、
-// 寸法リボン・撮影範囲・グリッド・マニピュレータ・上面図の記号は入れない
-// （図面の上書きであって、現場には無いものなので）。
-//
-// three に FBX の書き出しは無いので、ASCII FBX 7.4 をここで組み立てる。
-// **単位は cm**（FBX の慣習で、C4D もそう読む）。頂点を 100 倍して出し、
-// UnitScaleFactor に 100 を書く。軸は three と同じ Y-up の右手系。
-const FBX_SCALE = 100;
-let fbxUid = 1000000;
-const fbxId = () => ++fbxUid;
-const fbxStr = s => String(s).replace(/["\r\n\t]/g, ' ');
-// 「Geometry: id, "Geometry::名前", "Mesh" {」の 3 つ目は**種類**（Mesh / Camera）で、
-// クラス名ではない。ここを間違えると、読み込み側は 1 つも拾わずに黙って空になる
-const fbxName = (cls, name, sub) => `"${cls}::${fbxStr(name)}", "${sub}"`;
-const f4 = v => +v.toFixed(4);
-// スキニングは頂点をそのまま動かす。ポーズの付いた人はポーズのまま出したいので、
-// **焼いた位置**を読む（applyBoneTransform は three が用意しているもの）
-function fbxVertices(m){
-  const pos = m.geometry.attributes.position, n = pos.count;
-  const v = new THREE.Vector3(), out = new Array(n * 3);
-  m.updateMatrixWorld(true);
-  for (let i = 0; i < n; i++){
-    v.fromBufferAttribute(pos, i);
-    if (m.isSkinnedMesh && m.applyBoneTransform) m.applyBoneTransform(i, v);
-    v.applyMatrix4(m.matrixWorld);
-    out[i*3] = f4(v.x * FBX_SCALE); out[i*3+1] = f4(v.y * FBX_SCALE); out[i*3+2] = f4(v.z * FBX_SCALE);
-  }
-  return out;
-}
-function fbxUVs(m){
-  const ua = m.geometry.attributes.uv;
-  if (!ua) return null;
-  const out = new Array(ua.count * 2);
-  for (let i = 0; i < ua.count; i++){ out[i*2] = f4(ua.getX(i)); out[i*2+1] = f4(ua.getY(i)); }
-  return out;
-}
-function fbxNormals(m){
-  const na = m.geometry.attributes.normal;
-  if (!na) return null;
-  const nm = new THREE.Matrix3().getNormalMatrix(m.matrixWorld);
-  const v = new THREE.Vector3(), out = new Array(na.count * 3);
-  for (let i = 0; i < na.count; i++){
-    v.fromBufferAttribute(na, i).applyMatrix3(nm).normalize();
-    out[i*3] = f4(v.x); out[i*3+1] = f4(v.y); out[i*3+2] = f4(v.z);
-  }
-  return out;
-}
-// 現場に在るものだけを集める。名前はオブジェクトの一覧と揃える
-function fbxMeshes(){
-  const out = [];
-  const walk = (root, label) => root.traverseVisible(n => {
-    if (!n.isMesh || n.isLine || n.isPoints) return;
-    if (n.userData.plan || n.userData.noHit || n.userData.grid) return;
-    const mat = Array.isArray(n.material) ? n.material[0] : n.material;
-    if (!mat || mat.opacity === 0) return;
-    if (!n.geometry?.attributes?.position?.count) return;
-    out.push({mesh:n, label});
-  });
-  if (!state.studio.hidden) walk(studioGroup, 'Studio');
-  for (const it of state.items){
-    if (it.hidden || it.type === 'splat') continue;   // 3DGS は点の集まりなので FBX にできない
-    const o = itemObjs.get(it.id);
-    if (o?.group) walk(o.group, itemName(it));
-  }
-  return out;
-}
-// **Lcl Rotation はアプリの中の姿勢そのまま**（-Z を向いた形）で書く。
-// FBX のカメラは素で +X を向いているので、そのぶんは `PostRotation` に預ける
-// （実効の回転は R = Lcl * Post⁻¹。Post = Y まわり -90° なら +X が -Z に向く）。
-// three の FBXLoader は PostRotation を読まないので、読み返しはアプリと一致する。
-// **C4D 側での向きは実機で確かめること** — ここでは確かめようがない。
-const FBX_CAM_POST = [0, -90, 0];
-function fbxCameraRot(it){
-  const q = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(THREE.MathUtils.degToRad(it.pitch || 0),
-                    THREE.MathUtils.degToRad((it.rot || 0) + 180),
-                    THREE.MathUtils.degToRad(it.roll || 0), 'YXZ'));
-  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
-  return [f4(THREE.MathUtils.radToDeg(e.x)), f4(THREE.MathUtils.radToDeg(e.y)), f4(THREE.MathUtils.radToDeg(e.z))];
-}
-async function buildFBX(){
-  fbxUid = 1000000;
-  texBytes.clear();
-  const meshes = fbxMeshes();
-  const cameras = state.items.filter(i => i.type === 'camera' && !i.hidden);
-  const objs = [], conns = [];
-  const texNodes = new Map();                        // 同じ絵は 1 つの Video で共有する
-  const seen = new Map();
-  const uniq = base => { const n = (seen.get(base) || 0) + 1; seen.set(base, n); return n === 1 ? base : `${base} ${n}`; };
-  for (const {mesh, label} of meshes){
-    const name = uniq(label), gid = fbxId(), mid = fbxId(), matid = fbxId();
-    const V = fbxVertices(mesh), N = fbxNormals(mesh), U = fbxUVs(mesh), idx = mesh.geometry.index;
-    const tri = (idx ? idx.count : mesh.geometry.attributes.position.count) / 3;
-    const pvi = new Array(tri * 3);
-    for (let t = 0; t < tri; t++){
-      const a = idx ? idx.getX(t*3) : t*3, b = idx ? idx.getX(t*3+1) : t*3+1, c = idx ? idx.getX(t*3+2) : t*3+2;
-      pvi[t*3] = a; pvi[t*3+1] = b; pvi[t*3+2] = ~c;    // 最後の頂点だけビット反転で面の終わり
-    }
-    let g = `\tGeometry: ${gid}, ${fbxName('Geometry', name, 'Mesh')} {\n\t\tGeometryVersion: 124\n`;
-    g += `\t\tVertices: *${V.length} {\n\t\t\ta: ${V.join(',')}\n\t\t}\n`;
-    g += `\t\tPolygonVertexIndex: *${pvi.length} {\n\t\t\ta: ${pvi.join(',')}\n\t\t}\n`;
-    if (N) g += `\t\tLayerElementNormal: 0 {\n\t\t\tVersion: 101\n\t\t\tName: ""\n\t\t\tMappingInformationType: "ByVertice"\n\t\t\tReferenceInformationType: "Direct"\n\t\t\tNormals: *${N.length} {\n\t\t\t\ta: ${N.join(',')}\n\t\t\t}\n\t\t}\n`;
-    if (U) g += `\t\tLayerElementUV: 0 {\n\t\t\tVersion: 101\n\t\t\tName: "map1"\n\t\t\tMappingInformationType: "ByVertice"\n\t\t\tReferenceInformationType: "Direct"\n\t\t\tUV: *${U.length} {\n\t\t\t\ta: ${U.join(',')}\n\t\t\t}\n\t\t}\n`;
-    g += `\t\tLayerElementMaterial: 0 {\n\t\t\tVersion: 101\n\t\t\tName: ""\n\t\t\tMappingInformationType: "AllSame"\n\t\t\tReferenceInformationType: "IndexToDirect"\n\t\t\tMaterials: *1 {\n\t\t\t\ta: 0\n\t\t\t}\n\t\t}\n`;
-    g += `\t\tLayer: 0 {\n\t\t\tVersion: 100\n`;
-    if (N) g += `\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementNormal"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n`;
-    if (U) g += `\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementUV"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n`;
-    g += `\t\t\tLayerElement:  {\n\t\t\t\tType: "LayerElementMaterial"\n\t\t\t\tTypedIndex: 0\n\t\t\t}\n\t\t}\n\t}\n`;
-    objs.push(g);
-    // 頂点はワールドに焼いてあるので、Model 自身は原点に置く
-    objs.push(`\tModel: ${mid}, ${fbxName('Model', name, 'Mesh')} {\n\t\tVersion: 232\n\t\tProperties70:  {\n` +
-      `\t\t\tP: "Lcl Translation", "Lcl Translation", "", "A",0,0,0\n\t\t}\n\t\tShading: T\n\t\tCulling: "CullingOff"\n\t}\n`);
-    const mm = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-    // テクスチャが貼ってあれば、その色は絵のほうが持っている。DiffuseColor を
-    // 白にしておかないと、読み手によっては絵の上からもう一度色が掛かる
-    const tex = (U && mm.map) ? await fbxTexture(mm.map) : null;
-    const col = tex ? new THREE.Color(0xffffff) : (mm.color || new THREE.Color(0xcccccc));
-    objs.push(`\tMaterial: ${matid}, ${fbxName('Material', name, '')} {\n\t\tVersion: 102\n\t\tShadingModel: "lambert"\n\t\tMultiLayer: 0\n\t\tProperties70:  {\n` +
-      `\t\t\tP: "DiffuseColor", "Color", "", "A",${f4(col.r)},${f4(col.g)},${f4(col.b)}\n` +
-      `\t\t\tP: "Opacity", "double", "Number", "",${f4(mm.transparent ? mm.opacity : 1)}\n\t\t}\n\t}\n`);
-    conns.push(`\tC: "OO",${gid},${mid}\n\tC: "OO",${matid},${mid}\n\tC: "OO",${mid},0\n`);
-    // 画像は FBX の中に入らない。**同じ ZIP の textures/ を指す**ので、
-    // .fbx だけ取り出して開くとテクスチャは付かない
-    if (tex){
-      const path = `textures/${tex.name}`;
-      let vid = texNodes.get(tex.name);
-      if (vid === undefined){
-        vid = fbxId(); texNodes.set(tex.name, vid);
-        objs.push(`\tVideo: ${vid}, ${fbxName('Video', tex.name, 'Clip')} {\n\t\tType: "Clip"\n\t\tProperties70:  {\n` +
-          `\t\t\tP: "Path", "KString", "XRefUrl", "", "${path}"\n\t\t}\n` +
-          `\t\tUseMipMap: 0\n\t\tFilename: "${path}"\n\t\tRelativeFilename: "${path}"\n\t}\n`);
-      }
-      const tid = fbxId();
-      objs.push(`\tTexture: ${tid}, ${fbxName('Texture', name, '')} {\n\t\tType: "TextureVideoClip"\n\t\tVersion: 202\n` +
-        `\t\tTextureName: "Texture::${fbxStr(name)}"\n\t\tProperties70:  {\n\t\t\tP: "UVSet", "KString", "", "", "map1"\n\t\t\tP: "UseMaterial", "bool", "", "",1\n\t\t}\n` +
-        `\t\tMedia: "Video::${fbxStr(tex.name)}"\n\t\tFileName: "${path}"\n\t\tRelativeFilename: "${path}"\n` +
-        `\t\tModelUVTranslation: 0,0\n\t\tModelUVScaling: 1,1\n\t\tTexture_Alpha_Source: "None"\n\t\tCropping: 0,0,0,0\n\t}\n`);
-      conns.push(`\tC: "OO",${vid},${tid}\n\tC: "OP",${tid},${matid}, "DiffuseColor"\n`);
-    }
-  }
-  for (const it of cameras){
-    const name = uniq(camName(it)), aid = fbxId(), mid = fbxId();
-    const [rx, ry, rz] = fbxCameraRot(it);
-    const ar = ASPECTS[it.aspect] || 16/9;
-    // 注視点も添える。回転を読まずに向きを決める実装のための保険
-    const fwd = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(
-      THREE.MathUtils.degToRad(it.pitch || 0), THREE.MathUtils.degToRad((it.rot || 0) + 180), 0, 'YXZ'));
-    const look = [f4((it.x + fwd.x)*FBX_SCALE), f4((camY(it) + fwd.y)*FBX_SCALE), f4((it.z + fwd.z)*FBX_SCALE)];
-    const filmW = sensorW(it) / 25.4, filmH = filmW / ar;   // FBX の film はインチ
-    objs.push(`\tNodeAttribute: ${aid}, ${fbxName('NodeAttribute', name, 'Camera')} {\n\t\tProperties70:  {\n` +
-      `\t\t\tP: "ApertureMode", "enum", "", "",3\n` +           // 3 = 焦点距離で決める
-      `\t\t\tP: "FocalLength", "double", "Number", "A",${f4(it.focal)}\n` +
-      `\t\t\tP: "FilmWidth", "double", "Number", "",${f4(filmW)}\n` +
-      `\t\t\tP: "FilmHeight", "double", "Number", "",${f4(filmH)}\n` +
-      `\t\t\tP: "FilmAspectRatio", "double", "Number", "",${f4(ar)}\n` +
-      // **綴りは AspectWidth / AspectHeight**。AspectW と書くと読み手は画面の
-      // 縦横比で代用してしまい、画角がまるで違う値になる（実際に踏んだ）
-      `\t\t\tP: "AspectWidth", "double", "Number", "",${f4(ar * 1000)}\n` +
-      `\t\t\tP: "AspectHeight", "double", "Number", "",1000\n` +
-      `\t\t\tP: "FieldOfView", "FieldOfView", "", "A",${f4(THREE.MathUtils.radToDeg(hfov(it)))}\n` +
-      `\t\t\tP: "NearPlane", "double", "Number", "",${f4(0.05 * FBX_SCALE)}\n` +
-      `\t\t\tP: "FarPlane", "double", "Number", "",${f4(200 * FBX_SCALE)}\n` +
-      `\t\t\tP: "Position", "Vector", "", "A",${f4(it.x*FBX_SCALE)},${f4(camY(it)*FBX_SCALE)},${f4(it.z*FBX_SCALE)}\n` +
-      `\t\t\tP: "InterestPosition", "Vector", "", "A",${look.join(',')}\n\t\t}\n\t\tTypeFlags: "Camera"\n\t\tGeometryVersion: 124\n\t}\n`);
-    objs.push(`\tModel: ${mid}, ${fbxName('Model', name, 'Camera')} {\n\t\tVersion: 232\n\t\tProperties70:  {\n` +
-      `\t\t\tP: "RotationOrder", "enum", "", "",0\n` +
-      `\t\t\tP: "RotationActive", "bool", "", "",1\n` +
-      `\t\t\tP: "PostRotation", "Vector3D", "Vector", "",${FBX_CAM_POST.join(',')}\n` +
-      `\t\t\tP: "Lcl Translation", "Lcl Translation", "", "A",${f4(it.x*FBX_SCALE)},${f4(camY(it)*FBX_SCALE)},${f4(it.z*FBX_SCALE)}\n` +
-      `\t\t\tP: "Lcl Rotation", "Lcl Rotation", "", "A",${rx},${ry},${rz}\n\t\t}\n\t\tShading: Y\n\t\tCulling: "CullingOff"\n\t}\n`);
-    conns.push(`\tC: "OO",${aid},${mid}\n\tC: "OO",${mid},0\n`);
-  }
-  const stamp = new Date().toISOString().replace('T',' ').slice(0,19);
-  const head = `; FBX 7.4.0 project file\n; Studio Planner\n\nFBXHeaderExtension:  {\n\tFBXHeaderVersion: 1003\n\tFBXVersion: 7400\n\tCreator: "Studio Planner"\n\tCreationTimeStamp:  {\n\t\tVersion: 1000\n\t}\n\tComment: "${stamp}"\n}\n\n` +
-    `GlobalSettings:  {\n\tVersion: 1000\n\tProperties70:  {\n\t\tP: "UpAxis", "int", "Integer", "",1\n\t\tP: "UpAxisSign", "int", "Integer", "",1\n` +
-    `\t\tP: "FrontAxis", "int", "Integer", "",2\n\t\tP: "FrontAxisSign", "int", "Integer", "",1\n\t\tP: "CoordAxis", "int", "Integer", "",0\n\t\tP: "CoordAxisSign", "int", "Integer", "",1\n` +
-    `\t\tP: "UnitScaleFactor", "double", "Number", "",100\n\t}\n}\n\n`;
-  const defs = `Definitions:  {\n\tVersion: 100\n\tCount: ${meshes.length*3 + cameras.length*2 + texBytes.size}\n` +
-    `\tObjectType: "Geometry" {\n\t\tCount: ${meshes.length}\n\t}\n\tObjectType: "Model" {\n\t\tCount: ${meshes.length + cameras.length}\n\t}\n` +
-    `\tObjectType: "Material" {\n\t\tCount: ${meshes.length}\n\t}\n\tObjectType: "NodeAttribute" {\n\t\tCount: ${cameras.length}\n\t}\n` +
-    `\tObjectType: "Video" {\n\t\tCount: ${texNodes.size}\n\t}\n\tObjectType: "Texture" {\n\t\tCount: ${texNodes.size}\n\t}\n}\n\n`;
-  return {text: head + defs + `Objects:  {\n${objs.join('')}}\n\nConnections:  {\n${conns.join('')}}\n`,
-          textures: [...texBytes.values()],
-          meshes: meshes.length, cameras: cameras.length,
-          splats: state.items.filter(i => i.type === 'splat' && !i.hidden).length};
-}
 // 3DGS は点の集まりなので、どちらの形でも入らない。黙って落とすと現場で気づけない
 const exportNote = o => `${o.meshes} 個と カメラ ${o.cameras} 台` + (o.splats ? '（3DGS は入りません）' : '');
-document.getElementById('fbx').addEventListener('click', async () => {
-  const btn = document.getElementById('fbx');
-  btn.disabled = true;
-  try {
-    const out = await buildFBX();
-    if (!out.meshes && !out.cameras){ toast('書き出すものがありません'); return; }
-    const name = projectName();
-    // **FBX は画像を中に持てない**ので、.fbx と textures/ を 1 つの zip にまとめる
-    const files = [{name: `${name}.fbx`, data: new TextEncoder().encode(out.text)},
-                   ...out.textures.map(t => ({name: `textures/${t.name}`, data: t.data}))];
-    await saveFile(`${name}.zip`, zipStore(files), 'application/zip');
-    toast(`${exportNote(out)}／テクスチャ ${out.textures.length} 枚`);
-  } catch(e){ console.warn('fbx failed', e); toast('書き出せませんでした'); }
-  finally { btn.disabled = false; }
-});
 document.getElementById('glb').addEventListener('click', async () => {
   const btn = document.getElementById('glb');
   btn.disabled = true;
   try {
-    const buf = await buildGLB();
-    const facts = {meshes: fbxMeshes().length, cameras: state.items.filter(i => i.type === 'camera' && !i.hidden).length,
-                   splats: state.items.filter(i => i.type === 'splat' && !i.hidden).length};
-    await saveFile(projectName() + '.glb', new Blob([buf], {type:'model/gltf-binary'}), 'model/gltf-binary');
-    toast(exportNote(facts));
+    const out = await buildGLB();
+    if (!out.meshes && !out.cameras){ toast('書き出すものがありません'); return; }
+    await saveFile(projectName() + '.glb', new Blob([out.buf], {type:'model/gltf-binary'}), 'model/gltf-binary');
+    toast(exportNote(out));
   } catch(e){ console.warn('glb failed', e); toast('書き出せませんでした'); }
   finally { btn.disabled = false; }
 });
@@ -4803,7 +4582,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, fbx: () => buildFBX(), glb: () => buildGLB(), zip: zipStore};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB()};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
