@@ -1360,7 +1360,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 説明はこの 2 行だけ。PDF の下の「押したあとの画面で選べます」は、押せば分かるので外した
   const hints = await t.page.$$eval('[data-sec="share"] .hint', n => n.map(x => x.textContent.trim()));
   ok('and the share tab carries no other blurb',
-     hints.join('|') === '※外部3Dデータは含まれません。|外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。',
+     hints.join('|') === '※外部3Dデータは含まれません。|外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。',
      hints.join('|'));
   // ＋ の取り込みは、名前と 3 行だけ
   await t.page.click('#addfab'); await t.page.waitForTimeout(300);
