@@ -2237,7 +2237,11 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await set('kind', 'soft');
   const soft = await lamp();
   ok('picking the softbox widens the beam and softens the edge',
-     soft.deg === 82 && soft.pen === 0.9, JSON.stringify(soft));
+     soft.deg === 118 && soft.pen === 1, JSON.stringify(soft));
+  // **ソフトボックスは絞れる器材ではない。** 広がりとボケのつまみを出すと嘘になる
+  const softPanel = await t.page.textContent('#selbody');
+  ok('and a softbox is not offered a focus knob it does not have',
+     !softPanel.includes('広がり') && !softPanel.includes('ボケ'), softPanel.slice(0, 140));
   await set('kind', 'spot');
   const spot = await lamp();
   ok('and going back to the spot narrows it again', spot.deg === 28 && spot.pen === 0.25, JSON.stringify(spot));
@@ -2256,6 +2260,26 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
      JSON.stringify(angled.aim));
   // 弧はカメラの ±45 に対してライトは ±90。作り直せるようにしてあるので、
   // 実際にどれだけ開いているかをジオメトリから読む
+  // **チューブは線光源。コーンで出すとただのスポットになる**（寺村さんの指摘）
+  for (const [kind, label] of [['tube','チューブ'], ['lantern','中華提灯']]){
+    await set('kind', kind);
+    const l = await lamp();
+    ok(`a ${kind} lights all round instead of in a cone`, l.omni && l.deg === null, JSON.stringify(l));
+    const pn = await t.page.textContent('#selbody');
+    ok(`and offers no tilt, spread or softness for it`,
+       !pn.includes('チルト') && !pn.includes('広がり') && !pn.includes('ボケ'), pn.slice(0, 160));
+    if (kind === 'lantern') ok('a round lantern is not even offered a direction', !pn.includes('向き'));
+    else ok('a tube still turns, because the bar itself has a direction', pn.includes('向き'));
+  }
+  // LED パネルも絞れない
+  await set('kind', 'panel');
+  const panelTxt = await t.page.textContent('#selbody');
+  ok('an LED panel tilts but cannot be focused',
+     panelTxt.includes('チルト') && !panelTxt.includes('広がり') && !panelTxt.includes('ボケ'), panelTxt.slice(0, 160));
+  await set('kind', 'spot');
+  const spotTxt = await t.page.textContent('#selbody');
+  ok('only the spot gets the focus knobs', spotTxt.includes('広がり') && spotTxt.includes('ボケ'));
+
   const arc = await t.page.evaluate(() => {
     const sp = window.__sp, g = sp.tilt(); let a = null;
     g.traverse(n => { if (n.geometry?.type === 'TorusGeometry' && n.geometry.parameters.arc) a = +(n.geometry.parameters.arc*180/Math.PI).toFixed(0); });

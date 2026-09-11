@@ -364,7 +364,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.19.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.19.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -696,7 +696,7 @@ const tiltGiz = new THREE.Group(); scene.add(tiltGiz); tiltGiz.visible = false;
 const TILT_R = 0.55, TILT_MAX = 45, LIGHT_TILT_MAX = 90;
 // チルトの弧を持てるのはカメラとライトだけ。**振り幅が違う** — カメラは ±45 だが、
 // ライトは真上から当てたいので ±90。弧は作り直せるようにして、選んだものに合わせる
-const hasTilt = it => !!it && (it.type === 'camera' || it.type === 'light');
+const hasTilt = it => !!it && (it.type === 'camera' || (it.type === 'light' && lightHas(it, 'tilt')));
 const tiltMax = it => it && it.type === 'light' ? LIGHT_TILT_MAX : TILT_MAX;
 let tiltArcMax = 0;
 const tiltArc = new THREE.Group(); tiltGiz.add(tiltArc);
@@ -1747,15 +1747,22 @@ function buildFrustum(ci){
 // 型は 5 つ。`+` のボタンは 1 つ（スポット）だけで、型は設定パネルで変える
 // （寺村さんの指示） — 型の数だけボタンを並べると追加パネルが煩雑になる。
 const LIGHT_TYPES = [
-  // id, 名前, 既定の広がり(°), 既定のボケ, 全方位か
-  ['spot',    'スポット',     28,  0.25, false],
-  ['panel',   'LEDパネル',    70,  0.60, false],
-  ['soft',    'ソフトボックス', 82, 0.90, false],
-  ['tube',    'チューブ',      96, 0.85, false],
-  ['lantern', '中華提灯',     180, 1.00, true ],
+  // id, 名前, 広がり(°), ボケ, 全方位か, つまみ
+  // **広がりとボケを出すのはスポットだけ。** LED パネルもソフトボックスも、
+  // 絞ったり広げたりする仕組みを持っていない器材なので、つまみを出すと嘘になる。
+  // **チューブと提灯は全方位。** チューブは線光源で、コーンで出すと
+  // ただのスポットライトになってしまう（寺村さんの指摘）。狙う向きが無いので
+  // チルトも出さない（提灯は丸いので「向き」も出さない）。
+  ['spot',    'スポット',      28, 0.25, false, {spread:1, soft:1, tilt:1, rot:1}],
+  ['panel',   'LEDパネル',    100, 0.72, false, {tilt:1, rot:1}],
+  ['soft',    'ソフトボックス',118, 1.00, false, {tilt:1, rot:1}],
+  ['tube',    'チューブ',        0, 0,    true,  {rot:1}],
+  ['lantern', '中華提灯',        0, 0,    true,  {}],
 ];
-const LIGHT_BY_KIND = Object.fromEntries(LIGHT_TYPES.map(t => [t[0], {kind:t[0], label:t[1], spread:t[2], soft:t[3], omni:t[4]}]));
+const LIGHT_BY_KIND = Object.fromEntries(LIGHT_TYPES.map(t =>
+  [t[0], {kind:t[0], label:t[1], spread:t[2], soft:t[3], omni:t[4], ui:t[5]}]));
 const lightType = it => LIGHT_BY_KIND[it.kind] || LIGHT_BY_KIND.spot;
+const lightHas = (it, k) => !!lightType(it).ui[k];
 const LIGHT_MOUNTS = [['stand','スタンド'],['boom','ブーム'],['hang','吊り']];
 // ゼラと色温度。**演色は合わせていない**ので、あくまで見分けるための色
 const LIGHT_GELS = [['#fff4e2','タングステン'],['#ffffff','デーライト'],['#bcd8ff','CTB'],
@@ -1769,54 +1776,90 @@ const lightSoft = it => it.soft == null ? lightType(it).soft : clamp(+it.soft, 0
 const lightGel = it => it.color || '#fff4e2';
 const lightRange = it => 6 + lightPower(it) * 2;          // 届く距離。強いほど遠くまで
 const lightMount = it => LIGHT_MOUNTS.some(m => m[0] === it.mount) ? it.mount : 'stand';
+// チルトを持たない器材は、古い値が残っていても水平として扱う
+const lightPitch = it => lightHas(it, 'tilt') ? (+it.pitch || 0) : 0;
 const BOOM_BACK = 1.15;                                    // ブームの根元が頭から下がる距離
 
-// 器材の形。**頭は必ず (0, y, 0) に置き、狙いはローカル +Z。** ブームでも吊りでも
-// 頭の位置は動かさない（図面で意味を持つのは頭の位置なので、そこを動かすと
-// 上面図の記号もマニピュレータも全部ずれる）。支えのほうを頭からぶら下げる
-function lightHead(it, lit){
+// ---- 骨組みの部品 ----
+// **端から端へ渡す棒。** 中心と長さで置くと、繋ぎ目が必ずどこかで空く
+// （ブームの腕と支柱が 30 cm 離れていた。寺村さんの指摘）
+const vec = (x, y, z) => new THREE.Vector3(x, y, z);
+function strut(a, b, r, m){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  if (len < 1e-3) return null;
+  const s = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), m));
+  s.position.copy(a).add(b).multiplyScalar(0.5);
+  s.quaternion.setFromUnitVectors(vec(0,1,0), d.divideScalar(len));
+  return s;
+}
+const addStrut = (g, a, b, r, m) => { const s = strut(a, b, r, m); if (s) g.add(s); return s; };
+// 三脚。**ハブ（支柱の途中）から足へ張る。** 以前は棒の中心を外へずらして
+// 回していたので、**上が開いて下がすぼんだ逆さの脚**になっていた（寺村さんの指摘）
+function tripod(g, z, hubY, m, spread = 0.30){
+  const hub = vec(0, hubY, z);
+  for (let i = 0; i < 3; i++){
+    const a = i / 3 * Math.PI * 2 + Math.PI;
+    addStrut(g, hub, vec(Math.sin(a) * spread, 0, z + Math.cos(a) * spread), 0.013, m);
+  }
+}
+// ヨーク。**頭と一緒には傾かない**（実物も、ヨークは残って中のランプが回る）。
+// drop が負なら上に付く＝吊り。支柱が取り付く高さを返す
+function yoke(g, y, r, drop, m){
+  const lo = y - drop;
+  for (const s of [-1, 1]) addStrut(g, vec(s*r, y + (drop > 0 ? 0.03 : -0.03), 0), vec(s*r, lo, 0), 0.016, m);
+  addStrut(g, vec(-r, lo, 0), vec(r, lo, 0), 0.016, m);
+  return lo;
+}
+
+// ---- 器材の頭 ----
+// **頭は必ず (0, y, 0)、狙いはローカル +Z。** ブームでも吊りでも頭の位置は
+// 動かさない（図面で意味を持つのは頭の位置なので、そこを動かすと上面図の
+// 記号もマニピュレータも全部ずれる）。支えのほうを頭からぶら下げる
+function lightHead(it){
   const t = lightType(it), g = new THREE.Group();
   const body = mat(0x3a3e46, {roughness:0.55});
   const face = new THREE.MeshStandardMaterial({color:0xf6f2ea, emissive:new THREE.Color(lightGel(it)),
     emissiveIntensity: it.hidden ? 0 : 0.30 + lightPower(it) * 0.06, roughness:0.9});
   if (t.kind === 'spot'){
-    const barrel = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.135, 0.30, 20), body));
-    barrel.rotation.x = Math.PI/2; g.add(barrel);
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.115, 20), face); lens.position.z = 0.152; g.add(lens);
-    // バーンドア 4 枚。開き具合は広がりに連れる
-    const open = 0.5 + lightSpread(it) / 180 * 0.7;
-    for (const [ax, sgn] of [['x',1],['x',-1],['y',1],['y',-1]]){
-      const d = shadowed(new THREE.Mesh(new THREE.BoxGeometry(ax === 'x' ? 0.012 : 0.30, ax === 'x' ? 0.30 : 0.012, 0.19), body));
-      d.position[ax] = sgn * 0.135; d.position.z = 0.24;
-      d.rotation[ax === 'x' ? 'y' : 'x'] = (ax === 'x' ? -sgn : sgn) * open;
-      g.add(d);
+    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.30, 20).rotateX(Math.PI/2), body)));
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 20), face); lens.position.z = 0.151; g.add(lens);
+    // バーンドア 4 枚。**蝶番はレンズの縁に置き、板はそこから前へ出す。**
+    // 以前は板の中心を前に置いて中心まわりに回していたので、羽根が宙に浮き、
+    // 角度もばらばらに見えていた（寺村さんの指摘）
+    const open = 0.34 + lightSpread(it) / 180 * 0.55, R = 0.127, LEN = 0.17;
+    for (const [ax, sgn] of [['y',1],['y',-1],['x',1],['x',-1]]){
+      const hinge = new THREE.Group();
+      hinge.position[ax] = sgn * R; hinge.position.z = 0.155;
+      hinge.rotation[ax === 'y' ? 'x' : 'y'] = (ax === 'y' ? -sgn : sgn) * open;
+      const flap = shadowed(new THREE.Mesh(ax === 'y' ? new THREE.BoxGeometry(2*R, 0.006, LEN)
+                                                      : new THREE.BoxGeometry(0.006, 2*R, LEN), body));
+      flap.position.z = LEN/2; hinge.add(flap); g.add(hinge);
     }
   } else if (t.kind === 'panel'){
-    const back = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.07), body)); g.add(back);
+    g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.07), body)));
     const f = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.32), face); f.position.z = 0.037; g.add(f);
   } else if (t.kind === 'soft'){
-    // 後ろが小さく前が大きい四角錐台。radialSegments 4 を 45° 回して四角にする
-    const box = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.10, 0.52, 4), mat(0x2a2d33, {roughness:0.9})));
-    box.rotation.set(Math.PI/2, 0, Math.PI/4); box.position.z = 0.10; g.add(box);
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), face); f.position.z = 0.363; g.add(f);
+    // 四角錐台。**radialSegments 4 の円柱を「ジオメトリごと」回して四角にする。**
+    // メッシュ側で 2 軸のオイラーを重ねると順序で形が崩れる（実際に崩れていた）
+    const R = 0.40, BACK = 0.09, DEP = 0.50, Z0 = -0.06;
+    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(R, BACK, DEP, 4, 1)
+      .rotateY(Math.PI/4)              // 角を上下左右へ。断面が正方形になる
+      .rotateX(Math.PI/2)              // 軸を +Z へ（太いほうが前）
+      .translate(0, 0, Z0 + DEP/2), mat(0x2a2d33, {roughness:0.95}))));
+    const side = R * Math.SQRT2;       // 外接円の半径 R → 一辺は R√2
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(side, side), face);
+    f.position.z = Z0 + DEP + 0.002; g.add(f);
   } else if (t.kind === 'tube'){
-    const tube = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 1.15, 14), face));
-    tube.rotation.z = Math.PI/2; g.add(tube);
+    const L = 1.15;
+    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, L, 14).rotateZ(Math.PI/2), face)));
     for (const s2 of [-1, 1]){
-      const cap = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 14), body));
-      cap.rotation.z = Math.PI/2; cap.position.x = s2 * 0.60; g.add(cap);
+      const cap = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 14).rotateZ(Math.PI/2), body));
+      cap.position.x = s2 * L/2; g.add(cap);
     }
+    const clamp2 = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.07), body)); g.add(clamp2);
   } else {                                                  // 中華提灯
     const ball = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 14), face));
     ball.scale.y = 0.86; g.add(ball);
-  }
-  // ヨーク（提灯とチューブには無い）
-  if (t.kind === 'spot' || t.kind === 'panel' || t.kind === 'soft'){
-    const r = t.kind === 'soft' ? 0.24 : 0.21;
-    for (const s2 of [-1, 1]){
-      const arm = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.30, 8), body));
-      arm.position.set(s2 * r, -0.10, 0); g.add(arm);
-    }
   }
   return g;
 }
@@ -1825,51 +1868,45 @@ function buildLight(it){
   const y = it.y, mount = lightMount(it);
   // 頭。チルトはここで掛ける（狙いはローカル +Z なので、下向きが +X まわりの正）
   const head = new THREE.Group();
-  head.position.y = y; head.rotation.x = -THREE.MathUtils.degToRad(it.pitch || 0);
+  head.position.y = y; head.rotation.x = -THREE.MathUtils.degToRad(lightPitch(it));
   head.add(lightHead(it));
   g.add(head);
-  const pole = (h, yc, x = 0, z = 0) => {
-    const m = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.030, h, 10), body));
-    m.position.set(x, yc, z); return m;
-  };
+  // 支柱（吊りならパイプ）が取り付く高さ。**吊りではヨークが頭の上に付く**
+  const up = mount === 'hang' ? -1 : 1;
+  const top = t.kind === 'tube'    ? y
+            : t.kind === 'lantern' ? y - up * 0.22
+            : yoke(g, y, t.kind === 'soft' ? 0.26 : 0.20, up * 0.24, body);
   if (mount === 'hang'){
-    // 吊り。天井から落ちてくるパイプ。床には何も置かない
-    const drop = Math.max(0.25, state.studio.h - y);
-    g.add(pole(drop, y + drop/2));
+    const ceil = Math.max(top + 0.25, state.studio.h);
+    addStrut(g, vec(0, top, 0), vec(0, ceil, 0), 0.024, body);
   } else {
-    const bx = 0, bz = mount === 'boom' ? -BOOM_BACK : 0;   // ブームは根元が後ろに下がる
+    const bz = mount === 'boom' ? -BOOM_BACK : 0;
     if (mount === 'boom'){
-      const arm = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.024, BOOM_BACK, 10), body));
-      arm.rotation.x = Math.PI/2; arm.position.set(0, y - 0.06, -BOOM_BACK/2); g.add(arm);
-      g.add(pole(y - 0.36, (y - 0.36)/2, bx, bz));
-    } else {
-      g.add(pole(y, y/2, bx, bz));
+      // **腕と支柱は必ず同じ高さで合わせる。** 以前は 30 cm ずれていて、
+      // 関節が宙に浮いたまま繋がっていなかった（寺村さんの指摘）
+      addStrut(g, vec(0, top, 0), vec(0, top, bz), 0.021, body);
+      const knuckle = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), body));
+      knuckle.position.set(0, top, bz); g.add(knuckle);
     }
-    // 三脚。現場では脚が場所を食うので、図面にも出す
-    for (let i = 0; i < 3; i++){
-      const a = i / 3 * Math.PI * 2 + Math.PI;
-      const leg = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.66, 8), body));
-      leg.position.set(bx + Math.sin(a) * 0.17, 0.30, bz + Math.cos(a) * 0.17);
-      leg.rotation.set(Math.cos(a) * 0.48, 0, -Math.sin(a) * 0.48);
-      g.add(leg);
-    }
-    g.add(planOnly(footDisc(0.34, COLORS.light).translateX(bx).translateZ(bz)));
+    if (top > 0.14) addStrut(g, vec(0, 0.05, bz), vec(0, top, bz), 0.026, body);
+    tripod(g, bz, Math.min(0.62, Math.max(0.18, top - 0.06)), body);
+    g.add(planOnly(footDisc(0.34, COLORS.light).translateZ(bz)));
   }
   // 上面図の記号。**実際の広がりと届く距離で描く**（以前は 4 m の固定で、
   // スライダーと食い違っていた）。全方位のものはくさびにならないので輪で出す
   if (t.omni){
-    const ring = new THREE.Mesh(new THREE.RingGeometry(lightRange(it)*0.45, lightRange(it)*0.47, 40),
+    const r = Math.min(lightRange(it) * 0.32, Math.max(state.studio.w, state.studio.d) * 0.32);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r, r * 1.045, 44),
       new THREE.MeshBasicMaterial({color:0xe8c547, transparent:true, opacity:0.35, depthWrite:false}));
     ring.rotation.x = -Math.PI/2; ring.position.y = 0.005;
     g.add(planOnly(ring));
   } else {
     const half = THREE.MathUtils.degToRad(lightSpread(it)) / 2;
-    // 下を向いているぶんだけ、床に届く手前で切れる
     // **くさびは「光の芯が床に当たるところ」まで伸ばす。** 届く距離をそのまま
     // 描くと部屋からはみ出して図面を飲み込むし、チルトを変えても長さが変わらず
     // 記号として何も言っていなかった。下を向けるほど短くなる
-    const p = THREE.MathUtils.degToRad(it.pitch || 0);
-    const onFloor = p < -0.02 ? it.y / Math.tan(-p) : Infinity;
+    const p = THREE.MathUtils.degToRad(lightPitch(it));
+    const onFloor = p < -0.02 ? y / Math.tan(-p) : Infinity;
     const reach = Math.min(lightRange(it), onFloor, Math.max(4, Math.max(state.studio.w, state.studio.d) * 0.7));
     g.add(planOnly(wedge(half, reach, 0xe8c547, 0.12)));
   }
@@ -1991,7 +2028,7 @@ const lightObjs = new Map();          // item id -> {omni, light, target}
 // 全方位（中華提灯）は影を 6 面ぶん描くことになるので、はじめから落とさない
 const LIGHT_SHADOW_MAX = 4;
 function lightAim(it){
-  const r = THREE.MathUtils.degToRad(it.rot), p = THREE.MathUtils.degToRad(it.pitch || 0), c = Math.cos(p);
+  const r = THREE.MathUtils.degToRad(it.rot), p = THREE.MathUtils.degToRad(lightPitch(it)), c = Math.cos(p);
   return new THREE.Vector3(Math.sin(r) * c, Math.sin(p), Math.cos(r) * c);
 }
 function syncLights(){
@@ -3370,12 +3407,11 @@ function renderSel(){
     h += `<h2>ライトの種類</h2>` + btns('kind', LIGHT_TYPES.map(([k, label]) => [k, label]), t.kind);
     h += `<h2>載せ方</h2>` + btns('mount', LIGHT_MOUNTS, lightMount(it));
     h += range('y','高さ',0.3,Math.max(5, state.studio.h),0.05,it.y,'m');
-    h += range('pitch','チルト',-LIGHT_TILT_MAX,LIGHT_TILT_MAX,1,a1(it.pitch || 0),'°');
-    // 全方位のものは向きも広がりも持たない
-    if (!t.omni){
-      h += range('spread','広がり',LIGHT_SPREAD[0],LIGHT_SPREAD[1],1,lightSpread(it),'°');
-      h += range('soft','ボケ',0,1,0.05,lightSoft(it),'');
-    }
+    // **その器材が持っていないつまみは出さない。** LED パネルもソフトボックスも
+    // 絞る仕組みを持たないし、チューブと提灯は全方位なので狙う向きが無い
+    if (lightHas(it, 'tilt')) h += range('pitch','チルト',-LIGHT_TILT_MAX,LIGHT_TILT_MAX,1,a1(lightPitch(it)),'°');
+    if (lightHas(it, 'spread')) h += range('spread','広がり',LIGHT_SPREAD[0],LIGHT_SPREAD[1],1,lightSpread(it),'°');
+    if (lightHas(it, 'soft')) h += range('soft','ボケ',0,1,0.05,lightSoft(it),'');
     h += range('power','強さ',LIGHT_POWER[0],LIGHT_POWER[1],1,lightPower(it),'');
     h += `<p class="hint">強さは相対の目盛りです（単位はありません）。届く範囲 約 ${fmt(lightRange(it))} m。</p>`;
     h += `<h2>色</h2>` + colors(LIGHT_GELS, lightGel(it).toLowerCase());
@@ -3396,7 +3432,9 @@ function renderSel(){
     h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
       + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
                               : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
-    if (it.type !== 'camera') h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
+    // 提灯は丸いので向きを持たない（回しても何も変わらない）
+    if (it.type !== 'camera' && !(it.type === 'light' && !lightHas(it, 'rot')))
+      h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
   }
   // 服装はポーズの上（寺村さんの指示）。同じ地域・同じ種別の別の服に着替えるだけで、
   // 誰かは変わらない。子どもはスーツを持っていないので、そのときは出さない
