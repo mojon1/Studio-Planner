@@ -362,7 +362,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.17.1<br>© 2026 Taichi Teramura</p>
+        <p class="colophon">Studio Planner v1.17.2<br>© 2026 Taichi Teramura</p>
       </div>
     </div>
   </div>
@@ -2028,7 +2028,20 @@ function centerView(){
 function syncRecenter(){
   document.getElementById('recenter').classList.toggle('on', mainView !== 'cam' && panOffset() > 0.02);
 }
+// 3DGS の並べ替えは**本体のビューのカメラだけが持つ**。小窓（とファインダーの
+// 別ウィンドウ）は同じ 1 フレームの中でもう一度描かれるので、autoUpdate を
+// 切らないと 2 つのカメラが毎フレーム並べ替えを取り合う。Spark は「前に並べた
+// カメラから動いたか」で並べ直すかを決めているので、視点が 2 つ交互に来ると
+// **どちらの回も必ず「動いた」になり、並べ替えが終わらない**。終わるたびに
+// onDirty で次のフレームを呼ぶため描画も止まらず、絵は 2 つの並び順のあいだで
+// 揺れ続ける（「小窓を出すと 3DGS がちらつく」の正体）。鏡の映り込みと同じ手当て。
 function renderView(view, rect, isMain){
+  const wasAuto = sparkRenderer?.autoUpdate;
+  if (sparkRenderer && !isMain) sparkRenderer.autoUpdate = false;
+  try { drawView(view, rect, isMain); }
+  finally { if (sparkRenderer) sparkRenderer.autoUpdate = wasAuto; }
+}
+function drawView(view, rect, isMain){
   const ci = camItem();
   syncGrid();                                    // 置いたものが変わればグリッドの広さも変わる
   itemsGroup.traverse(n => {

@@ -1814,6 +1814,60 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 28b. 3DGS ＋ カメラ小窓：並べ替えが 2 つのカメラで取り合いにならない -------------
+// 小窓は本体と同じ 1 フレームの中でもう一度描かれる。Spark は「前に並べたカメラから
+// 動いたか」で並べ直すかを決めるので、視点が 2 つ交互に来ると**どちらの回も必ず
+// 「動いた」になり、並べ替えが終わらない**。終わるたびに onDirty で次のフレームが
+// 呼ばれるため描画も止まらず、絵は 2 つの並び順のあいだで揺れ続ける（寺村さんの
+// 「小窓を出すと 3DGS がちらつく」）。**手を離せば止まる**ことで見る。
+{
+  const t = await open('splat-pip', { width: 1200, height: 800 });
+  const ply = `${OUT}/scan-pip.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.evaluate(() => window.__sp.select(null));
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(4000);
+  // 小窓が出ていること自体が前提。出ていなければこのテストは何も見ていない
+  ok('the camera window is up while a scan is on stage',
+     await t.page.evaluate(() => !document.getElementById('pip').hidden));
+  // 何も触らずに 2 秒あけて 2 回数える。落ち着いていれば描画は 1 枚も増えない
+  const frames = () => t.page.evaluate(() => window.__sp.renderer.info.render.frame);
+  await t.page.waitForTimeout(2500);
+  const a = await frames(); await t.page.waitForTimeout(2000); const b = await frames();
+  ok('the sort settles instead of the two cameras fighting over it', b - a <= 4, `${b - a} draws in 2 s`);
+  ok('and nothing is left mid-sort', await t.page.evaluate(() => {
+    const s = window.__sp.spark(); return !s || !(s.sorting || s.sortDirty);
+  }));
+  // 並べ替えたのが**どちらのカメラか**を直に見る。Spark は最後に並べた視点を
+  // sortedCenter に控えているので、それが本体のビューのカメラと一致していれば
+  // 小窓に取られていない（ファインダーは床の高さに立っていて、パースの視点とは
+  // まるで違う場所に居る）
+  const sorter = () => t.page.evaluate(() => {
+    const sp = window.__sp, s = sp.spark();
+    const eye = sp.camera().getWorldPosition(new sp.THREE.Vector3());
+    return { d: s.sortedCenter.distanceTo(eye), eye: eye.toArray().map(v => +v.toFixed(2)) };
+  });
+  const s1 = await sorter();
+  ok('and it is the main view that did the sorting, not the little window',
+     s1.d < 0.01, `${s1.d.toFixed(3)} m from the eye at ${s1.eye}`);
+  // 切りっぱなしにしないこと。戻し忘れると、本体を回しても並べ替えが走らなくなる
+  ok('the main view keeps the right to re-sort',
+     await t.page.evaluate(() => window.__sp.spark()?.autoUpdate === true));
+  await t.page.mouse.move(350, 420); await t.page.mouse.down();
+  await t.page.mouse.move(470, 450, { steps: 6 }); await t.page.mouse.up();
+  await t.page.waitForTimeout(2500);
+  const s2 = await sorter();
+  ok('moving the eye sorts again, for the new viewpoint',
+     s2.d < 0.01 && s2.eye.join() !== s1.eye.join(), `${s1.eye} -> ${s2.eye}`);
+  const c = await frames(); await t.page.waitForTimeout(1500);
+  ok('and it comes to rest again once the hand is off',
+     (await frames()) - c <= 4, `${(await frames()) - c} draws in 1.5 s`);
+  await t.page.screenshot({ path: `${OUT}/splat-pip.png` });
+  ok('splat pip run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 // --- 29. 書き出しボタンの名前、取り込みの上限、iPhone のファイル選び ------------------
 {
   // 上限は「現場のスキャンが入らない」と言われて倍にしたもの。下げると元に戻るので、
