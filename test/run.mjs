@@ -2589,6 +2589,24 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t.ctx.close();
 }
 
+// --- 36. 人物の足元の円は選んだときだけ ------------------------------------------
+{
+  const t = await open('footdisc', { width: 1100, height: 800 });
+  const p = t.page;
+  const disc = () => p.evaluate(() => { const sp = window.__sp; const it = sp.state().items.find(i => i.type === 'person');
+    let v = null; sp.group(it.id).traverse(n => { if (n.userData.selOnly) v = n.visible; }); return v; });
+  // 小窓は最後に描く（cam）ので、読む前に閉じておく
+  await p.click('#pipbtn');
+  await p.evaluate(() => { window.__sp.select(null); document.querySelector('[data-view="pers"]').click(); window.__sp.render(); }); await p.waitForTimeout(300);
+  ok('the foot disc stays hidden while the person is not selected', await disc() === false, String(await disc()));
+  await p.evaluate(() => { const sp = window.__sp; sp.select(sp.state().items.find(i => i.type === 'person').id); sp.render(); }); await p.waitForTimeout(300);
+  ok('and shows once the person is selected', await disc() === true, String(await disc()));
+  await p.evaluate(() => { document.querySelector('[data-view="cam"]').click(); window.__sp.render(); }); await p.waitForTimeout(300);
+  ok('never in the finder', await disc() === false, String(await disc()));
+  ok('foot disc runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
