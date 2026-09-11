@@ -104,17 +104,48 @@ const frame = (up, side) => {
   const x = side.clone().projectOnPlane(y).normalize();
   return new THREE.Matrix4().makeBasis(x, y, new V().crossVectors(x, y).normalize());
 };
+// 骨の軸まわりのねじれ（index.html の TWIST_REF と同じ）。最短の回転で合わせると
+// 腕を真上へ向けるような大きな回転で袖と手のひらが裏返る。肘・膝の曲がる向きと
+// 足の向きを目印にして軸まわりで回し直す
+const TWIST_REF = {LeftArm:'elbow', RightArm:'elbow', LeftForeArm:'elbow', RightForeArm:'elbow',
+  LeftUpLeg:'knee', RightUpLeg:'knee', LeftLeg:'foot', RightLeg:'foot'};
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const twistRestRef = (m, d, footDir) =>
+  TWIST_REF[m] === 'elbow' ? new V().crossVectors(d, new V(0,0,1))
+  : TWIST_REF[m] === 'knee' ? new V().crossVectors(d, new V(0,0,-1))
+  : TWIST_REF[m] === 'foot' ? footDir : null;
+function twistTargetRef(m, src, fwd){
+  const kind = TWIST_REF[m]; if (!kind) return null;
+  const side = m.startsWith('Left') ? 'Left' : 'Right';
+  const hinge = (a, b, c, dflt) => {
+    const u = src[b].clone().sub(src[a]).normalize(), f = src[c].clone().sub(src[b]).normalize();
+    const bend = new V().crossVectors(u, f), w = clamp((Math.asin(Math.min(1, bend.length())) * 180 / Math.PI - 8) / 17, 0, 1);
+    return bend.normalize().multiplyScalar(w).addScaledVector(new V().crossVectors(u, dflt).normalize(), 1 - w);
+  };
+  if (kind === 'elbow') return hinge(side + 'Arm', side + 'ForeArm', side + 'Hand', fwd);
+  if (kind === 'knee') return hinge(side + 'UpLeg', side + 'Leg', side + 'Foot', fwd.clone().negate());
+  if (kind === 'foot') return src[side + 'ToeBase'].clone().sub(src[side + 'Foot']);
+  return null;
+}
 function applyPose(root, flat, restFlat){
   const src = {}, rst = {};
   JOINTS.forEach((j, i) => { src[j] = new V().fromArray(flat[i]); if (restFlat) rst[j] = new V().fromArray(restFlat[i]); });
   const tb = {}; for (const [m, t] of Object.entries(MAP)) tb[m] = byName(root, t);
   const dir = (o, a, b) => o[b] && o[a] ? o[b].clone().sub(o[a]) : null;
   const kidOf = m => PRIMARY[m] || Object.keys(CHILD_OF).find(k => CHILD_OF[k] === m);
+  const wp = o => o.getWorldPosition(new V());
   // 目標の向きは「この体の素の向きに、参照元が素から回ったぶんをかけたもの」。
   // 素の向きは親を回す前に控えておく。回した後の値を使うと親の回転を二重に数える。
   root.updateMatrixWorld(true);
-  const tgtRest = {};
+  const tgtRest = {}, refLocal = {};
   for (const m of ORDER2) if (tb[m]) tgtRest[m] = new V(0,1,0).applyQuaternion(tb[m].getWorldQuaternion(new Q())).normalize();
+  for (const m of ORDER2){
+    const bone = tb[m], kid = tb[kidOf(m)]; if (!bone || !kid || !TWIST_REF[m]) continue;
+    const side = m.startsWith('Left') ? 'Left' : 'Right', foot = tb[side + 'Foot'], toe = tb[side + 'ToeBase'];
+    const ref = twistRestRef(m, wp(kid).sub(wp(bone)).normalize(), foot && toe ? wp(toe).sub(wp(foot)) : null);
+    if (ref && ref.lengthSq() > 1e-8) refLocal[m] = ref.normalize().applyQuaternion(bone.getWorldQuaternion(new Q()).invert());
+  }
+  const fwd = new V().crossVectors(src.LeftUpLeg.clone().sub(src.RightUpLeg), src.Spine.clone().sub(src.Hips)).normalize();
   for (const m of ORDER2){
     const bone = tb[m]; if (!bone) continue;
     const kid = kidOf(m);
@@ -139,6 +170,13 @@ function applyPose(root, flat, restFlat){
         want = posed.clone().normalize();
       }
       q = new Q().setFromUnitVectors(have, want.normalize()).multiply(curW);
+      const ref = refLocal[m] && twistTargetRef(m, src, fwd);
+      if (ref && ref.lengthSq() > 1e-8){
+        const axis = want.clone().normalize();
+        const has = refLocal[m].clone().applyQuaternion(q).projectOnPlane(axis), to = ref.projectOnPlane(axis);
+        if (has.lengthSq() > 1e-8 && to.lengthSq() > 1e-8)
+          q = new Q().setFromAxisAngle(axis, Math.atan2(new V().crossVectors(has, to).dot(axis), has.dot(to))).multiply(q);
+      }
     }
     bone.quaternion.copy(bone.parent.getWorldQuaternion(new Q()).invert().multiply(q));
     bone.updateMatrixWorld(true);

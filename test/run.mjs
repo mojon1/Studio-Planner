@@ -2513,7 +2513,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     }, b64);
   };
   const sit = await shoot('sit-chair');
-  ok('a rendered sitting figure is detected and comes back as 23 joints', sit.ok && sit.posture === 'photo' && sit.n === 23 && sit.fin, JSON.stringify(sit));
+  ok('a rendered sitting figure is detected and comes back as 23 joints plus the face direction', sit.ok && sit.posture === 'photo' && sit.n === 24 && sit.fin, JSON.stringify(sit));
   ok('and its knees are bent', sit.kneeL < 130 && sit.kneeR < 130, `${sit.kneeL?.toFixed(0)} / ${sit.kneeR?.toFixed(0)} deg`);
   const stand = await shoot('stand-2');
   ok('a standing figure comes back with straighter knees', stand.ok && stand.kneeL > 135 && stand.kneeR > 135, `${stand.kneeL?.toFixed(0)} / ${stand.kneeR?.toFixed(0)} deg`);
@@ -2526,7 +2526,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const hash = await p.evaluate(() => location.hash);
   const t2 = await open('photopose-link', { width: 900, height: 900 }, false, hash);
   const back = await t2.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, n: it.photo?.length }; });
-  ok('the photo pose survives the share link', back.posture === 'photo' && back.n === 23, JSON.stringify(back));
+  ok('the photo pose survives the share link', back.posture === 'photo' && back.n === 24, JSON.stringify(back));
   await t2.ctx.close();
   // 座標の無い photo は素の姿勢に戻す
   const broken = await t.page.evaluate(async () => {
