@@ -1360,7 +1360,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 説明はこの 2 行だけ。PDF の下の「押したあとの画面で選べます」は、押せば分かるので外した
   const hints = await t.page.$$eval('[data-sec="share"] .hint', n => n.map(x => x.textContent.trim()));
   ok('and the share tab carries no other blurb',
-     hints.join('|') === '※外部3Dデータは含まれません。|外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。',
+     hints.join('|') === '※外部3Dデータは含まれません。|外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。',
      hints.join('|'));
   // ＋ の取り込みは、名前と 3 行だけ
   await t.page.click('#addfab'); await t.page.waitForTimeout(300);
@@ -1729,6 +1729,45 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('the person model comes out of the file', got.skinned > 0, JSON.stringify(got.names));
   ok('the scan too, cropped as it was left', got.names.some(n => /SplatMesh/.test(n)) && got.crop?.y1 === 1.4,
      JSON.stringify({names: got.names, crop: got.crop}));
+  // **置いていないものも中に入っている。** 圏外のスタジオで開いて、そこから人を
+  // 足したり車を置いたりできないと「続きをやる」にならない
+  const stock = await page.evaluate(() => {
+    const f = window.__SPBUNDLE.files, sp = window.__sp;
+    const people = sp.people().map(m => `models/${m.id}.glb`);
+    return {people: people.filter(p => f[p]).length, all: people.length,
+            cars: Object.keys(f).filter(k => /^models\/car-.*\.glb$/.test(k)).length};
+  });
+  ok('every person and car is in the file, not just the ones on the floor',
+     stock.people === stock.all && stock.cars >= 2, JSON.stringify(stock));
+  await page.click('#addfab'); await page.waitForTimeout(800);
+  await page.click('#people button[data-model="af-casual-man"]');
+  await page.waitForTimeout(3500);
+  const added = await page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.at(-1);
+    let skinned = 0; sp.group(it.id).traverse(n => { if (n.isSkinnedMesh) skinned++; });
+    return {model: it.model, skinned};
+  });
+  ok('so a person who was never placed can still be added, offline',
+     added.model === 'af-casual-man' && added.skinned > 0, JSON.stringify(added));
+  // スーツは `+` に出ないので、着替えでしか出番が来ない。それも入っている
+  await page.click('#items .itemrow.on > button.name').catch(() => {});
+  await page.waitForTimeout(400);
+  await page.click('[data-set="model"][data-val="af-business-man"]');
+  await page.waitForTimeout(3500);
+  const dressed = await page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.model && i.model.startsWith('af-'));
+    let skinned = 0; sp.group(it.id).traverse(n => { if (n.isSkinnedMesh) skinned++; });
+    return {model: it.model, skinned};
+  });
+  ok('and a suit that was never on screen can still be worn',
+     dressed.model === 'af-business-man' && dressed.skinned > 0, JSON.stringify(dressed));
+  // **共有リンクは Web で開ける URL にする。** file:// のパスを配っても誰も開けない
+  const link = await page.evaluate(async () => {
+    document.getElementById('linkbox').hidden = false;
+    await new Promise(r => setTimeout(r, 400));
+    return document.getElementById('linkbox').value;
+  });
+  ok('and the share link points at the web, not at this file', /^https?:\/\//.test(link), link.slice(0, 60));
   fs.writeFileSync(path.join(OUT, 'bundle-file.png'), await page.screenshot());
   ok('bundle run clean', errors.length === 0, errors.join(' | '));
   await ctx.close();

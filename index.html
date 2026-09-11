@@ -361,8 +361,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="png">画像書き出し</button></div>
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
-        <p class="hint" id="bundlestat">外部3Dデータを含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.16.0<br>© 2026 Taichi Teramura</p>
+        <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境でも開く事が可能です。</p>
+        <p class="colophon">Studio Planner v1.17.0<br>© 2026 Taichi Teramura</p>
       </div>
     </div>
   </div>
@@ -510,6 +510,16 @@ const a1 = v => Math.round((+v || 0) * 10) / 10;      // 角度は小数第 1 �
 // 自分の中に持っている。開いた先はたいてい file://（ダブルクリック）なので、
 // **取りに行く先はすべてこの中に向ける**。
 const BUNDLE = window.__SPBUNDLE || null;
+// **共有リンクは必ず Web で開ける URL にする。** まとめて書き出した 1 枚は
+// file:// で開くので、そのまま `location` から組むと `file:///C:/…` のリンクになり、
+// 受け取った人はどうやっても開けない。1 枚を作るときに「作った元の URL」を
+// 中に入れてあるので、そちらを使う（公開先が変わっても追随する）
+const WEB_HOME = 'https://mojon1.github.io/Studio-Planner/';
+function shareBase(){
+  if (BUNDLE?.home) return BUNDLE.home;
+  if (location.protocol === 'file:') return WEB_HOME;
+  return location.origin + location.pathname + location.search;
+}
 function b64bytes(b){
   const bin = atob(b), u = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -3829,7 +3839,8 @@ addEventListener('keydown', e => {
 
 let saveT = null;
 function saveHash(){
-  pushUndo(); clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':''); history.replaceState(null, '', h); document.getElementById('linkbox').value = location.href; }, 250); }
+  pushUndo(); clearTimeout(saveT); saveT = setTimeout(async () => { const h = '#s=' + await encode() + (viewerMode?'&m=v':'');
+    history.replaceState(null, '', h); document.getElementById('linkbox').value = shareBase() + h; }, 250); }
 async function loadHash(){
   const m = location.hash.match(/s=([^&]+)/); if (!m) return false;
   try { const st = await decode(m[1]); if (st?.studio && (Array.isArray(st.items) || Array.isArray(st.cuts))){ state = migrate(st); return true; } } catch(e){ console.warn('link decode failed', e); toast('リンクを読めませんでした'); }
@@ -3838,7 +3849,7 @@ async function loadHash(){
 // 「見るだけ」のリンクはボタンを外した（共有タブがボタンだらけになるため）。
 // 見るだけが要るときは QR の「見るだけ」から出す。古いリンクは今までどおり開く。
 async function copyLink(){
-  const url = location.origin + location.pathname + location.search + '#s=' + await encode();
+  const url = shareBase() + '#s=' + await encode();
   try { await navigator.clipboard.writeText(url); toast('リンクをコピーしました'); return; }
   catch {}
   // クリップボードが塞がれている場所（枠の中など）でだけ、手でコピーする欄を出す
@@ -3853,7 +3864,7 @@ document.getElementById('copy').addEventListener('click', copyLink);
 // 現場で「そのスマホで開いてもらう」ための一枚。リンクの中身は共有リンクと同じ。
 const qrDlg = document.getElementById('qrdlg'), qrCv = document.getElementById('qrcv');
 async function drawQR(){
-  const url = location.origin + location.pathname + location.search + '#s=' + await encode();
+  const url = shareBase() + '#s=' + await encode();
   const note = document.getElementById('qrnote');
   const m = QR(url);
   if (!m){
@@ -4514,10 +4525,11 @@ async function makeBundle(){
     for (const c of CAR_MODELS) want.push([`models/thumbs/car-${c.id}.webp`,'image/webp']);
     for (const id of POSE_THUMBS) want.push([`models/thumbs/pose-${id}.webp`,'image/webp']);
     for (const t of [...PROPS, ...GEAR]) want.push([`models/thumbs/prop-${t}.webp`,'image/webp']);
-    for (const id of new Set(items.filter(i => i.type === 'person' && i.model).map(i => i.model)))
-      want.push([`models/${id}.glb`,'model/gltf-binary']);
-    for (const k of new Set(items.filter(i => i.type === 'car').map(i => i.kind)))
-      if (CAR_BY_ID[k]) want.push([`models/car-${k}.glb`,'model/gltf-binary']);
+    // **置いていないものも全部入れる。** 圏外のスタジオで開いて、そこから人を足したり
+    // 車を置いたりできないと「続きをやる」にならない（寺村さんの指摘）。
+    // そのぶん 20 MB ほど大きくなるが、現場で足せないほうが困る
+    for (const m of PEOPLE_MODELS) want.push([`models/${m.id}.glb`,'model/gltf-binary']);
+    for (const c of CAR_MODELS) want.push([`models/car-${c.id}.glb`,'model/gltf-binary']);
     let got = 0;
     for (const [path, mime] of want){
       try {
@@ -4542,7 +4554,7 @@ async function makeBundle(){
 
     // ---- 組み立て ----
     say('1 枚にまとめています…');
-    const payload = JSON.stringify({state:packState(), files, assets})
+    const payload = JSON.stringify({state:packState(), files, assets, home: shareBase()})
       .replace(/</g, '\\u003c');                  // 中の文字列でこの script が切れないように
     let out = src
       .replace(/<script type="importmap">[\s\S]*?<\/script>/,
@@ -4596,7 +4608,7 @@ window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camer
   buildStudio(); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta();
   lastSnap = snapshot(); syncUndoBtns();
   new ResizeObserver(resize).observe(viewEl); resize();
-  document.getElementById('linkbox').value = location.href;
+  document.getElementById('linkbox').value = shareBase() + location.hash;
   frame();
   restoreModels();
 })();
