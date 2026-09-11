@@ -2194,6 +2194,217 @@ window.__ready = true;
 }
 
 
+// --- 33. ライト -----------------------------------------------------------------
+const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
+// **照明のシミュレータではない。** 明るさは計算していないので、見るのは
+// 「幾何がそのとおりに three のライトへ写っているか」と「図面が図面のままか」
+{
+  const t = await open('lights', { width: 1240, height: 820 });
+  // ＋ のボタンは 1 つだけ（型は設定パネルで変える。寺村さんの指示）
+  await t.page.click('#addfab'); await t.page.waitForTimeout(400);
+  const btns = await t.page.$$eval('#gearlist button', b => b.map(x => x.dataset.add));
+  ok('the add panel offers exactly one light button', btns.filter(k => k === 'light').length === 1, btns.join(','));
+  await t.page.click('[data-add="light"]'); await t.page.waitForTimeout(500);
+  const it0 = await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'light'));
+  ok('and it drops a spot on a stand', it0.kind === 'spot' && it0.mount === 'stand', JSON.stringify(it0));
+
+  await t.page.click('#items .itemrow[data-kind="light"] > button.name'); await t.page.waitForTimeout(400);
+  const panel = await t.page.textContent('#selbody');
+  ok('the panel offers all five fixtures',
+     ['スポット','LEDパネル','ソフトボックス','チューブ','中華提灯'].every(n => panel.includes(n)), panel.slice(0, 200));
+  ok('and the three ways of carrying it',
+     ['スタンド','ブーム','吊り'].every(n => panel.includes(n)));
+  ok('it says plainly that this is not a simulation',
+     panel.includes('ライトは簡易表示です') && panel.includes('set.a.light 3D'),
+     panel.slice(panel.indexOf('ライトは簡易'), panel.indexOf('ライトは簡易') + 90));
+  ok('and that the strength has no unit', panel.includes('強さは相対の目盛りです'));
+
+  const lamp = () => t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
+    const e = sp.lights().get(it.id), l = e.light;
+    const aim = e.target ? e.target.position.clone().sub(l.position).normalize() : null;
+    return { uuid: l.uuid, omni: e.omni, on: l.visible, i: l.intensity, shadow: !!l.castShadow,
+             deg: l.angle ? +(l.angle * 2 * 180 / Math.PI).toFixed(1) : null, pen: l.penumbra,
+             dist: +l.distance.toFixed(2), col: '#' + l.color.getHexString(),
+             pos: l.position.toArray().map(v => +v.toFixed(2)),
+             aim: aim ? aim.toArray().map(v => +v.toFixed(2)) : null };
+  });
+  const set = async (k, v) => { await t.page.evaluate(([k, v]) => {
+    const sp = window.__sp; sp.setProp(sp.state().items.find(i => i.type === 'light'), k, v);
+  }, [k, v]); await t.page.waitForTimeout(250); };
+
+  // 型を変えると広がりとボケがその器材の既定に入れ替わり、three のライトまで届く
+  await set('kind', 'soft');
+  const soft = await lamp();
+  ok('picking the softbox widens the beam and softens the edge',
+     soft.deg === 82 && soft.pen === 0.9, JSON.stringify(soft));
+  await set('kind', 'spot');
+  const spot = await lamp();
+  ok('and going back to the spot narrows it again', spot.deg === 28 && spot.pen === 0.25, JSON.stringify(spot));
+  // **作り直していないこと。** つまみを動かすたびに作り直すと、シャドウマップが
+  // 毎回作り直しになり、本数が変わるたび全マテリアルのシェーダまで組み直される
+  ok('the three light itself is never rebuilt, only re-valued', spot.uuid === soft.uuid);
+
+  // チルト。ライトは真上から当てたいので ±90（カメラの ±45 とは別）
+  await set('rot', 0); await set('pitch', -90);
+  const down = await lamp();
+  ok('a light can be pointed straight down', down.aim[1] < -0.98, JSON.stringify(down.aim));
+  await set('pitch', -30);
+  const angled = await lamp();
+  ok('and the aim follows the dial exactly',
+     Math.abs(angled.aim[1] + 0.5) < 0.02 && Math.abs(angled.aim[2] - Math.cos(Math.PI/6)) < 0.02,
+     JSON.stringify(angled.aim));
+  // 弧はカメラの ±45 に対してライトは ±90。作り直せるようにしてあるので、
+  // 実際にどれだけ開いているかをジオメトリから読む
+  const arc = await t.page.evaluate(() => {
+    const sp = window.__sp, g = sp.tilt(); let a = null;
+    g.traverse(n => { if (n.geometry?.type === 'TorusGeometry' && n.geometry.parameters.arc) a = +(n.geometry.parameters.arc*180/Math.PI).toFixed(0); });
+    const it = sp.state().items.find(i => i.type === 'light');
+    return { a, dy: +(g.position.y - it.y).toFixed(2) };
+  });
+  ok('the tilt arc opens right up for a light, where a camera only gets ±45',
+     arc.a === LIGHT_TILT_MAX * 2, `${arc.a}° of swing`);
+  ok('and it sits on the head of the light', Math.abs(arc.dy) < 0.01, String(arc.dy));
+  // 小窓はフレームの最後に「カメラ＝絵」として描かれるので、描き終わったあとの
+  // visible は小窓のぶんになる。画面に本当に出ているかは小窓を閉じてから見る
+  await t.page.click('#pipbtn'); await t.page.waitForTimeout(500);
+  ok('the tilt arc is offered for a light, not just a camera',
+     await t.page.evaluate(() => window.__sp.tilt().visible));
+  await t.page.click('#pipbtn'); await t.page.waitForTimeout(300);
+
+  // 強さは相対。届く範囲はそこから出す
+  await set('power', 10);
+  const strong = await lamp();
+  await set('power', 1);
+  const weak = await lamp();
+  ok('turning it up reaches further and hits harder',
+     strong.dist > weak.dist && strong.i > weak.i, `${weak.dist}m/${weak.i} -> ${strong.dist}m/${strong.i}`);
+  await set('power', 5);
+  await set('color', '#bcd8ff');
+  ok('the gel reaches the light', (await lamp()).col === '#bcd8ff');
+
+  // 図面は図面のまま。**上面図に光を乗せると床が染まって寸法も線も読めない**。
+  // 1 フレームの最後に描かれるのは小窓（＝カメラ＝絵）なので、描き終わったあとの
+  // intensity や visible を読んでも、その view のものではない。**絵そのものを見る**
+  await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
+    it.x = 0; it.z = 0.6; it.rot = 0; it.pitch = -68; it.y = 2.6; it.power = 9; it.spread = 60;
+    sp.setProp(it, 'color', '#ff5a2a');           // 床に出れば一目で分かる色
+  });
+  // **ゼラを替えて床の色が動くかで見る。** 出し入れで比べると、一緒に消える
+  // 記号のくさびまで数えてしまう（くさびは固定の黄色なので、色を替えても動かない）
+  const gelPix = async (view, prep) => {
+    await t.page.click(`[data-view="${view}"]`); await t.page.waitForTimeout(500);
+    if (prep) { await prep(); await t.page.waitForTimeout(500); }
+    // どこに当たるかを狙って撮るより、**画面ぜんぶの平均**を見るほうが素直。
+    // ゼラを替えて平均が動けば光が乗っている、動かなければ乗っていない
+    const grab = () => t.page.evaluate(() => {
+      const cv = document.querySelector('#view canvas'), b = cv.getBoundingClientRect();
+      const c = document.createElement('canvas'); c.width = Math.round(b.width/4); c.height = Math.round(b.height/4);
+      const x = c.getContext('2d'); x.drawImage(cv, 0, 0, c.width, c.height);
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      let r = 0, g = 0, bl = 0; for (let i = 0; i < d.length; i += 4){ r += d[i]; g += d[i+1]; bl += d[i+2]; }
+      const n = d.length/4;
+      return [r/n, g/n, bl/n].map(v => +v.toFixed(1));
+    });
+    const gel = async c => { await t.page.evaluate(col => {
+      const sp = window.__sp; sp.setProp(sp.state().items.find(i => i.type === 'light'), 'color', col);
+    }, c); await t.page.waitForTimeout(700); return grab(); };
+    const warm = await gel('#ff5a2a'), cool = await gel('#2a6aff');
+    return { warm, cool, d: Math.max(...warm.map((v, i) => Math.abs(v - cool[i]))) };
+  };
+  // 光の当たっているところを画面いっぱいに寄せる。引いたままだと、当たっている
+  // 面積が小さすぎて画面の平均がほとんど動かない
+  const persPix = await gelPix('pers', () => t.page.evaluate(() => {
+    const sp = window.__sp, o = sp.orbit;
+    o.theta = 0.1; o.phi = 0.75; o.radius = 3.4; o.target.set(0, 0.2, 1.65);
+    sp.render();
+  }));
+  ok('the perspective is a picture: the gel really lands on the floor',
+     persPix.d > 3, `${persPix.warm} vs ${persPix.cool}`);
+  const planPix = await gelPix('plan');
+  ok('the top view stays a drawing: no light is laid over it',
+     planPix.d < 0.3, `${planPix.warm} vs ${planPix.cool}`);
+  // 図面のほうは記号で向きを言う。どの view で何が出るかは状態から引く
+  const symbol = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
+    const seen = {}; sp.group(it.id).traverse(n => { if (n.userData.planOnly) seen.n = (seen.n || 0) + 1; });
+    return seen.n || 0;
+  });
+  ok('and it carries a beam symbol for the plan to show instead', symbol > 0, String(symbol));
+
+  // 目のマークで消したら光も消える
+  await t.page.click('#items .itemrow[data-kind="light"] .ico.eye'); await t.page.waitForTimeout(500);
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(400);
+  ok('switching it off puts the light out', (await lamp()).i === 0);
+  await t.page.click('#items .itemrow[data-kind="light"] .ico.eye'); await t.page.waitForTimeout(500);
+
+  // 影は 4 灯まで。1 灯につきシーンをもう 1 度描くので、際限なく増やさない
+  await t.page.evaluate(() => {
+    const sp = window.__sp;
+    for (let i = 0; i < 5; i++) sp.addItem('light');
+    const lit = sp.state().items.filter(i => i.type === 'light');
+    sp.setProp(lit[lit.length - 1], 'kind', 'lantern');
+    sp.rebuild(); sp.render();
+  });
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(900);
+  const cast = await t.page.evaluate(() => {
+    const sp = window.__sp;
+    return [...sp.lights().values()].map(e => ({ omni: e.omni, shadow: !!e.light.castShadow }));
+  });
+  ok('six lights, but only four of them cast a shadow',
+     cast.filter(c => c.shadow).length === 4, JSON.stringify(cast));
+  ok('and the all-round one never does (its shadow would cost six passes)',
+     cast.filter(c => c.omni).every(c => !c.shadow));
+
+  // 共有リンクに全部乗る
+  const before = await t.page.evaluate(() => window.__sp.state().items.filter(i => i.type === 'light'));
+  const hash = await t.page.evaluate(() => location.hash);
+  const t2 = await open('lights-link', { width: 900, height: 700 }, false, hash);
+  const after = await t2.page.evaluate(() => window.__sp.state().items.filter(i => i.type === 'light'));
+  ok('every light comes back through the share link', after.length === before.length, `${before.length} -> ${after.length}`);
+  ok('with its fixture, mount, spread, softness, strength, tilt and gel intact',
+     ['kind','mount','spread','soft','power','pitch','color'].every(k => after[0][k] === before[0][k]),
+     JSON.stringify([before[0], after[0]]));
+  await t2.ctx.close();
+
+  // 古いリンクは y と rot しか持っていない。スポット・スタンド・水平で開けばよい
+  const old = await t.page.evaluate(() => {
+    const sp = window.__sp, st = sp.state();
+    st.items = [{id:'L1', type:'light', x:0, z:1, rot:90, y:2}];
+    sp.rebuild(); sp.render();
+    const e = sp.lights().get('L1'), it = st.items[0];
+    return { kind: sp.lightType(it).kind, deg: +(e.light.angle*2*180/Math.PI).toFixed(0), has: !!e };
+  });
+  ok('a light from an old link still opens, as a spot', old.has && old.kind === 'spot' && old.deg === 28, JSON.stringify(old));
+
+  // 置いたライトは GLB に入る（C4D で位置と向きがそのまま立つ）。
+  // アプリ自身の地明かりは現場の道具ではないので入らない
+  const glb = await t.page.evaluate(async () => {
+    const sp = window.__sp;
+    sp.state().items = [{id:'L1', type:'light', x:1, z:1, rot:45, y:2.4, pitch:-30, kind:'spot',
+                         mount:'stand', spread:30, soft:0.3, power:6, color:'#ffc489'}];
+    sp.rebuild();
+    const { buf } = await sp.glb();
+    const b = new Uint8Array(buf), len = new DataView(b.buffer).getUint32(12, true);
+    const j = JSON.parse(new TextDecoder().decode(b.slice(20, 20 + len)));
+    const L = j.extensions?.KHR_lights_punctual?.lights || [];
+    return { n: L.length, types: L.map(l => l.type), ext: (j.extensionsUsed||[]).includes('KHR_lights_punctual') };
+  });
+  ok('the light goes into the exported GLB, so C4D gets it where it stands',
+     glb.ext && glb.n === 1 && glb.types[0] === 'spot', JSON.stringify(glb));
+
+  // 消したら three のライトも消える（シャドウマップを抱えたまま残らない）
+  await t.page.evaluate(() => { const sp = window.__sp; sp.state().items = []; sp.rebuild(); });
+  await t.page.waitForTimeout(300);
+  const left = await t.page.evaluate(() => ({ size: window.__sp.lights().size,
+    items: window.__sp.state().items.length, keys: [...window.__sp.lights().keys()] }));
+  ok('deleting the item takes its light away too', left.size === 0, JSON.stringify(left));
+
+  ok('lights run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
