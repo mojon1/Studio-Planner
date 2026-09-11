@@ -364,7 +364,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.19.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.19.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -1753,14 +1753,18 @@ const LIGHT_TYPES = [
   // **チューブと提灯は全方位。** チューブは線光源で、コーンで出すと
   // ただのスポットライトになってしまう（寺村さんの指摘）。狙う向きが無いので
   // チルトも出さない（提灯は丸いので「向き」も出さない）。
-  ['spot',    'スポット',      28, 0.25, false, {spread:1, soft:1, tilt:1, rot:1}],
-  ['panel',   'LEDパネル',    100, 0.72, false, {tilt:1, rot:1}],
-  ['soft',    'ソフトボックス',118, 1.00, false, {tilt:1, rot:1}],
-  ['tube',    'チューブ',        0, 0,    true,  {rot:1}],
-  ['lantern', '中華提灯',        0, 0,    true,  {}],
+  // form … cone = コーン / point = 1 点 / line = 棒に沿って 3 点
+  // emit … **発光面までの距離（頭の原点から狙いの向きへ）。** 光源を頭の原点に
+  //        置くと器材の筐体の中に入ってしまい、ソフトボックスが自分の光を遮って
+  //        **影と光が反転した絵**になった（寺村さんの指摘）。光は発光面から出す
+  ['spot',    'スポット',      28, 0.25, false, {spread:1, soft:1, tilt:1, rot:1}, 'cone',  0.17],
+  ['panel',   'LEDパネル',    100, 0.72, false, {tilt:1, rot:1},                   'cone',  0.05],
+  ['soft',    'ソフトボックス',118, 1.00, false, {tilt:1, rot:1},                   'cone',  0.46],
+  ['tube',    'チューブ',        0, 0,    true,  {rot:1},                          'line',  0],
+  ['lantern', '中華提灯',        0, 0,    true,  {},                               'point', 0],
 ];
 const LIGHT_BY_KIND = Object.fromEntries(LIGHT_TYPES.map(t =>
-  [t[0], {kind:t[0], label:t[1], spread:t[2], soft:t[3], omni:t[4], ui:t[5]}]));
+  [t[0], {kind:t[0], label:t[1], spread:t[2], soft:t[3], omni:t[4], ui:t[5], form:t[6], emit:t[7]}]));
 const lightType = it => LIGHT_BY_KIND[it.kind] || LIGHT_BY_KIND.spot;
 const lightHas = (it, k) => !!lightType(it).ui[k];
 const LIGHT_MOUNTS = [['stand','スタンド'],['boom','ブーム'],['hang','吊り']];
@@ -1806,8 +1810,10 @@ function tripod(g, z, hubY, m, spread = 0.30){
 // drop が負なら上に付く＝吊り。支柱が取り付く高さを返す
 function yoke(g, y, r, drop, m){
   const lo = y - drop;
-  for (const s of [-1, 1]) addStrut(g, vec(s*r, y + (drop > 0 ? 0.03 : -0.03), 0), vec(s*r, lo, 0), 0.016, m);
-  addStrut(g, vec(-r, lo, 0), vec(r, lo, 0), 0.016, m);
+  const arms = [];
+  for (const s of [-1, 1]) arms.push(addStrut(g, vec(s*r, y + (drop > 0 ? 0.03 : -0.03), 0), vec(s*r, lo, 0), 0.016, m));
+  arms.push(addStrut(g, vec(-r, lo, 0), vec(r, lo, 0), 0.016, m));
+  for (const a of arms) if (a) a.castShadow = false;   // ヨークも器材の一部
   return lo;
 }
 
@@ -1815,13 +1821,18 @@ function yoke(g, y, r, drop, m){
 // **頭は必ず (0, y, 0)、狙いはローカル +Z。** ブームでも吊りでも頭の位置は
 // 動かさない（図面で意味を持つのは頭の位置なので、そこを動かすと上面図の
 // 記号もマニピュレータも全部ずれる）。支えのほうを頭からぶら下げる
+// **器材そのものは影を落とさない。** 光源は器材の発光面に居るので、筐体が
+// castShadow を持つと**自分の光を自分で遮る**。ソフトボックスが真っ黒な五角形の
+// 影を床に落としていたのがこれ（寺村さんの指摘）。影が意味を持つのは
+// スタンド・ブーム・三脚のほうなので、そちらは今までどおり落とす
+const fixturePart = m => { m.receiveShadow = true; return m; };
 function lightHead(it){
   const t = lightType(it), g = new THREE.Group();
   const body = mat(0x3a3e46, {roughness:0.55});
   const face = new THREE.MeshStandardMaterial({color:0xf6f2ea, emissive:new THREE.Color(lightGel(it)),
     emissiveIntensity: it.hidden ? 0 : 0.30 + lightPower(it) * 0.06, roughness:0.9});
   if (t.kind === 'spot'){
-    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.30, 20).rotateX(Math.PI/2), body)));
+    g.add(fixturePart(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.30, 20).rotateX(Math.PI/2), body)));
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 20), face); lens.position.z = 0.151; g.add(lens);
     // バーンドア 4 枚。**蝶番はレンズの縁に置き、板はそこから前へ出す。**
     // 以前は板の中心を前に置いて中心まわりに回していたので、羽根が宙に浮き、
@@ -1831,34 +1842,34 @@ function lightHead(it){
       const hinge = new THREE.Group();
       hinge.position[ax] = sgn * R; hinge.position.z = 0.155;
       hinge.rotation[ax === 'y' ? 'x' : 'y'] = (ax === 'y' ? -sgn : sgn) * open;
-      const flap = shadowed(new THREE.Mesh(ax === 'y' ? new THREE.BoxGeometry(2*R, 0.006, LEN)
+      const flap = fixturePart(new THREE.Mesh(ax === 'y' ? new THREE.BoxGeometry(2*R, 0.006, LEN)
                                                       : new THREE.BoxGeometry(0.006, 2*R, LEN), body));
       flap.position.z = LEN/2; hinge.add(flap); g.add(hinge);
     }
   } else if (t.kind === 'panel'){
-    g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.07), body)));
+    g.add(fixturePart(new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.36, 0.07), body)));
     const f = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.32), face); f.position.z = 0.037; g.add(f);
   } else if (t.kind === 'soft'){
     // 四角錐台。**radialSegments 4 の円柱を「ジオメトリごと」回して四角にする。**
     // メッシュ側で 2 軸のオイラーを重ねると順序で形が崩れる（実際に崩れていた）
     const R = 0.40, BACK = 0.09, DEP = 0.50, Z0 = -0.06;
-    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(R, BACK, DEP, 4, 1)
+    g.add(fixturePart(new THREE.Mesh(new THREE.CylinderGeometry(R, BACK, DEP, 4, 1)
       .rotateY(Math.PI/4)              // 角を上下左右へ。断面が正方形になる
       .rotateX(Math.PI/2)              // 軸を +Z へ（太いほうが前）
-      .translate(0, 0, Z0 + DEP/2), mat(0x2a2d33, {roughness:0.95}))));
+      .translate(0, 0, Z0 + DEP/2), mat(0x2a2d33, {roughness:0.95, side:THREE.DoubleSide}))));
     const side = R * Math.SQRT2;       // 外接円の半径 R → 一辺は R√2
     const f = new THREE.Mesh(new THREE.PlaneGeometry(side, side), face);
     f.position.z = Z0 + DEP + 0.002; g.add(f);
   } else if (t.kind === 'tube'){
     const L = 1.15;
-    g.add(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, L, 14).rotateZ(Math.PI/2), face)));
+    g.add(fixturePart(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, L, 14).rotateZ(Math.PI/2), face)));
     for (const s2 of [-1, 1]){
-      const cap = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 14).rotateZ(Math.PI/2), body));
+      const cap = fixturePart(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 14).rotateZ(Math.PI/2), body));
       cap.position.x = s2 * L/2; g.add(cap);
     }
-    const clamp2 = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.07), body)); g.add(clamp2);
+    const clamp2 = fixturePart(new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.07), body)); g.add(clamp2);
   } else {                                                  // 中華提灯
-    const ball = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 14), face));
+    const ball = fixturePart(new THREE.Mesh(new THREE.SphereGeometry(0.27, 20, 14), face));
     ball.scale.y = 0.86; g.add(ball);
   }
   return g;
@@ -2021,7 +2032,11 @@ function restack(){
 // 作り直しになり、そのうえ**ライトの本数が変わるたびに three が全マテリアルの
 // シェーダを組み直す**（本数はシェーダの定数）。3DGS の SplatMesh と同じ持ち方で、
 // id → ライトの表に持って、作り直しでは値を入れ替えるだけにする。
-const lightObjs = new Map();          // item id -> {omni, light, target}
+const lightObjs = new Map();          // item id -> {form, lights:[], target}
+// **チューブは棒に沿って 3 点。** 1 点で済ませると、どの向きから見ても
+// ただの点光源にしか見えなかった（寺村さんの指摘）。3 点あると近くの壁への
+// 当たりが「線」になる。影は落とさないので、灯数が増えても描き直しは増えない
+const TUBE_EMIT = [-0.46, 0, 0.46];
 // **影を落とせるのは 4 灯まで。** 1 灯につきシーンをもう 1 度描くので、
 // swiftshader の実測で 4 灯までは 1.5 ms/frame のまま、8 灯で 16 ms に跳ねた。
 // 5 灯目からは光るが影は落とさない（リストの並び順で先着）。
@@ -2031,52 +2046,66 @@ function lightAim(it){
   const r = THREE.MathUtils.degToRad(it.rot), p = THREE.MathUtils.degToRad(lightPitch(it)), c = Math.cos(p);
   return new THREE.Vector3(Math.sin(r) * c, Math.sin(p), Math.cos(r) * c);
 }
+// 棒の向き（頭のローカル +X をワールドへ）。狙い（+Z）と同じ流儀で出す
+function lightAlong(it){
+  const r = THREE.MathUtils.degToRad(it.rot);
+  return new THREE.Vector3(Math.cos(r), 0, -Math.sin(r));
+}
+const lightCount = form => form === 'line' ? TUBE_EMIT.length : 1;
 function syncLights(){
   const live = new Set();
   let shadows = 0;
   for (const it of state.items){
     if (it.type !== 'light') continue;
     live.add(it.id);
-    const omni = lightType(it).omni;
+    const t = lightType(it), form = t.form;
     let e = lightObjs.get(it.id);
-    // 種類が変わったときだけ作り直す（スポット ⇔ 全方位はクラスが違う）
-    if (e && e.omni !== omni){ dropLight(it.id); e = null; }
+    // 光り方が変わったときだけ作り直す（クラスも本数も違う）
+    if (e && e.form !== form){ dropLight(it.id); e = null; }
     if (!e){
-      const light = omni ? new THREE.PointLight(0xffffff, 1, 10, 2)
-                         : new THREE.SpotLight(0xffffff, 1, 10, 0.5, 0.5, 2);
-      const target = new THREE.Object3D();
-      scene.add(light); if (!omni){ scene.add(target); light.target = target; }
-      if (!omni){ light.shadow.mapSize.set(1024, 1024); light.shadow.bias = -0.0009; light.shadow.normalBias = 0.02; }
-      e = {omni, light, target}; lightObjs.set(it.id, e);
+      const lights = [];
+      if (form === 'cone') lights.push(new THREE.SpotLight(0xffffff, 1, 10, 0.5, 0.5, 2));
+      else for (let i = 0; i < lightCount(form); i++) lights.push(new THREE.PointLight(0xffffff, 1, 10, 2));
+      for (const l of lights) scene.add(l);
+      let target = null;
+      if (form === 'cone'){
+        target = new THREE.Object3D(); scene.add(target); lights[0].target = target;
+        lights[0].shadow.mapSize.set(1024, 1024); lights[0].shadow.bias = -0.0009; lights[0].shadow.normalBias = 0.02;
+      }
+      e = {form, lights, target}; lightObjs.set(it.id, e);
     }
-    const {light, target} = e;
-    const on = !it.hidden;
-    light.visible = on;
-    light.color.set(lightGel(it));
-    light.distance = lightRange(it);
-    light.intensity = 0;                 // 実際の強さは applyLightMood() が view ごとに入れる
-    light.position.set(it.x, standHeight(it) + it.y, it.z);
-    if (!omni){
-      const aim = lightAim(it);
-      target.position.copy(light.position).addScaledVector(aim, 4);
-      target.updateMatrixWorld();
-      light.angle = THREE.MathUtils.degToRad(lightSpread(it)) / 2;
-      light.penumbra = lightSoft(it);
+    const on = !it.hidden, col = lightGel(it), dist = lightRange(it);
+    const head = new THREE.Vector3(it.x, standHeight(it) + it.y, it.z);
+    for (const l of e.lights){
+      l.visible = on; l.color.set(col); l.distance = dist;
+      l.intensity = 0;                   // 実際の強さは applyLightMood() が view ごとに入れる
+      l.position.copy(head);
+    }
+    if (form === 'cone'){
+      const aim = lightAim(it), l = e.lights[0];
+      // **発光面から出す。** 頭の原点のままだと筐体の中に光源が入る
+      l.position.addScaledVector(aim, t.emit);
+      e.target.position.copy(l.position).addScaledVector(aim, 4);
+      e.target.updateMatrixWorld();
+      l.angle = THREE.MathUtils.degToRad(lightSpread(it)) / 2;
+      l.penumbra = lightSoft(it);
       const want = on && shadows < LIGHT_SHADOW_MAX;
       if (want) shadows++;
       // castShadow を変えるとマテリアルが組み直されるので、変わったときだけ触る
-      if (light.castShadow !== want) light.castShadow = want;
-      const cam = light.shadow.camera;
-      if (cam.far !== light.distance){ cam.near = 0.2; cam.far = light.distance; cam.updateProjectionMatrix(); }
+      if (l.castShadow !== want) l.castShadow = want;
+      const cam = l.shadow.camera;
+      if (cam.far !== dist){ cam.near = 0.2; cam.far = dist; cam.updateProjectionMatrix(); }
+    } else if (form === 'line'){
+      const along = lightAlong(it);
+      e.lights.forEach((l, i) => l.position.addScaledVector(along, TUBE_EMIT[i]));
     }
   }
   for (const id of [...lightObjs.keys()]) if (!live.has(id)) dropLight(id);
 }
 function dropLight(id){
   const e = lightObjs.get(id); if (!e) return;
-  e.light.shadow?.dispose?.();
-  scene.remove(e.light); if (e.target) scene.remove(e.target);
-  e.light.dispose?.();
+  for (const l of e.lights){ l.shadow?.dispose?.(); scene.remove(l); l.dispose?.(); }
+  if (e.target) scene.remove(e.target);
   lightObjs.delete(id);
 }
 function rebuildItems(){
@@ -2378,7 +2407,9 @@ function applyLightMood(view){
     const e = lightObjs.get(it.id); if (!e) continue;
     const on = pic && !it.hidden;
     if (on) lit = true;
-    e.light.intensity = on ? lightPower(it) * (e.omni ? 7 : 8) : 0;
+    // 棒に沿って何点かに散らしてあるぶんは割る。合計で 1 灯ぶんに揃える
+    const v = on ? lightPower(it) * (e.form === 'cone' ? 8 : 7) / e.lights.length : 0;
+    for (const l of e.lights) l.intensity = v;
   }
   hemi.intensity = lit ? HEMI_LIT : HEMI_OFF;
   sun.intensity = lit ? SUN_LIT : SUN_OFF;

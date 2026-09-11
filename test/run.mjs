@@ -2221,9 +2221,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
 
   const lamp = () => t.page.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
-    const e = sp.lights().get(it.id), l = e.light;
+    const e = sp.lights().get(it.id), l = e.lights[0];
     const aim = e.target ? e.target.position.clone().sub(l.position).normalize() : null;
-    return { uuid: l.uuid, omni: e.omni, on: l.visible, i: l.intensity, shadow: !!l.castShadow,
+    return { uuid: l.uuid, form: e.form, n: e.lights.length, omni: e.form !== 'cone',
+             on: l.visible, i: l.intensity, shadow: !!l.castShadow,
              deg: l.angle ? +(l.angle * 2 * 180 / Math.PI).toFixed(1) : null, pen: l.penumbra,
              dist: +l.distance.toFixed(2), col: '#' + l.color.getHexString(),
              pos: l.position.toArray().map(v => +v.toFixed(2)),
@@ -2265,6 +2266,17 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     await set('kind', kind);
     const l = await lamp();
     ok(`a ${kind} lights all round instead of in a cone`, l.omni && l.deg === null, JSON.stringify(l));
+    // **チューブは棒に沿って何点かに散らす。** 1 点だとどの向きから見ても
+    // ただの点光源にしか見えなかった（寺村さんの指摘）
+    if (kind === 'tube'){
+      const line = await t.page.evaluate(() => {
+        const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
+        const ps = sp.lights().get(it.id).lights.map(l => l.position.clone());
+        const span = Math.max(...ps.map(a => Math.max(...ps.map(b => a.distanceTo(b)))));
+        return { n: ps.length, span: +span.toFixed(2) };
+      });
+      ok('a tube is a line of emitters, not one point', line.n >= 3 && line.span > 0.7, JSON.stringify(line));
+    }
     const pn = await t.page.textContent('#selbody');
     ok(`and offers no tilt, spread or softness for it`,
        !pn.includes('チルト') && !pn.includes('広がり') && !pn.includes('ボケ'), pn.slice(0, 160));
@@ -2279,6 +2291,30 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await set('kind', 'spot');
   const spotTxt = await t.page.textContent('#selbody');
   ok('only the spot gets the focus knobs', spotTxt.includes('広がり') && spotTxt.includes('ボケ'));
+
+  // **器材の筐体は影を落とさない。** 光源は発光面に居るので、筐体が castShadow を
+  // 持つと自分の光を自分で遮り、ソフトボックスが真っ黒な影を落としていた
+  await set('kind', 'soft');
+  const casts = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
+    const head = [], rig = [];
+    sp.group(it.id).traverse(n => {
+      if (!n.isMesh || n.userData.plan) return;
+      // 頭は y が高いところに固まっている。支柱と脚は下から立ち上がる
+      (n.getWorldPosition(new sp.THREE.Vector3()).y > it.y - 0.55 ? head : rig).push(!!n.castShadow);
+    });
+    const e = sp.lights().get(it.id), l = e.lights[0];
+    const aim = e.target.position.clone().sub(l.position).normalize();
+    const from = l.position.clone().sub(new sp.THREE.Vector3(it.x, it.y, it.z));
+    return { head, rig, emit: +from.length().toFixed(2), fwd: +from.normalize().dot(aim).toFixed(2) };
+  });
+  ok('the fixture housing casts no shadow of its own light',
+     casts.head.length > 0 && casts.head.every(v => !v), JSON.stringify(casts.head));
+  ok('but the stand still does, which is the shadow that matters',
+     casts.rig.some(v => v), JSON.stringify(casts.rig));
+  ok('and the light sits out at the diffuser, not inside the box',
+     casts.emit > 0.3 && casts.fwd > 0.99, JSON.stringify(casts));
+  await set('kind', 'spot');
 
   const arc = await t.page.evaluate(() => {
     const sp = window.__sp, g = sp.tilt(); let a = null;
@@ -2374,7 +2410,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(900);
   const cast = await t.page.evaluate(() => {
     const sp = window.__sp;
-    return [...sp.lights().values()].map(e => ({ omni: e.omni, shadow: !!e.light.castShadow }));
+    return [...sp.lights().values()].map(e => ({ omni: e.form !== 'cone', shadow: !!e.lights[0].castShadow }));
   });
   ok('six lights, but only four of them cast a shadow',
      cast.filter(c => c.shadow).length === 4, JSON.stringify(cast));
@@ -2398,7 +2434,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     st.items = [{id:'L1', type:'light', x:0, z:1, rot:90, y:2}];
     sp.rebuild(); sp.render();
     const e = sp.lights().get('L1'), it = st.items[0];
-    return { kind: sp.lightType(it).kind, deg: +(e.light.angle*2*180/Math.PI).toFixed(0), has: !!e };
+    return { kind: sp.lightType(it).kind, deg: +(e.lights[0].angle*2*180/Math.PI).toFixed(0), has: !!e };
   });
   ok('a light from an old link still opens, as a spot', old.has && old.kind === 'spot' && old.deg === 28, JSON.stringify(old));
 
