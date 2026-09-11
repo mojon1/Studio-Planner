@@ -2552,6 +2552,43 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t.ctx.close();
 }
 
+// --- 35. 環境光 --------------------------------------------------------------
+// 0〜100 の 1 本のつまみ。ライトを置くと自動で 25、無ければ 50。手で動かした値は
+// ライトの有無が切り替わるまで残る。0 で真っ暗（絵だけ。図面は平らなまま）
+{
+  const t = await open('ambient', { width: 1100, height: 800 });
+  const p = t.page;
+  await p.click('#items .itemrow[data-kind="studio"] > button.name'); await p.waitForTimeout(300);
+  const v0 = await p.$eval('#samb', i => +i.value);
+  ok('the studio panel has the ambient slider at 50 with no lights', v0 === 50, String(v0));
+  await p.evaluate(() => window.__sp.addItem('light')); await p.waitForTimeout(400);
+  ok('placing a light drops it to 25 by itself', await p.evaluate(() => window.__sp.ambient()) === 25);
+  await p.evaluate(() => { window.__sp.setAmbient(10); document.querySelector('[data-view="pers"]').click(); window.__sp.render(); }); await p.waitForTimeout(400);
+  const dim = await p.evaluate(() => ({ a: window.__sp.ambient(), hemi: window.__sp.hemi.intensity, sun: window.__sp.sun.intensity }));
+  ok('a manual 10 dims the picture below the lit level', dim.a === 10 && dim.hemi < 0.42 && dim.hemi > 0 && dim.sun < 0.30, JSON.stringify(dim));
+  await p.evaluate(() => window.__sp.addItem('light')); await p.waitForTimeout(400);
+  ok('a second light does not touch the manual value', await p.evaluate(() => window.__sp.ambient()) === 10);
+  await p.evaluate(() => { window.__sp.setAmbient(0); window.__sp.render(); }); await p.waitForTimeout(400);
+  const dark = await p.evaluate(() => ({ hemi: window.__sp.hemi.intensity, sun: window.__sp.sun.intensity }));
+  ok('0 is pitch dark in the picture', dark.hemi === 0 && dark.sun === 0, JSON.stringify(dark));
+  // 図面は平らなまま（小窓を閉じてから上面を描く。小窓が最後に描くと絵の値が残る）
+  await p.click('#pipbtn'); await p.evaluate(() => { document.querySelector('[data-view="plan"]').click(); window.__sp.render(); }); await p.waitForTimeout(400);
+  const plan = await p.evaluate(() => ({ hemi: window.__sp.hemi.intensity, sun: window.__sp.sun.intensity }));
+  ok('the plan view keeps its flat light regardless', plan.hemi === 1.1 && plan.sun === 1.4, JSON.stringify(plan));
+  // ライトを全部消したら自動（50）に戻る。手で入れた 0 は捨てる
+  await p.evaluate(() => { const sp = window.__sp; sp.state().items = sp.state().items.filter(i => i.type !== 'light'); sp.rebuild(); });
+  ok('removing every light returns to the automatic 50', await p.evaluate(() => window.__sp.ambient()) === 50);
+  // 共有リンクに乗る
+  await p.evaluate(() => window.__sp.setAmbient(33)); await p.click('#items .itemrow[data-kind="studio"] > button.name'); await p.waitForTimeout(300);
+  await p.$eval('#samb', i => { i.value = 33; i.dispatchEvent(new Event('input')); i.dispatchEvent(new Event('change')); }); await p.waitForTimeout(600);
+  const hash = await p.evaluate(() => location.hash);
+  const t2 = await open('ambient-link', { width: 1100, height: 800 }, false, hash);
+  ok('the ambient level survives the share link', await t2.page.evaluate(() => window.__sp.ambient()) === 33);
+  await t2.ctx.close();
+  ok('ambient runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

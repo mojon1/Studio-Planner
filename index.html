@@ -366,7 +366,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.20.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.21.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -558,10 +558,11 @@ function defaultState(){
 // 動いている state は「今のカット」を今までどおり素の items / activeCam に持ち、
 // 全カットの控えを state.cuts に置く。書き出す直前に stashCut() で同期する。
 const cutName = (c, i) => (c?.name || '').trim() || `カット ${i + 1}`;
-const emptyCut = () => ({name:'', memo:'', frames:{}, activeCam:null, items:[]});
+const emptyCut = () => ({name:'', memo:'', frames:{}, activeCam:null, items:[], ambient:null, ambientLit:false});
 function stashCut(){
   const c = state.cuts[state.cutIx]; if (!c) return;
   c.name = state.meta.cut; c.memo = state.meta.memo; c.frames = state.meta.frames;
+  c.ambient = state.meta.ambient ?? null; c.ambientLit = !!state.meta.ambientLit;
   c.activeCam = state.activeCam; c.items = state.items;
 }
 function packState(){                      // リンクとファイルに書き出す形
@@ -579,12 +580,16 @@ function migrate(raw){
   st.cutIx = clamp(st.cutIx, 0, st.cuts.length - 1);
   for (const c of st.cuts){
     for (const k of ['name','memo']) if (typeof c[k] !== 'string') c[k] = '';
+    // 環境光。無ければ自動（ライトの有無で 50 / 25）
+    if (typeof c.ambient !== 'number') c.ambient = null;
+    if (typeof c.ambientLit !== 'boolean') c.ambientLit = c.items.some(i => i.type === 'light' && !i.hidden);
     if (!c.frames || typeof c.frames !== 'object') c.frames = {};
     if (!Array.isArray(c.items)) c.items = [];
     migrateItems(c, st.studio);
   }
   const c = st.cuts[st.cutIx];
   st.meta.cut = c.name; st.meta.memo = c.memo; st.meta.frames = c.frames;
+  st.meta.ambient = c.ambient; st.meta.ambientLit = c.ambientLit;
   st.activeCam = c.activeCam; st.items = c.items;
   return st;
 }
@@ -2583,6 +2588,29 @@ function renderView(view, rect, isMain){
 // 照らし、ライトは向きと広がりの記号（くさび）だけを出す。
 // **本数は変えない。** three はライトの本数をシェーダの定数に持っているので、
 // 出し入れすると全マテリアルが組み直しになる。intensity は uniform なので安い
+// ---------- 環境光 ----------
+// 0〜100 の 1 本のつまみ（寺村さんの指示）。ライトを 1 灯も出していなければ 50、
+// 1 灯でも出ていれば 25 に**自動で切り替わる**。手で動かした値は、ライトの有無が
+// 切り替わるまで残す（2 灯目を足しても動かない）。0 で真っ暗。
+// 50 が今までの地明かり（HEMI_OFF / SUN_OFF）、25 がライトを置いたときの地明かり
+// （HEMI_LIT / SUN_LIT）にちょうど当たるので、既定の見た目は変わらない。
+// 効くのはパースとファインダー（絵）だけ。図面（上面・側面・正面）は今までどおり平らに照らす。
+// カットごとに持つ（照明はカットごとに違う）。
+const AMBIENT_OFF = 50, AMBIENT_LIT = 25;
+const ambientLit = () => state.items.some(it => it.type === 'light' && !it.hidden);
+function ambientLevel(){
+  const lit = ambientLit(), m = state.meta;
+  if (typeof m.ambient === 'number' && !!m.ambientLit !== lit) m.ambient = null;   // ライトの有無が変わったら自動に戻す
+  return typeof m.ambient === 'number' ? clamp(m.ambient, 0, 100) : (lit ? AMBIENT_LIT : AMBIENT_OFF);
+}
+function setAmbient(v){ state.meta.ambient = clamp(Math.round(+v || 0), 0, 100); state.meta.ambientLit = ambientLit(); needRender = true; }
+// つまみの値 → 地明かりの強さ [hemi, sun]。0 → 0、25 → LIT、50 → OFF、100 → OFF の 2 倍、のあいだは直線
+const ambientGains = a => {
+  const pts = [[0, 0, 0], [AMBIENT_LIT, HEMI_LIT, SUN_LIT], [AMBIENT_OFF, HEMI_OFF, SUN_OFF], [100, HEMI_OFF * 2, SUN_OFF * 2]];
+  let i = 1; while (i < pts.length - 1 && a > pts[i][0]) i++;
+  const [x0, h0, s0] = pts[i - 1], [x1, h1, s1] = pts[i], t = clamp((a - x0) / (x1 - x0), 0, 1);
+  return [h0 + (h1 - h0) * t, s0 + (s1 - s0) * t];
+};
 function applyLightMood(view){
   const pic = view === 'pers' || view === 'cam';
   let lit = false;
@@ -2595,8 +2623,9 @@ function applyLightMood(view){
     const v = on ? lightPower(it) * (e.form === 'cone' ? 8 : 7) / e.lights.length : 0;
     for (const l of e.lights) l.intensity = v;
   }
-  hemi.intensity = lit ? HEMI_LIT : HEMI_OFF;
-  sun.intensity = lit ? SUN_LIT : SUN_OFF;
+  // 絵では環境光のつまみ、図面では今までどおりの平らな地明かり
+  const [h, s] = pic ? ambientGains(ambientLevel()) : [HEMI_OFF, SUN_OFF];
+  hemi.intensity = h; sun.intensity = s;
 }
 function drawView(view, rect, isMain){
   const ci = camItem();
@@ -3122,8 +3151,10 @@ function studioPanel(){
     [['left','左'],['back','奥'],['right','右']].map(([k,l]) => `<button class="btn ${s.cove[k]?'on':''}" data-cove="${k}">${l}</button>`).join('') + `</div>`;
   h += `<p class="hint">上が奥の壁。1 マス 1 m。</p>`;
   h += `<h2>寸法表示</h2><div class="row">${dimBtn('studio', '幅・奥行・高さ', dimOn(state.studio))}</div>`;
-
-
+  // 環境光。ライトの有無で自動で切り替わる値がそのままつまみに出る
+  const amb = ambientLevel();
+  h += `<h2>環境光</h2><label class="f"><span>明るさ</span><input type="range" id="samb" min="0" max="100" step="1" value="${amb}"><span class="v" id="sambv">${amb}</span></label>`;
+  h += `<p class="hint">ライトを置くと自動で ${AMBIENT_LIT} に下がります（無いときは ${AMBIENT_OFF}）。0 で真っ暗。パースとファインダーに効きます。</p>`;
   return h;
 }
 function bindStudio(el){
@@ -3143,6 +3174,9 @@ function bindStudio(el){
     state.studio.dim = !dimOn(state.studio);
     buildDims(); renderSel(); needRender = true; saveHash();
   });
+  const amb = el.querySelector('#samb');
+  amb.addEventListener('input', () => { setAmbient(amb.value); el.querySelector('#sambv').textContent = String(ambientLevel()); });
+  amb.addEventListener('change', () => saveHash());
 }
 
 // add: the choices live in a popup, so the panel can stay a list of what is placed
@@ -3331,6 +3365,7 @@ function showCut(i){
   state.cutIx = i;
   const c = state.cuts[i];
   state.meta.cut = c.name; state.meta.memo = c.memo; state.meta.frames = c.frames;
+  state.meta.ambient = c.ambient ?? null; state.meta.ambientLit = !!c.ambientLit;
   state.activeCam = c.activeCam; state.items = c.items;
   select(null); rebuildItems(); renderCuts(); renderList(); renderSel(); renderMeta();
   layoutPip(); needRender = true; saveHash();
@@ -5225,7 +5260,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

@@ -7,7 +7,7 @@
 //     勝手に取りに行かない。実際に使ったものだけを runtime に溜める
 //     （「オフラインに保存」ボタンは外した）。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.20.2';
+const VERSION = 'v1.21.0';
 const SHELL = 'sp-shell-' + VERSION;   // 起動に要るもの。版ごとに作り直す
 const RUNTIME = 'sp-runtime';          // 使ったものを溜める場所。版をまたいで残す
 
