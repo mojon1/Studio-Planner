@@ -8,6 +8,7 @@
     "postinstall": "playwright install chromium"
   },
   "devDependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
     "@sparkjsdev/spark": "^2.1.0",
     "jsqr": "^1.4.0",
     "playwright": "^1.49.0",

@@ -91,7 +91,8 @@ const encodeState = st => 'z' + zlib.deflateRawSync(Buffer.from(JSON.stringify(s
   .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
 const MIME = {'.html':'text/html; charset=utf-8', '.glb':'model/gltf-binary', '.json':'application/json',
-  '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml'};
+  '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml',
+  '.task':'application/octet-stream', '.wasm':'application/wasm', '.jpg':'image/jpeg'};
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
   if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -126,6 +127,12 @@ async function open(name, viewport, mobile = false, hash = ''){
     const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/', '');
     const f = path.join(NM, '@sparkjsdev/spark', rel);
     if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
+  });
+  // 写真ポーズの MediaPipe も手元のものを配る（wasm は 12 MB）
+  await page.route('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/**', route => {
+    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/', '').split('?')[0];
+    const f = path.join(NM, '@mediapipe/tasks-vision', rel);
+    if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: MIME[path.extname(f)] || 'text/javascript' }); else route.fulfill({ status: 404 });
   });
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
   await page.goto('http://localhost:8765/' + hash);
@@ -2462,6 +2469,83 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('deleting the item takes its light away too', left.size === 0, JSON.stringify(left));
 
   ok('lights run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 34. 写真ポーズ指定 --------------------------------------------------------
+// MediaPipe をブラウザの中で動かして、写真の人の姿勢を 23 関節に写す。
+// 写真はアプリ自身が描いた人物（座る・立つ）を使う。本物の写真を持ち込まなくても、
+// 「膝が曲がっているか」で検出とポーズ写しが通っているかを見られる
+{
+  const t = await open('photopose', { width: 900, height: 900 });
+  const p = t.page;
+  await p.click('#items .itemrow[data-kind="person"] > button.name'); await p.waitForTimeout(300);
+  await p.waitForFunction(() => !!window.__sp.poses() && !!document.querySelector('#selbody [data-photo]'), null, { timeout: 15000 });
+  const btn = await p.$eval('#selbody .poses', el => {
+    const last = el.lastElementChild;
+    return { last: last?.dataset.photo !== undefined, label: last?.textContent.trim(), svg: !!last?.querySelector('svg.cam'), n: el.children.length };
+  });
+  ok('the pose list ends with the camera button 写真ポーズ指定', btn.last && btn.label === '写真ポーズ指定' && btn.svg && btn.n === 9, JSON.stringify(btn));
+  const inp = await p.$eval('#photofile', i => ({ accept: i.getAttribute('accept'), hidden: i.hidden }));
+  ok('the photo input takes image/* (a MIME, so iOS shows the camera and the library)', inp.accept === 'image/*' && inp.hidden, JSON.stringify(inp));
+
+  // 人物をファインダーいっぱいに描いて、それを写真として読ませる
+  const shoot = async (posture) => {
+    await p.evaluate((posture) => {
+      const sp = window.__sp, st = sp.state();
+      const it = st.items.find(i => i.type === 'person'); it.rot = 0; sp.setProp(it, 'posture', posture);
+      const cam = st.items.find(i => i.type === 'camera'); cam.x = 0; cam.z = 3.2; cam.y = 1.0; cam.pitch = 0; sp.setProp(cam, 'focal', 35);
+      document.querySelector('[data-view="cam"]').click();
+    }, posture);
+    await p.waitForFunction(() => { const sp = window.__sp; const it = sp.state().items.find(i => i.type === 'person'); let s = false; sp.group(it.id)?.traverse(n => { if (n.isSkinnedMesh) s = true; }); return s; }, null, { timeout: 20000 });
+    await p.waitForTimeout(1200);
+    const b64 = (await p.locator('#view canvas').screenshot()).toString('base64');
+    return p.evaluate(async (b64) => {
+      const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
+      const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
+      const okv = await sp.photoPose(it, new File([blob], 'p.png', { type: 'image/png' }));
+      const J = sp.poses().joints, g = n => it.photo?.[J.indexOf(n)];
+      const knee = s => { const h = g(s + 'UpLeg'), k = g(s + 'Leg'), a = g(s + 'Foot');
+        const u = [h[0]-k[0], h[1]-k[1], h[2]-k[2]], w = [a[0]-k[0], a[1]-k[1], a[2]-k[2]];
+        return Math.acos((u[0]*w[0]+u[1]*w[1]+u[2]*w[2]) / (Math.hypot(...u) * Math.hypot(...w))) * 180 / Math.PI; };
+      return { ok: okv, posture: it.posture, n: it.photo?.length, kneeL: knee('Left'), kneeR: knee('Right'),
+               fin: it.photo?.every(q => q.length === 3 && q.every(Number.isFinite)) };
+    }, b64);
+  };
+  const sit = await shoot('sit-chair');
+  ok('a rendered sitting figure is detected and comes back as 23 joints', sit.ok && sit.posture === 'photo' && sit.n === 23 && sit.fin, JSON.stringify(sit));
+  ok('and its knees are bent', sit.kneeL < 130 && sit.kneeR < 130, `${sit.kneeL?.toFixed(0)} / ${sit.kneeR?.toFixed(0)} deg`);
+  const stand = await shoot('stand-2');
+  ok('a standing figure comes back with straighter knees', stand.ok && stand.kneeL > 135 && stand.kneeR > 135, `${stand.kneeL?.toFixed(0)} / ${stand.kneeR?.toFixed(0)} deg`);
+  await p.waitForTimeout(400);
+  const ui = await p.$eval('#selbody', el => ({ on: el.querySelector('[data-photo]')?.classList.contains('on'), hint: el.textContent.includes('写真の奥行きは推定です') }));
+  ok('the camera button lights up and the depth caveat shows', ui.on && ui.hint, JSON.stringify(ui));
+
+  // 共有リンクに 23 点が乗って、相手の画面でも同じポーズになる
+  await p.waitForTimeout(500);
+  const hash = await p.evaluate(() => location.hash);
+  const t2 = await open('photopose-link', { width: 900, height: 900 }, false, hash);
+  const back = await t2.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, n: it.photo?.length }; });
+  ok('the photo pose survives the share link', back.posture === 'photo' && back.n === 23, JSON.stringify(back));
+  await t2.ctx.close();
+  // 座標の無い photo は素の姿勢に戻す
+  const broken = await t.page.evaluate(async () => {
+    const st = JSON.parse(JSON.stringify(window.__sp.state())); st.cuts = undefined;
+    const it = st.items.find(i => i.type === 'person'); it.posture = 'photo'; it.photo = [[1, 2]];
+    const bytes = new TextEncoder().encode(JSON.stringify(st));
+    let b = ''; for (const x of bytes) b += String.fromCharCode(x);
+    return '#s=j' + btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  });
+  const t3 = await open('photopose-broken', { width: 900, height: 900 }, false, broken);
+  const fixed = await t3.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, photo: it.photo }; });
+  ok('a link whose photo pose lost its coordinates falls back to the rest pose', fixed.posture === null && fixed.photo === undefined, JSON.stringify(fixed));
+  ok('broken link opens clean', t3.errors.length === 0, t3.errors.join(' | '));
+  await t3.ctx.close();
+  // 別のポーズを選んだら写真の座標は捨てる（リンクを重くしない）
+  await p.click('#selbody [data-pose="sit-chair"]'); await p.waitForTimeout(400);
+  const after = await p.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, photo: it.photo }; });
+  ok('picking a preset pose drops the photo coordinates', after.posture === 'sit-chair' && after.photo === undefined, JSON.stringify(after));
+  ok('photo pose runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

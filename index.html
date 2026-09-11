@@ -209,6 +209,8 @@ body.viewer #addfab{display:none}
 .people small{font-size:.66rem;color:var(--ink2);line-height:1.2}
 .people button.on{border-color:var(--accent);background:var(--accent-bg)}
 .poses{grid-template-columns:repeat(3,1fr)}
+.people svg.cam{width:100%;height:auto;aspect-ratio:1;padding:22%;color:var(--ink2);display:block;pointer-events:none}
+.people button.on svg.cam{color:var(--accent-ink)}
 .cars{grid-template-columns:repeat(2,1fr)}
 #namedlg .pop{width:min(420px,100%)}
 #qrdlg{position:fixed;inset:0;background:rgba(10,12,16,.72);z-index:24;display:none;align-items:center;justify-content:center;padding:16px}
@@ -364,7 +366,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.19.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.20.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -407,6 +409,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   </div>
 </div>
 <div id="ctx" hidden></div>
+<!-- 写真ポーズ指定。image/* は MIME なので iOS でも写真とカメラがそのまま出る（拡張子の一覧ではない） -->
+<input type="file" id="photofile" accept="image/*" hidden>
 <div id="addpop"><div class="pop">
   <div class="pophead"><strong>置くものを選ぶ</strong><button id="addclose" aria-label="閉じる">✕</button></div>
   <div class="popbody">
@@ -599,6 +603,9 @@ function migrateItems(st, studio){
     if (it.type === 'person' && it.model === undefined) it.model = it.kind === 'man' ? 'asia-casual-man' : null;
     if (it.type === 'person' && it.model && !MODEL_BY_ID[it.model]) it.model = null;
     if (it.type === 'person' && it.posture === undefined) it.posture = null;
+    // 写真のポーズは座標を一緒に持っていなければ意味が無い
+    if (it.type === 'person' && it.posture === 'photo' && !(Array.isArray(it.photo) && it.photo.length === 23 &&
+        it.photo.every(p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)))){ it.posture = null; delete it.photo; }
     if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
     // 積み木の車は廃止。ワゴン・バン・軽は実物のモデルが入るまでセダンで置く。
     // 寸法はリンクの値をそのまま使うので、図面の大きさは変わらない
@@ -1185,6 +1192,96 @@ const POSE_HIDDEN = new Set(['stand-1', 'stand-4', 'walk', 'dance']);
 // サムネイルは隠しているぶんも用意してある（古い共有リンクがその ID を指すため）
 const POSE_THUMBS = ['none','stand-1','stand-2','stand-3','stand-4','stand-5',
                      'sit-chair','sit-floor','lie-up','lie-down','walk','dance'];
+// ---------- 写真からポーズ ----------
+// MediaPipe の Pose Landmarker をブラウザの中だけで動かす（サーバー無し・アカウント無し）。
+// 写真 1 枚から 33 点の関節をメートル単位の 3D（腰の中点が原点）で返してくるので、
+// poses.json と同じ 23 関節に組み替え、あとは applyPose() の同じ道で 14 体に乗せる。
+// 部品（wasm 12 MB）は CDN から、モデル（5.8 MB）は models/ に同梱。どちらも
+// **使う人だけが初回に 1 度取りに行く**（Service Worker の runtime に残る）。
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1';
+const POSE_MODEL = 'models/pose_landmarker_lite.task';
+let poseDetReq = null;
+function loadPoseDetector(){
+  return poseDetReq ||= (async () => {
+    const mp = await import(`${MP_BASE}/vision_bundle.mjs`);
+    const fs = await mp.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+    // まとめて書き出した 1 枚は file:// で開くので、モデルは公開先から取る（通信は要る）
+    const modelAssetPath = (BUNDLE || location.protocol === 'file:') ? WEB_HOME + POSE_MODEL : POSE_MODEL;
+    const opts = delegate => ({baseOptions:{modelAssetPath, delegate}, runningMode:'IMAGE', numPoses:1});
+    try { return await mp.PoseLandmarker.createFromOptions(fs, opts('GPU')); }
+    catch(e){ console.warn('pose GPU delegate failed, trying CPU', e); return await mp.PoseLandmarker.createFromOptions(fs, opts('CPU')); }
+  })().catch(e => { poseDetReq = null; throw e; });
+}
+// MediaPipe の 33 点の番地
+const MP = {nose:0, earL:7, earR:8, shL:11, shR:12, elL:13, elR:14, wrL:15, wrR:16,
+            hipL:23, hipR:24, kneeL:25, kneeR:26, ankL:27, ankR:28, toeL:31, toeR:32};
+// 33 点 → poses.json の 23 関節。MediaPipe は x 右・y 下・z 奥（小さいほどカメラに近い）で、
+// poses.json（Mixamo 系）は y 上・体の正面が +Z・左手が +X。写真をどの角度から
+// 撮っていても、**腰の左右を X 軸に揃えて体を +Z に向ける**（体の向きは図面の「向き」で
+// 決めるものなので、写真の向きは捨てる）。背骨と首の中間点は MediaPipe に無いので、
+// 腰→肩の中点、肩の中点→耳の中点を素の姿勢（rest）と同じ割合で割って作る。
+// applyPose() は向きしか見ないので、体格（長さ）は合わなくてよい。
+function poseFromLandmarks(lm){
+  const P = i => new V3(lm[i].x, -lm[i].y, -lm[i].z);
+  const mid = (a, b) => a.clone().add(b).multiplyScalar(0.5);
+  const hips = mid(P(MP.hipL), P(MP.hipR)), chest = mid(P(MP.shL), P(MP.shR)), ear = mid(P(MP.earL), P(MP.earR));
+  const lr = P(MP.hipL).sub(P(MP.hipR)); lr.y = 0;
+  const yaw = lr.lengthSq() > 1e-8 ? Math.atan2(lr.z, lr.x) : 0;   // Y まわりに yaw 回すと左右が +X に乗る
+  const along = (a, b, t) => a.clone().lerp(b, t);
+  // 頭の向きは耳 2 点と鼻で作る（頭そのものの枠）。肩の中点→耳の中点で出すと、
+  // まっすぐ立った人でも 16 度ほど前に倒れる（MediaPipe の肩の点が耳より後ろに出るため）。
+  // 耳と鼻なら、頭を横に向けていても上向きが取れる
+  const neck = along(chest, ear, 0.25), headLen = ear.distanceTo(chest);
+  let up = new V3().crossVectors(P(MP.earL).sub(P(MP.earR)), P(MP.nose).sub(ear));
+  if (up.lengthSq() < 1e-9) up = ear.clone().sub(chest); else if (up.dot(ear.clone().sub(chest)) < 0) up.negate();
+  up.normalize();
+  const J = {
+    Hips: hips, Spine: along(hips, chest, 0.25), Spine1: along(hips, chest, 0.50), Spine2: along(hips, chest, 0.73),
+    Neck: neck, Head: neck.clone().addScaledVector(up, headLen * 0.4), HeadTop_End: neck.clone().addScaledVector(up, headLen * 1.3),
+    LeftShoulder: along(chest, P(MP.shL), 0.3), LeftArm: P(MP.shL), LeftForeArm: P(MP.elL), LeftHand: P(MP.wrL),
+    RightShoulder: along(chest, P(MP.shR), 0.3), RightArm: P(MP.shR), RightForeArm: P(MP.elR), RightHand: P(MP.wrR),
+    LeftUpLeg: P(MP.hipL), LeftLeg: P(MP.kneeL), LeftFoot: P(MP.ankL), LeftToeBase: P(MP.toeL),
+    RightUpLeg: P(MP.hipR), RightLeg: P(MP.kneeR), RightFoot: P(MP.ankR), RightToeBase: P(MP.toeR),
+  };
+  const Y = new V3(0, 1, 0);
+  return POSES.joints.map(j => J[j].clone().sub(hips).applyAxisAngle(Y, yaw).toArray().map(v => Math.round(v * 1000) / 1000));
+}
+const photoPoseOf = it => POSES && Array.isArray(it.photo) && it.photo.length === POSES.joints.length ? {id:'photo', label:'写真', p:it.photo} : null;
+// 検出は長辺 1024 で足りる。大きな写真をそのまま渡しても遅くなるだけ。
+// <img> で読むので EXIF の向き（スマホの縦写真）はブラウザが起こしてくれる
+async function readPhoto(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((ok, ng) => { img.onload = ok; img.onerror = () => ng(new Error('image decode failed')); img.src = url; });
+    const k = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } finally { URL.revokeObjectURL(url); }
+}
+async function photoPose(it, file){
+  toast(poseDetReq ? '写真を読んでいます…' : 'ポーズ検出の部品を読み込んでいます（初回だけ 18 MB）');
+  let det, cv;
+  try { [det, cv] = await Promise.all([loadPoseDetector(), loadPoses(), readPhoto(file)]).then(r => [r[0], r[2]]); }
+  catch(e){ console.warn('photo pose failed', e); toast(navigator.onLine === false ? '写真ポーズ指定には通信が必要です' : '写真を読めませんでした'); return false; }
+  if (!POSES){ toast('ポーズのデータを読めませんでした'); return false; }
+  const lm = det.detect(cv).worldLandmarks?.[0];
+  if (!lm || lm.length < 33){ toast('写真から人物を検出できませんでした'); return false; }
+  if (!state.items.includes(it)) return false;          // 読んでいるあいだに消された
+  it.photo = poseFromLandmarks(lm); it.posture = 'photo';
+  rebuildItem(it); renderSel(); needRender = true; saveHash();
+  toast('写真のポーズを写しました');
+  return true;
+}
+let photoTarget = null;
+const photoInput = document.getElementById('photofile');
+photoInput.addEventListener('change', () => {
+  const file = photoInput.files?.[0], it = state.items.find(i => i.id === photoTarget);
+  if (file && it) photoPose(it, file);
+});
+
 // 骨の対応。ひねり用の骨（*Twist*）は動かさず、そのままにする
 const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
   LeftShoulder:'L_Clavicle', LeftArm:'L_Upperarm', LeftForeArm:'L_Forearm', LeftHand:'L_Hand',
@@ -1294,7 +1391,7 @@ function buildRealPerson(it, src){
   if (!restH.has(src)){ const b = posedBox(src); restH.set(src, b.max.y - b.min.y); }
   const k = restH.get(src) > 1e-4 ? it.height / restH.get(src) : 1;
   inst.scale.setScalar(k);
-  const pose = it.posture && POSES ? poseById(it.posture) : null;
+  const pose = it.posture === 'photo' ? photoPoseOf(it) : it.posture && POSES ? poseById(it.posture) : null;
   if (pose) applyPose(inst, pose);
   const bb = posedBox(inst);
   inst.position.set(-(bb.min.x + bb.max.x)/2, -bb.min.y, -(bb.min.z + bb.max.z)/2);
@@ -3477,14 +3574,21 @@ function renderSel(){
   if (it.type === 'person' && personModel(it) && POSES){
     const pb = (id, label, on) => `<button class="${on ? 'on' : ''}" data-pose="${id}" title="${esc(label)}" aria-label="${esc(label)}">` +
       `<img src="${asset(`models/thumbs/pose-${id}.webp`)}" alt="" width="200" height="200"><small>${esc(label)}</small></button>`;
+    // 一覧の最後はカメラの絵の「写真ポーズ指定」。写真に写った人の姿勢をそのまま写す
     h += `<h2>ポーズ</h2><div class="people poses">` + pb('none', '素の姿勢', !it.posture) +
-      POSES.poses.filter(p => !POSE_HIDDEN.has(p.id)).map(p => pb(p.id, p.label, it.posture === p.id)).join('') + `</div>`;
+      POSES.poses.filter(p => !POSE_HIDDEN.has(p.id)).map(p => pb(p.id, p.label, it.posture === p.id)).join('') +
+      `<button class="${it.posture === 'photo' ? 'on' : ''}" data-photo title="写真ポーズ指定" aria-label="写真ポーズ指定">` +
+      `<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">` +
+      `<path d="M4 8h3.2l1.8-2.6h6L16.8 8H20a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.4"/></svg>` +
+      `<small>写真ポーズ指定</small></button></div>`;
+    if (it.posture === 'photo') h += `<p class="hint">写真の奥行きは推定です。体の向きは「向き」で合わせてください。</p>`;
   }
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
   el.querySelectorAll('[data-pose]').forEach(b => b.addEventListener('click', () => {
     setProp(it, 'posture', b.dataset.pose === 'none' ? null : b.dataset.pose);
   }));
+  el.querySelector('[data-photo]')?.addEventListener('click', () => { photoTarget = it.id; photoInput.value = ''; photoInput.click(); });
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
     it[k] = (k === 'dimCam' || k === 'dimWall') ? it[k] !== true : !dimOn(it, k);   // these two start off
@@ -3632,6 +3736,8 @@ function setProp(it, k, v, live=false){
   // 残っていると、選び直しても絵が変わらず「効いていない」に見える
   else if (k === 'kind' && it.type === 'light'){ const t = LIGHT_BY_KIND[v] || LIGHT_BY_KIND.spot;
     it.kind = t.kind; it.spread = t.spread; it.soft = t.soft; }
+  // 写真のポーズは 23 関節の座標をアイテムに持つ。別のポーズを選んだら捨てる（リンクを重くしない）
+  else if (k === 'posture'){ it.posture = v; if (v !== 'photo') delete it.photo; }
   else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
@@ -5032,7 +5138,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, poseDetector: loadPoseDetector, poses: () => POSES};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
