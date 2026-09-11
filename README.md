@@ -158,7 +158,7 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
   1 モジュールずつ突き合わせ、`jsQR` で実際に読ませて確かめている。
 - 取り消しは state の JSON を丸ごと積むだけ。60 手まで。
 - 写真ポーズ指定は Google の [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)
-  をブラウザの中で動かす。wasm（12 MB）は jsDelivr、モデル（5.8 MB）は `models/` に同梱。
+  をブラウザの中で動かす。wasm（12 MB）は jsDelivr、モデル（9.4 MB）は `models/` に同梱。
   **押した人だけが初回に取りに行き**、一度取れば圏外でも動く。写真は端末の外に出ない。
   奥行きは 1 枚の写真からの推定なので目安。
 - **窓を透過させたい 3D モデルは、窓のマテリアルを分けて名前に `glass` か
@@ -177,5 +177,5 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
 ## ライセンス
 
 コードは MIT。`models/` の 3D モデルは対象外で、著作権は Taichi Teramura に帰属する。
-`models/pose_landmarker_lite.task` は Google の MediaPipe のモデルで、Apache 2.0。
+`models/pose_landmarker_full.task` は Google の MediaPipe のモデルで、Apache 2.0。
 詳細は [LICENSE](LICENSE)。

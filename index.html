@@ -366,7 +366,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.20.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.20.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -1196,10 +1196,10 @@ const POSE_THUMBS = ['none','stand-1','stand-2','stand-3','stand-4','stand-5',
 // MediaPipe の Pose Landmarker をブラウザの中だけで動かす（サーバー無し・アカウント無し）。
 // 写真 1 枚から 33 点の関節をメートル単位の 3D（腰の中点が原点）で返してくるので、
 // poses.json と同じ 23 関節に組み替え、あとは applyPose() の同じ道で 14 体に乗せる。
-// 部品（wasm 12 MB）は CDN から、モデル（5.8 MB）は models/ に同梱。どちらも
+// 部品（wasm 12 MB）は CDN から、モデル（9.4 MB）は models/ に同梱。どちらも
 // **使う人だけが初回に 1 度取りに行く**（Service Worker の runtime に残る）。
 const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1';
-const POSE_MODEL = 'models/pose_landmarker_lite.task';
+const POSE_MODEL = 'models/pose_landmarker_full.task';
 let poseDetReq = null;
 function loadPoseDetector(){
   return poseDetReq ||= (async () => {
@@ -1207,14 +1207,48 @@ function loadPoseDetector(){
     const fs = await mp.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
     // まとめて書き出した 1 枚は file:// で開くので、モデルは公開先から取る（通信は要る）
     const modelAssetPath = (BUNDLE || location.protocol === 'file:') ? WEB_HOME + POSE_MODEL : POSE_MODEL;
+    // 1 枚の静止画なので CPU で足りる（swiftshader で 0.3 秒）。GPU は端末ごとに結果が
+    // 変わり、折り畳んだ腕の肘を取り違えたことがある。作れないときだけ GPU
     const opts = delegate => ({baseOptions:{modelAssetPath, delegate}, runningMode:'IMAGE', numPoses:1});
-    try { return await mp.PoseLandmarker.createFromOptions(fs, opts('GPU')); }
-    catch(e){ console.warn('pose GPU delegate failed, trying CPU', e); return await mp.PoseLandmarker.createFromOptions(fs, opts('CPU')); }
+    try { return await mp.PoseLandmarker.createFromOptions(fs, opts('CPU')); }
+    catch(e){ console.warn('pose CPU delegate failed, trying GPU', e); return await mp.PoseLandmarker.createFromOptions(fs, opts('GPU')); }
   })().catch(e => { poseDetReq = null; throw e; });
 }
 // MediaPipe の 33 点の番地
 const MP = {nose:0, earL:7, earR:8, shL:11, shR:12, elL:13, elR:14, wrL:15, wrR:16,
             hipL:23, hipR:24, kneeL:25, kneeR:26, ankL:27, ankR:28, toeL:31, toeR:32};
+// 写真の 2D 位置と、3D 推定の「骨の長さ」と「前後の符号」だけを組み合わせる（2D 拘束の持ち上げ）。
+// MediaPipe の 3D（worldLandmarks）は奥行きが甘く、胸の前で折り畳んだ腕の肘が
+// 90 度まで開いた（2D では 20 度）。写真の上の位置は信じてよいので、骨ごとに
+// 「画像上の長さ」と「3D の長さ」の差から奥行きを出し、向き（手前か奥か）は 3D から借りる。
+// 縮尺（メートル/ピクセル）は「投影は縮むだけ」から、信頼できる骨の比の中央値で決める。
+// 手足（MP_LIMB）だけこの持ち上げをする。胴・肩幅・腰幅・頭は 3D 推定の奥行きを
+// そのまま使う — 長さの差から出すと、胴が 3D 推定より大きく傾いた（3 度 → 28 度）
+const MP_EDGES = [['hip',23],['hip',24],[23,25],[25,27],[27,31],[24,26],[26,28],[28,32],['hip','sh'],['sh',11],['sh',12],
+  [11,13],[13,15],[12,14],[14,16],['sh','ear'],['ear',7],['ear',8],['ear',0]];   // 親が先
+const MP_LIMB = new Set(['23-25','25-27','27-31','24-26','26-28','28-32','11-13','13-15','12-14','14-16']);
+function fuseLandmarks(lm, wl, W, H){
+  if (!lm || !wl) return wl;
+  const P2 = {hip:[(lm[23].x+lm[24].x)/2*W, (lm[23].y+lm[24].y)/2*H], sh:[(lm[11].x+lm[12].x)/2*W, (lm[11].y+lm[12].y)/2*H], ear:[(lm[7].x+lm[8].x)/2*W, (lm[7].y+lm[8].y)/2*H]};
+  const m3 = (a, b) => ({x:(wl[a].x+wl[b].x)/2, y:(wl[a].y+wl[b].y)/2, z:(wl[a].z+wl[b].z)/2});
+  const W3 = {hip:m3(23,24), sh:m3(11,12), ear:m3(7,8)};
+  for (const i of [0,7,8,11,12,13,14,15,16,23,24,25,26,27,28,31,32]){ P2[i] = [lm[i].x*W, lm[i].y*H]; W3[i] = wl[i]; }
+  const len3 = (a, b) => Math.hypot(W3[a].x-W3[b].x, W3[a].y-W3[b].y, W3[a].z-W3[b].z);
+  const len2 = (a, b) => Math.hypot(P2[a][0]-P2[b][0], P2[a][1]-P2[b][1]);
+  const vis = i => typeof i === 'number' ? (lm[i].visibility ?? 1) : 1;
+  const ratios = [];
+  for (const [a, b] of MP_EDGES){ const l2 = len2(a, b), l3 = len3(a, b); if (l2 > 8 && l3 > 0.08 && vis(a) > 0.5 && vis(b) > 0.5) ratios.push(l3 / l2); }
+  ratios.sort((x, y) => x - y);
+  if (ratios.length < 4) return wl;                 // 拠り所が無ければ 3D 推定をそのまま
+  const s = ratios[Math.floor(ratios.length * 0.5)];
+  const out = {hip:{x:0, y:0, z:0}};
+  for (const [a, b] of MP_EDGES){
+    const dx = (P2[b][0]-P2[a][0]) * s, dy = (P2[b][1]-P2[a][1]) * s, L = len3(a, b), wz = W3[b].z - W3[a].z;
+    const dz = MP_LIMB.has(a + '-' + b) ? Math.sqrt(Math.max(0, L*L - dx*dx - dy*dy)) * (wz < 0 ? -1 : 1) : wz;
+    out[b] = {x:out[a].x + dx, y:out[a].y + dy, z:out[a].z + dz};
+  }
+  return wl.map((p, i) => out[i] || p);
+}
 // 33 点 → poses.json の 23 関節。MediaPipe は x 右・y 下・z 奥（小さいほどカメラに近い）で、
 // poses.json（Mixamo 系）は y 上・体の正面が +Z・左手が +X。写真をどの角度から
 // 撮っていても、**腰の左右を X 軸に揃えて体を +Z に向ける**（体の向きは図面の「向き」で
@@ -1267,15 +1301,15 @@ async function readPhoto(file){
   } finally { URL.revokeObjectURL(url); }
 }
 async function photoPose(it, file){
-  toast(poseDetReq ? '写真を読んでいます…' : 'ポーズ検出の部品を読み込んでいます（初回だけ 18 MB）');
+  toast(poseDetReq ? '写真を読んでいます…' : 'ポーズ検出の部品を読み込んでいます（初回だけ 21 MB）');
   let det, cv;
   try { [det, cv] = await Promise.all([loadPoseDetector(), loadPoses(), readPhoto(file)]).then(r => [r[0], r[2]]); }
   catch(e){ console.warn('photo pose failed', e); toast(navigator.onLine === false ? '写真ポーズ指定には通信が必要です' : '写真を読めませんでした'); return false; }
   if (!POSES){ toast('ポーズのデータを読めませんでした'); return false; }
-  const lm = det.detect(cv).worldLandmarks?.[0];
-  if (!lm || lm.length < 33){ toast('写真から人物を検出できませんでした'); return false; }
+  const res = det.detect(cv), wl = res.worldLandmarks?.[0], lm = res.landmarks?.[0];
+  if (!wl || wl.length < 33){ toast('写真から人物を検出できませんでした'); return false; }
   if (!state.items.includes(it)) return false;          // 読んでいるあいだに消された
-  it.photo = poseFromLandmarks(lm); it.posture = 'photo';
+  it.photo = poseFromLandmarks(fuseLandmarks(lm, wl, cv.width, cv.height)); it.posture = 'photo';
   rebuildItem(it); renderSel(); needRender = true; saveHash();
   toast('写真のポーズを写しました');
   return true;
@@ -5191,7 +5225,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, poseDetector: loadPoseDetector, poses: () => POSES};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

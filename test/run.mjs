@@ -116,7 +116,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  // MediaPipe の CPU 推定は「INFO: Created TensorFlow Lite XNNPACK delegate」を console.error で出す。案内であって不具合ではない
+  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource|XNNPACK delegate/.test(m.text())) errors.push(m.text()); });
   await page.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', route => {
     const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/', '');
     const f = path.join(NM, 'three', rel);
@@ -1719,7 +1720,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   const page = await ctx.newPage();
   const errors = [], outbound = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  // MediaPipe の CPU 推定は「INFO: Created TensorFlow Lite XNNPACK delegate」を console.error で出す。案内であって不具合ではない
+  page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource|XNNPACK delegate/.test(m.text())) errors.push(m.text()); });
   page.on('request', r => { if (/^https?:/.test(r.url())) outbound.push(r.url()); });
   await page.goto('file://' + file);
   await page.waitForTimeout(9000);
@@ -2493,7 +2495,8 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const shoot = async (posture) => {
     await p.evaluate((posture) => {
       const sp = window.__sp, st = sp.state();
-      const it = st.items.find(i => i.type === 'person'); it.rot = 0; sp.setProp(it, 'posture', posture);
+      // 斜め 40 度から撮る。真正面だと太ももがカメラを向いて、写真の上に膝の曲がりが出ない
+      const it = st.items.find(i => i.type === 'person'); it.rot = 0; sp.setProp(it, 'rot', 40); sp.setProp(it, 'posture', posture);
       const cam = st.items.find(i => i.type === 'camera'); cam.x = 0; cam.z = 3.2; cam.y = 1.0; cam.pitch = 0; sp.setProp(cam, 'focal', 35);
       document.querySelector('[data-view="cam"]').click();
     }, posture);
