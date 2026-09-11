@@ -1868,6 +1868,88 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 }
 
+// --- 28c. 大きな 3DGS：動かせる範囲と、1/100〜100 倍の拡大縮小 ---------------------
+// 街並みのスキャンを持ち込むと、部屋の寸法で決めた範囲では何も置けない
+// （寺村さんの指摘）。**大きいものを入れるまでは今までどおり**で、入れたら
+// 移動範囲・画面・グリッド・カメラの far がそちらへ広がる、という形にしてある
+{
+  const t = await open('big-scan', { width: 1200, height: 800 });
+  // --- まだ何も入れていないうち。ここが変わっていたら普段の仕事が壊れている ---
+  const before = await t.page.evaluate(() => {
+    const sp = window.__sp, st = sp.state();
+    return { limit: sp.limit(), world: sp.world(), studio: [st.studio.w, st.studio.d],
+             grid: sp.grid() };
+  });
+  ok('with nothing big in the scene the world is still just the room',
+     before.world.reach === 0 && before.world.size === 0, JSON.stringify(before.world));
+  ok('so objects still stop at the walls, exactly as before',
+     Math.abs(before.limit[0] - (before.studio[0]/2 - 0.2)) < 1e-9 &&
+     Math.abs(before.limit[1] - (before.studio[1]/2 - 0.2)) < 1e-9, JSON.stringify(before.limit));
+  ok('and the grid is still drawn every metre', before.grid[2] === 1, JSON.stringify(before.grid));
+  // --- 街並みを想定して、2 m のスキャンを 100 倍にする ---
+  const ply = `${OUT}/scan-big.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
+  await t.page.click('#addfab');
+  await t.page.setInputFiles('#file', ply);
+  await t.page.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 });
+  await t.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t.page.waitForTimeout(400);
+  // 拡大縮小は対数のつまみ。つまみ自身は 0〜1000 の整数で、真ん中がちょうど 1 倍
+  const sc = await t.page.$('[data-range="scale"]');
+  const attrs = await sc.evaluate(n => [n.dataset.log, n.min, n.max]);
+  ok('the scale slider runs from 1/100 to 100', attrs[0] === '0.01:100', attrs.join(' '));
+  const setScale = async pos => {
+    await t.page.$eval('[data-range="scale"]', (n, v) => {
+      n.value = String(v);
+      n.dispatchEvent(new Event('input', {bubbles:true}));
+      n.dispatchEvent(new Event('change', {bubbles:true}));
+    }, pos);
+    await t.page.waitForTimeout(300);
+    return t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').scale);
+  };
+  ok('its middle is exactly 1x, so the everyday value is not squashed into a corner',
+     (await setScale(500)) === 1);
+  ok('one end is 1/100', (await setScale(0)) === 0.01);
+  ok('the other is 100x', (await setScale(1000)) === 100);
+  // --- 100 倍にしたあと。世界はそこまで広がっている ---
+  const after = await t.page.evaluate(() => {
+    const sp = window.__sp;
+    return { limit: sp.limit(), world: sp.world(), grid: sp.grid() };
+  });
+  ok('the world now reaches out to the scan', after.world.size > 90, JSON.stringify(after.world));
+  ok('and objects can be moved that far out', after.limit[0] > 90, JSON.stringify(after.limit));
+  // 実際に setPos を通す。クランプはここにしか無いので、ここが効いていなければ嘘になる
+  const moved = await t.page.evaluate(() => {
+    const sp = window.__sp, cam = sp.state().items.find(i => i.type === 'camera');
+    sp.setPos(cam, 90, -90); return [cam.x, cam.z];
+  });
+  ok('a camera really goes 90 m down the street', moved[0] === 90 && moved[1] === -90, JSON.stringify(moved));
+  // グリッドは 1 m では引かない。**引くと線が数千本になり、絵としても意味を失う**
+  ok('the grid steps up instead of drawing thousands of 1 m lines',
+     after.grid[2] > 1 && after.grid[0] >= 90, JSON.stringify(after.grid));
+  ok('and the readout says what the spacing is now',
+     (await t.page.textContent('#info')).includes(`グリッド ${after.grid[2]} m`),
+     await t.page.textContent('#info'));
+  // 上面図がスキャンごと入る大きさになっていること（部屋の寸法のままだと画面外）
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(600);
+  const frame = await t.page.evaluate(() => { const c = window.__sp.camera(); return [c.right - c.left, c.far]; });
+  ok('the plan view frames the whole scan, not just the room', frame[0] > 180, `${frame[0].toFixed(0)} m across`);
+  ok('and nothing is clipped away by a far plane left at the studio size', frame[1] > 200, String(frame[1]));
+  await t.page.screenshot({ path: `${OUT}/big-scan.png` });
+  ok('big scan run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 28d. コロフォン ----------------------------------------------------------------
+{
+  const t = await open('colophon', { width: 1200, height: 800 });
+  await t.tab('share');
+  const col = await t.page.$eval('.colophon', n => ({ text: n.textContent, href: n.querySelector('a')?.href }));
+  ok('the colophon carries the site under the copyright',
+     col.href === 'https://www.taichi-teramura.com/', col.href);
+  ok('and the copyright is still there', col.text.includes('© 2026 Taichi Teramura'), col.text);
+  ok('colophon run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 // --- 29. 書き出しボタンの名前、取り込みの上限、iPhone のファイル選び ------------------
 {
   // 上限は「現場のスキャンが入らない」と言われて倍にしたもの。下げると元に戻るので、

@@ -108,6 +108,8 @@ h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;fon
 h2:first-child{margin-top:0}
 .hint{font-size:.82rem;color:var(--ink2);margin:6px 0 10px}
 .colophon{margin:22px 0 0;font-size:.62rem;line-height:1.6;color:var(--muted);text-align:center}
+.colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.colophon a:hover{color:var(--ink2)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 .btn{min-height:44px;padding:8px 14px;border:1px solid var(--rule);background:var(--btn);color:var(--ink);border-radius:8px;font:inherit;font-weight:500;cursor:pointer;flex:1 1 auto;text-align:center}
 .btn.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:var(--btn-on)}
@@ -362,7 +364,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.17.2<br>© 2026 Taichi Teramura</p>
+        <p class="colophon">Studio Planner v1.18.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -650,7 +652,9 @@ const shotCam = new THREE.PerspectiveCamera(50, 1.5, 0.05, 200);
 shotCam.rotation.order = 'YXZ';
 const persCam = new THREE.PerspectiveCamera(45, 1.5, 0.05, 500);
 const orbit = {theta:0.7, phi:1.0, radius:12, target:new THREE.Vector3()};
-function resetOrbit(){ const {w,d,h} = state.studio; orbit.theta = 0.7; orbit.phi = 1.0; orbit.radius = Math.max(w,d)*1.5; orbit.target.set(0, h*0.3, 0); }
+// 視点をどこまで引けるか。街並みのスキャンは 80 m では全体が入らない
+const ORBIT_MAX = () => Math.max(80, worldSpan().reach * 4);
+function resetOrbit(){ const {w,d,h} = state.studio; orbit.theta = 0.7; orbit.phi = 1.0; orbit.radius = Math.max(w, d, worldSpan().reach*2)*1.5; orbit.target.set(0, h*0.3, 0); }
 function applyOrbit(){
   const {theta, phi, radius, target} = orbit;
   persCam.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
@@ -791,6 +795,52 @@ function buildStudio(){
 // ---------- 1 m グリッド ----------
 // 広さは「スタジオ（消していなければ）と、置いてあるもの」から引く。
 // 3DGS だけで使うときは現場のスキャンの大きさに合う
+// 対数スライダーの目盛り。つまみは 0〜LOG_STEPS の整数で持ち、min〜max へ写す
+const LOG_STEPS = 1000;
+const toLog = (v, min, max) => Math.round(Math.log(v/min) / Math.log(max/min) * LOG_STEPS);
+const fromLog = (p, min, max) => +(min * Math.pow(max/min, p/LOG_STEPS)).toPrecision(3);
+const fmtLog = v => String(+(+v).toPrecision(3));   // fmt() は小数第 2 位まで。1/100 倍が 0.01 に丸まる
+
+// ---------- 世界の広さ ----------
+// **外部3Dデータ（3DGS のスキャンと取り込んだモデル）がどこまで届いているか。**
+// 何も入っていなければ 0 を返し、そのときは動かせる範囲も画面も今までどおり
+// 部屋の寸法だけで決まる（**大きいものを入れるまで 1 ミリも変わらない**）。
+// 街並みのスキャンを持ち込むと数百 m になるので、移動範囲・画面の移動・
+// 上面図の画角・視点までの距離・グリッド・カメラの far は全部ここから引く。
+//   size  … いちばん大きいものの半径（位置は入れない。移動範囲がじりじり
+//           伸び続けるのを避けるため）
+//   reach … いちばん外まで届いている距離（位置込み。画面はここまで映す）
+//   top   … いちばん高いところ。側面・正面の画角に使う
+const WORLD_MAX = 4000;
+function worldSpan(){
+  let size = 0, reach = 0, top = 0;
+  for (const it of state.items){
+    if (it.hidden) continue;
+    let hw, hd, hh;
+    if (it.type === 'splat'){
+      const c = cropWorldBox(it);                     // 位置は入っていない
+      hw = Math.max(Math.abs(c.x0), Math.abs(c.x1)); hd = Math.max(Math.abs(c.z0), Math.abs(c.z1)); hh = c.y1;
+    } else if (it.type === 'model'){
+      hw = (it.w || 0)/2; hd = (it.d || 0)/2; hh = it.h || 0;
+    } else continue;
+    const r = Math.max(hw, hd);
+    size = Math.max(size, r, hh);
+    reach = Math.max(reach, Math.abs(it.x) + r, Math.abs(it.z) + r);
+    top = Math.max(top, hh + (it.lift || 0) * (it.scale || 1));
+  }
+  const c = v => Math.min(v, WORLD_MAX);
+  return {size: c(size), reach: c(reach), top: c(top)};
+}
+// オブジェクトを動かせる範囲。**外部3Dデータが無く部屋が出ているあいだは
+// 今までどおり部屋の中だけ**（壁を突き抜けた図面にならないため）。
+// 街並みのスキャンや大きなモデルを置いたら、そちらの端まで動かせる。
+function moveLimit(){
+  const {w, d, hidden} = state.studio, {size} = worldSpan();
+  if (!size && !hidden) return [w/2 - 0.2, d/2 - 0.2];
+  // 以前のスキャンの上限（部屋の 2 倍 + 20 m）は下回らせない
+  const lim = Math.min(Math.max(size + 10, Math.max(w, d) * 2 + 20), WORLD_MAX);
+  return [lim, lim];
+}
 function gridExtent(){
   let ex = 3, ez = 3;
   if (!state.studio.hidden){ ex = Math.max(ex, state.studio.w/2); ez = Math.max(ez, state.studio.d/2); }
@@ -802,16 +852,23 @@ function gridExtent(){
     const r = Math.max(hw, hd);        // 回してあるぶんは大きいほうで見る。目盛りの広さに精度は要らない
     ex = Math.max(ex, Math.abs(it.x) + r); ez = Math.max(ez, Math.abs(it.z) + r);
   }
-  return [Math.min(Math.ceil(ex) + 4, 120), Math.min(Math.ceil(ez) + 4, 120)];   // 際限なく引かない
+  ex = Math.min(Math.ceil(ex) + 4, WORLD_MAX); ez = Math.min(Math.ceil(ez) + 4, WORLD_MAX);
+  // **広いときは 1 m では引かない。** 街並みのスキャンに 1 m の目盛りを敷くと
+  // 線が数千本になるうえ、絵としてもただの灰色の面になる。1 → 10 → 100 m と
+  // 上げて、線の本数を 60 前後に保つ。刻みが 1 m でないときは右上に書く
+  const step = Math.pow(10, Math.max(0, Math.ceil(Math.log10(Math.max(ex, ez) / 60))));
+  return [Math.ceil(ex/step)*step, Math.ceil(ez/step)*step, step];
 }
 let gridSpan = '';
+let gridStep = 1;                       // 右上の読み値に出す。1 m のときは書かない
 function syncGrid(){
-  const [gx, gz] = gridExtent(), key = gx + ':' + gz;
+  const [gx, gz, step] = gridExtent(), key = gx + ':' + gz + ':' + step;
+  gridStep = step;
   if (gridSpan !== key){
     gridSpan = key; gridGroup.clear();
     const V = THREE.Vector3, pts = [];
-    for (let x = -gx; x <= gx; x++) pts.push(new V(x,0.003,-gz), new V(x,0.003,gz));
-    for (let z = -gz; z <= gz; z++) pts.push(new V(-gx,0.003,z), new V(gx,0.003,z));
+    for (let x = -gx; x <= gx; x += step) pts.push(new V(x,0.003,-gz), new V(x,0.003,gz));
+    for (let z = -gz; z <= gz; z += step) pts.push(new V(-gx,0.003,z), new V(gx,0.003,z));
     const grid = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
       new THREE.LineBasicMaterial({color:0x9a9a96, transparent:true, opacity:0.6}));
     grid.userData.noHit = true; grid.userData.ground = true; grid.userData.grid = true;
@@ -1621,6 +1678,8 @@ function buildCamera(it){
 }
 // 3D frustum, clipped by the studio (floor, walls, coves, ceiling)
 function setShotCam(ci, aspect){
+  // 街並みのスキャンの中では 200 m 先で切れてしまう。外部3Dデータの届く先まで見せる
+  shotCam.far = Math.max(200, worldSpan().reach * 4);
   shotCam.aspect = aspect; shotCam.filmGauge = sensorW(ci); shotCam.setFocalLength(ci.focal); shotCam.updateProjectionMatrix();
   shotCam.position.set(ci.x, standHeight(ci) + ci.y, ci.z);      // 箱に乗せたら視点もその上
   shotCam.rotation.set(THREE.MathUtils.degToRad(ci.pitch), THREE.MathUtils.degToRad(ci.rot)+Math.PI, THREE.MathUtils.degToRad(ci.roll || 0));
@@ -1939,21 +1998,28 @@ function layoutPip(){
 function savePip(){ try { localStorage.setItem('studio3d.pip', JSON.stringify(pip)); } catch {} }
 function fitOrtho(){
   const {w,d,h} = state.studio; applyOrbit();
-  for (const [cam, ew, eh, axis] of [[planCam, w, d, 'plan'],[sideCam, d, h, 'side'],[frontCam, w, h, 'front']]){
+  // 街並みのスキャンを置いたら、そこまで映せないと図面にならない。
+  // **外部3Dデータが無ければ reach も top も 0 なので、今までどおり部屋の寸法**
+  const sp = worldSpan();
+  const EW = Math.max(w, sp.reach*2), ED = Math.max(d, sp.reach*2), EH = Math.max(h, sp.top);
+  const D = Math.max(60, sp.reach * 2);                   // 平行投影の立ち位置
+  const FAR = Math.max(200, D + sp.reach * 2 + sp.top);   // 遠い端を切り落とさない
+  if (persCam.far !== Math.max(500, sp.reach * 6)){ persCam.far = Math.max(500, sp.reach * 6); persCam.updateProjectionMatrix(); }
+  for (const [cam, ew, eh, axis] of [[planCam, EW, ED, 'plan'],[sideCam, ED, EH, 'side'],[frontCam, EW, EH, 'front']]){
     const asp = W / Math.max(1,H);
     let hw = ew/2 + 1.4, hh = eh/2 + 1.4;
     if (hw/hh > asp) hh = hw/asp; else hw = hh*asp;
-    cam.left=-hw; cam.right=hw; cam.top=hh; cam.bottom=-hh;
-    if (axis === 'plan'){ cam.position.set(cam.position.x,60,cam.position.z); cam.lookAt(cam.position.x,0,cam.position.z); }
-    else if (axis === 'side'){ cam.position.x = 60; cam.up.set(0,1,0); cam.lookAt(0,cam.position.y,cam.position.z); }
-    else { cam.position.z = 60; cam.up.set(0,1,0); cam.lookAt(cam.position.x,cam.position.y,0); }
+    cam.left=-hw; cam.right=hw; cam.top=hh; cam.bottom=-hh; cam.far = FAR;
+    if (axis === 'plan'){ cam.position.set(cam.position.x,D,cam.position.z); cam.lookAt(cam.position.x,0,cam.position.z); }
+    else if (axis === 'side'){ cam.position.x = D; cam.up.set(0,1,0); cam.lookAt(0,cam.position.y,cam.position.z); }
+    else { cam.position.z = D; cam.up.set(0,1,0); cam.lookAt(cam.position.x,cam.position.y,0); }
     cam.updateProjectionMatrix();
   }
 }
 // ---------- 画面の移動（中ボタンのドラッグ / 2 本指のスワイプ） ----------
 // 平行投影の 3 面はカメラを平行に動かし、パースは注視点を動かす（カメラは
 // applyOrbit がそこから組み立てる）。ズームと見る角度には触らない。
-const PAN_LIMIT = () => Math.max(state.studio.w, state.studio.d) * 2;
+const PAN_LIMIT = () => Math.max(state.studio.w, state.studio.d, worldSpan().reach) * 2;
 // 行き過ぎて迷子にならないよう、動かせる範囲を世界の 2 倍で止める
 function clampView(){
   const lim = PAN_LIMIT(), c = v => clamp(v, -lim, lim);
@@ -2136,6 +2202,8 @@ function frame(){
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
+  // 広い現場では 1 m では引いていない。**書かないと目盛りの意味が変わる**
+  if (gridStep !== 1) t += `\nグリッド ${gridStep} m`;
   if (ci){
     const eq = equiv(ci), many = cams().length > 1;          // the name only earns its place with more than one
     t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${a1(ci.pitch)}°`:''}`;
@@ -2268,7 +2336,7 @@ canvas.addEventListener('pointermove', e => {
     else {
       const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
       zoomAt(mx, my, () => {                     // 指の真ん中の下にあるものは動かさない
-        if (mainView === 'pers') orbit.radius = clamp(pinch.r0/k, 1.5, 80);
+        if (mainView === 'pers') orbit.radius = clamp(pinch.r0/k, 1.5, ORBIT_MAX());
         else setOrthoZoom(clamp(pinch.z0*k, 0.3, 6));
       });
       panView(mx - pinch.cx, my - pinch.cy);     // 真ん中が動いたぶんは画面も動かす
@@ -2307,7 +2375,7 @@ canvas.addEventListener('wheel', e => {
   const r = canvas.getBoundingClientRect();
   zoomAt(e.clientX - r.left, e.clientY - r.top, () => {
     if (mainView === 'cam'){ const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(ci.focal*(e.deltaY<0?1.1:0.9)), 10, 400); refreshCam(ci); } }
-    else if (mainView === 'pers') orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, 80);
+    else if (mainView === 'pers') orbit.radius = clamp(orbit.radius*(e.deltaY<0?0.9:1.1), 1.5, ORBIT_MAX());
     else setOrthoZoom(clamp(planCam.zoom*(e.deltaY<0?1.1:0.9), 0.3, 6));
   });
 }, {passive:false});
@@ -2373,10 +2441,10 @@ function dragHandle(d, x, y){
   rebuildItem(it); needRender = true;
 }
 function setPos(it, x, z){
-  const {w,d} = state.studio;
-  // スキャンは現場そのもの。部屋の外にも置けないと、スタジオを消して使えない
-  if (it.type === 'splat'){ const L = Math.max(w, d)*2 + 20; it.x = +clamp(x,-L,L).toFixed(2); it.z = +clamp(z,-L,L).toFixed(2); return; }
-  it.x = +clamp(x, -w/2+0.2, w/2-0.2).toFixed(2); it.z = +clamp(z, -d/2+0.2, d/2-0.2).toFixed(2);
+  // 範囲は moveLimit() が決める。外部3Dデータが無いあいだは部屋の中、
+  // 街並みのスキャンを置いたらその端まで（カメラも人も外に出せないと意味が無い）
+  const [lx, lz] = moveLimit();
+  it.x = +clamp(x, -lx, lx).toFixed(2); it.z = +clamp(z, -lz, lz).toFixed(2);
 }
 function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildCamera(ci); g.userData.id = ci.id; g.position.copy(o.group.position); g.rotation.y = THREE.MathUtils.degToRad(ci.rot); itemsGroup.remove(o.group); itemsGroup.add(g); o.group = g; } buildFrustum(ci); updateSelectionVisuals(); }
 
@@ -2940,6 +3008,14 @@ function renderSel(){
     return;
   }
   const btns = (name, opts, cur) => `<div class="row">${opts.map(([v,l]) => `<button class="btn ${String(v)===String(cur)?'on':''}" data-set="${name}" data-val="${v}">${l}</button>`).join('')}</div>`;
+  // **拡大縮小だけは対数で刻む。** 0.01〜100 を線形に並べると、いちばん使う
+  // 1 倍がつまみの 1% の位置に潰れて二度と合わせられない。つまみ自身は
+  // 0〜1000 の整数で持ち、data-log の min:max で実際の値へ写す。
+  // 数値を打ち込む欄（data-edit）のほうは本物の min/max のままなので、
+  // 100 を超える値は今までどおり弾かれる
+  const logRange = (name, label, min, max, val, unit) =>
+    `<label class="f"><span>${label}</span><input type="range" data-range="${name}" data-log="${min}:${max}" min="0" max="${LOG_STEPS}" step="1" value="${toLog(clamp(val, min, max), min, max)}">` +
+    `<button type="button" class="v" data-edit="${name}" data-min="${min}" data-max="${max}" data-step="any" data-unit="${unit}" title="タップで数値を入力">${fmtLog(val)} ${unit}</button></label>`;
   const range = (name, label, min, max, step, val, unit) =>
     `<label class="f"><span>${label}</span><input type="range" data-range="${name}" min="${min}" max="${max}" step="${step}" value="${val}">` +
     `<button type="button" class="v" data-edit="${name}" data-min="${min}" data-max="${max}" data-step="${step}" data-unit="${unit}" title="タップで数値を入力">${fmt(val)} ${unit}</button></label>`;
@@ -2991,8 +3067,8 @@ function renderSel(){
     else if (bb) h += `<p class="hint">実寸 ${fmt(bb.w*(it.scale||1))} × ${fmt(bb.d*(it.scale||1))} × 高 ${fmt(bb.h*(it.scale||1))} m</p>`;
     h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
     h += range('lift','高さ調整',-5,5,0.01,it.lift || 0,'m');
-    h += range('scale','拡大縮小',0.2,5,0.01,it.scale || 1,'倍');
-    h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。</p>`;
+    h += logRange('scale','拡大縮小',0.01,100,it.scale || 1,'倍');
+    h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。1/100〜100 倍まで対数で刻みます。</p>`;
     // 現場のスキャンには要らないものが必ず入る。箱で囲んで外を消す
     h += `<h2>切り取り</h2>`;
     h += `<div class="row"><button class="btn ${it.crop?'on':''}" data-set="cropOn" data-val="${it.crop?'':'1'}">${it.crop?'切り取り':'切り取る'}</button>`;
@@ -3098,8 +3174,14 @@ function renderSel(){
     saveSensors(); renderSel(); needRender = true; toast(`「${n}」を保存しました`);
   });
   el.querySelectorAll('[data-color]').forEach(n => { n.addEventListener('input', () => setProp(it, 'color', n.value, true)); n.addEventListener('change', () => setProp(it, 'color', n.value)); });
+  // data-log の付いたつまみは 0〜1000 の整数なので、実際の値へ写してから渡す
+  const rangeVal = r => {
+    if (!r.dataset.log) return parseFloat(r.value);
+    const [lo, hi] = r.dataset.log.split(':').map(Number);
+    return fromLog(+r.value, lo, hi);
+  };
   el.querySelectorAll('[data-range]').forEach(r => {
-    r.addEventListener('input', () => { setProp(it, r.dataset.range, r.value, true); r.nextElementSibling.textContent = `${fmt(parseFloat(r.value))} ${r.nextElementSibling.dataset.unit}`; });
+    r.addEventListener('input', () => { const v = rangeVal(r); setProp(it, r.dataset.range, v, true); r.nextElementSibling.textContent = `${r.dataset.log ? fmtLog(v) : fmt(v)} ${r.nextElementSibling.dataset.unit}`; });
     r.addEventListener('change', () => { renderSel(); saveHash(); });
   });
   // the readout doubles as the way in for an exact number
@@ -4607,7 +4689,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB()};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent()};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
