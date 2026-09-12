@@ -221,6 +221,8 @@ async function open(name, viewport, mobile = false, hash = ''){
   ok('typed number reaches the slider', (await t.page.inputValue('[data-range="w"]')) === '2.4', await t.page.inputValue('[data-range="w"]'));
 
   // the drawing names a reflector by its long and short side, a backdrop by w x d
+  // 寸法表示はスタジオ以外は既定オフなので、ここでは全部入れて見る
+  await t.page.evaluate(() => { const sp = window.__sp; for (const it of sp.state().items) it.dim = true; sp.render(); });
   await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(600);
   const drawn = await t.page.$$eval('#labels span', n => n.map(x => x.textContent));
   ok('so does the backdrop', drawn.some(x => /布幅/.test(x)), drawn.filter(x => x.includes('幅')).join(' | '));
@@ -258,7 +260,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 辺ごとの寸法は、ラベルが押し合わない素の場面で見る（上の場面は 7 個ぶん詰めてある）
   {
     const solo = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
-      activeCam:'c1', items:[{id:'w1',type:'mirror',x:0,z:0,rot:0,kind:'floor',w:3,h:2},
+      activeCam:'c1', items:[{id:'w1',type:'mirror',x:0,z:0,rot:0,kind:'floor',w:3,h:2,dim:true},
         {id:'c1',type:'camera',x:0,z:3,y:1.3,rot:180,pitch:-6,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
     const so = await open('mirror-dims', { width: 1200, height: 800 }, false, '#s=' + encodeState(solo));
     await so.page.click('[data-view="plan"]'); await so.page.waitForTimeout(700);
@@ -685,7 +687,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   }, [x, y, z]);
   const selId = () => P.evaluate(() => window.__sp.sel());
   const one = type => P.evaluate(t => { const i = window.__sp.state().items.find(o => o.type === t);
-    return i ? {id:i.id, type:i.type, x:i.x, z:i.z, w:i.w, h:i.h, locked:!!i.locked} : null; }, type);
+    return i ? {id:i.id, type:i.type, x:i.x, z:i.z, w:i.w, h:i.h, drape:i.drape, locked:!!i.locked} : null; }, type);
   const count = type => P.evaluate(t => window.__sp.state().items.filter(o => o.type === t).length, type);
   await t.add('[data-add="box"]');
   await P.click('#viewbtns button[data-view="plan"]'); await P.waitForTimeout(400);
@@ -733,12 +735,16 @@ async function open(name, viewport, mobile = false, hash = ''){
   // 背景布の辺を引く
   await t.add('[data-add="chroma"]'); await P.waitForTimeout(500);
   const c0 = await one('chroma');
-  const e1 = await world(c0.x + c0.w / 2, c0.z), e2 = await world(c0.x + c0.w / 2 + 1.2, c0.z);
+  // つまみは角にある。手前の角を横に引くと幅が変わり、垂らしはそのまま
+  const e1 = await world(c0.x + c0.w / 2, c0.z + c0.drape), e2 = await world(c0.x + c0.w / 2 + 1.2, c0.z + c0.drape);
   await P.mouse.move(e1.x, e1.y); await P.mouse.down(); await P.mouse.move(e2.x, e2.y, { steps: 8 }); await P.mouse.up();
   await P.waitForTimeout(400);
   const c1 = await one('chroma');
-  ok('dragging an edge widens the backdrop', c1.w > c0.w + 1, `${c0.w} -> ${c1.w}`);
+  ok('dragging a corner widens the backdrop', c1.w > c0.w + 1, `${c0.w} -> ${c1.w}`);
   ok('and the far edge stays put', Math.abs((c1.x - c1.w / 2) - (c0.x - c0.w / 2)) < 0.06);
+  ok('and the drape is untouched by a sideways drag', Math.abs(c1.drape - c0.drape) < 0.15, `${c0.drape} -> ${c1.drape}`);
+  const corners = await P.evaluate(() => window.__sp.handles().children.filter(k => k.isMesh).length);
+  ok('the backdrop has four corner handles', corners === 4, String(corners));
 
   // 鏡から水面が消えている
   await t.add('[data-add="mirror"]'); await P.waitForTimeout(400);

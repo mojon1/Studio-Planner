@@ -7,7 +7,7 @@
 //     勝手に取りに行かない。実際に使ったものだけを runtime に溜める
 //     （「オフラインに保存」ボタンは外した）。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.21.1';
+const VERSION = 'v1.22.0';
 const SHELL = 'sp-shell-' + VERSION;   // 起動に要るもの。版ごとに作り直す
 const RUNTIME = 'sp-runtime';          // 使ったものを溜める場所。版をまたいで残す
 
@@ -65,9 +65,14 @@ self.addEventListener('fetch', e => {
     return;
   }
   // 残りはキャッシュ優先。無ければ取りに行って溜める。
+  // ただし同一オリジンの小さなもの（サムネイル・ポーズ・アイコン）は控えを出しつつ裏で
+  // 取り直す。runtime は版をまたいで残すので、これが無いと焼き直したサムネイルが
+  // 端末に一生出ない（寺村さんの実機で、人物の一覧が古い全身のままだった）。
+  // モデル（.glb / .task / .spz / .ply）は大きいので今までどおりキャッシュ優先
+  const revalidate = sameOrigin && !/\.(glb|task|spz|ply)$/i.test(url.pathname);
   e.respondWith((async () => {
     const hit = await fromCache(req);
-    if (hit) return hit;
+    if (hit){ if (revalidate) e.waitUntil(fetch(req).then(r => keep(req, r)).catch(() => {})); return hit; }
     try { return await keep(req, await fetch(req)); }
     catch { return Response.error(); }
   })());
