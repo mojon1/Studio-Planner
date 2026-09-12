@@ -1393,7 +1393,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the import button is called 外部3Dデータ', (await t.page.textContent('#pick')).trim() === '外部3Dデータ');
   const imp = (await t.page.$eval('#addpop .popbody .hint', e => e.textContent)).replace(/\s+/g, '');
   ok('and its blurb is three short lines',
-     imp === '対応3Dデータ（GLB/glTF/FBX）120MB以下対応3DGS（.spz/.ply）240MB以下URL共有時には外部3Dデータは含まれません。', imp);
+     imp === '対応3Dデータ（GLB/glTF/FBX）120MB以下対応3DGS（.spz/.ply/.sog）240MB以下URL共有時には外部3Dデータは含まれません。', imp);
   await t.page.click('#addclose'); await t.page.waitForTimeout(200);
   ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
   ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
@@ -1679,8 +1679,8 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('six handles and the frame are drawn', gizmo.handles === 6 && gizmo.frame === 1, JSON.stringify(gizmo));
   // つまみが 6 個あるのだから、数字も 6 個ある
   const cropRanges = await t.page.$$eval('#selbody [data-range^="crop."]', n => n.map(x => x.dataset.range));
-  ok('and all six edges have a slider too', cropRanges.length === 6 &&
-     ['crop.x0','crop.x1','crop.y0','crop.y1','crop.z0','crop.z1'].every(k => cropRanges.includes(k)),
+  ok('and all six edges have a slider too (plus the box rotation)', cropRanges.length === 7 &&
+     ['crop.x0','crop.x1','crop.y0','crop.y1','crop.z0','crop.z1','crop.ry'].every(k => cropRanges.includes(k)),
      cropRanges.join(','));
   // 左右も追い越せない（追い越すと箱が裏返って全部消える）
   const clamped = await t.page.evaluate(() => {
@@ -3016,6 +3016,82 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await P.keyboard.press('Escape');
   ok('ruler run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 43. 切り取りの箱のマニピュレータ、軸の大きさ、.sog と URL からの取り込み -------------
+{
+  const t = await open('crop', { width: 1300, height: 900 });
+  const P = t.page, S = (fn, arg) => P.evaluate(fn, arg);
+  // 別オリジンの置き場。/cors/ は CORS 許可、/nocors/ は無し
+  const sog = path.join(HERE, 'fixtures', 'scan.sog'), ply43 = `${OUT}/scan-crop.ply`; fs.writeFileSync(ply43, makeColourSplatPLY());
+  const srv2 = http.createServer((req, res) => { const u = req.url.split('?')[0], f = u.endsWith('.sog') ? sog : ply43;
+    const h = {'content-type':'application/octet-stream'}; if (u.startsWith('/cors/')) h['access-control-allow-origin'] = '*'; res.writeHead(200, h); res.end(fs.readFileSync(f)); }).listen(8766);
+  const screenOf = v3 => S(v3 => { const s = window.__sp; const v = new s.THREE.Vector3(...v3).project(s.camera()); const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; }, v3);
+  const splats = () => S(() => window.__sp.state().items.filter(i => i.type === 'splat').map(i => ({name:i.name, w:i.w, d:i.d, h:i.h})));
+  const sp = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat');
+    const a = s.handles().children.find(k => k.userData.axes), bar = a?.children.find(c => c.geometry.type === 'CylinderGeometry');
+    return {crop:it.crop || null, on:s.cropGizOn(), gpos:s.cropGiz().position.toArray().map(v => +v.toFixed(3)), handles:s.handles().children.filter(k => k.isMesh).length, axisLen: bar ? bar.geometry.parameters.height : null}; });
+  await P.setInputFiles('#file', ply43);
+  await P.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 }); await P.waitForTimeout(2500);
+  await S(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'splat').id, true); }); await P.waitForTimeout(400);
+  let q = await sp();
+  ok('the axis is 15% of the scan (half of before)', Math.abs(q.axisLen - 0.45) < 1e-6, String(q.axisLen));
+  ok('no crop, no blue ring', q.on === false);
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'cropOn', '1'); }); await P.waitForTimeout(400);
+  q = await sp();
+  ok('cropping shows the blue ring at the centre of the box', q.on === true && Math.abs(q.gpos[1] - 1.05) < 0.01, JSON.stringify(q));
+  ok('and a rotation slider for the box', (await P.$$eval('#selbody [data-range]', r => r.map(x => x.dataset.range))).includes('crop.ry'));
+  // 箱を小さくしてから、中心の十字で動かす（外形いっぱいの箱は動く余地が無い）
+  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'crop.x0', -0.5); s.setProp(it, 'crop.x1', 0.5); s.setProp(it, 'crop.z0', -0.5); s.setProp(it, 'crop.z1', 0.5); }); await P.waitForTimeout(300);
+  await S(() => { const s = window.__sp; s.orbit.theta = 0.7; s.orbit.phi = 1.0; s.orbit.radius = 8; s.orbit.target.set(0, 1, 0); s.render(); }); await P.waitForTimeout(400);
+  q = await sp();
+  const gp = await screenOf(q.gpos);
+  ok('the middle of the blue ring picks as "move the box"', (await S(([x, y]) => { const r = document.getElementById('view').getBoundingClientRect(); return window.__sp.pick(x - r.left, y - r.top); }, [gp.x, gp.y]))?.cropMove === true);
+  await P.mouse.move(gp.x, gp.y); await P.mouse.down(); await P.mouse.move(gp.x + 70, gp.y, {steps: 5}); await P.mouse.up(); await P.waitForTimeout(300);
+  const q2 = await sp();
+  ok('dragging it moves the box without resizing it', q2.crop.x0 !== q.crop.x0 && Math.abs((q2.crop.x1 - q2.crop.x0) - (q.crop.x1 - q.crop.x0)) < 0.011 && q2.crop.y0 === q.crop.y0 && q2.crop.y1 === q.crop.y1, JSON.stringify({before:q.crop, after:q2.crop}));
+  // 面のつまみ（±X・±Z）と重ならない斜めの位置でリングを掴む
+  const ringP = await S(() => { const s = window.__sp; const g = s.cropGiz(); return new s.THREE.Vector3(0.55 * Math.SQRT1_2, 0, 0.55 * Math.SQRT1_2).applyQuaternion(g.quaternion).add(g.position).toArray(); });
+  const rp = await screenOf(ringP);
+  ok('the ring picks as "turn the box"', (await S(([x, y]) => { const r = document.getElementById('view').getBoundingClientRect(); return window.__sp.pick(x - r.left, y - r.top); }, [rp.x, rp.y]))?.cropRot === true);
+  await P.mouse.move(rp.x, rp.y); await P.mouse.down(); await P.mouse.move(rp.x + 20, rp.y + 40, {steps: 5}); await P.mouse.up(); await P.waitForTimeout(300);
+  const q3 = await sp();
+  ok('dragging the ring turns the box about its own centre', (q3.crop.ry || 0) !== 0 && q3.gpos.every((v, i) => Math.abs(v - q2.gpos[i]) < 0.011) && q3.crop.y0 === q2.crop.y0, JSON.stringify({ry:q3.crop.ry, g0:q2.gpos, g1:q3.gpos}));
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'crop.ry', 90); }); await P.waitForTimeout(300);
+  const q4 = await sp();
+  ok('the rotation slider keeps the centre too', q4.crop.ry === 90 && q4.gpos.every((v, i) => Math.abs(v - q2.gpos[i]) < 0.011), JSON.stringify(q4.gpos));
+  ok('six face handles in 3D', q4.handles === 6);
+  await P.click('#viewbtns [data-view="plan"]'); await P.waitForTimeout(400);
+  ok('but only four in the plan view (no top / bottom)', (await sp()).handles === 4);
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
+  const link = await S(() => location.hash);
+  await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1500);
+  ok('the box rotation survives the share link', (await S(() => window.__sp.state().items.find(i => i.type === 'splat').crop?.ry)) === 90);
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'cropOn', ''); }); await P.waitForTimeout(300);
+  ok('turning the crop off removes the ring', (await sp()).on === false);
+  // .sog（SuperSplat の書き出し）をファイルで
+  await P.setInputFiles('#file', sog); await P.waitForTimeout(4000);
+  let L = await splats();
+  ok('a .sog file loads as a scan', L.length === 2 && L[1].name === 'scan.sog' && L[1].w === 3, JSON.stringify(L));
+  ok('and the import hint says so', /\.sog/.test(await P.$eval('#addpop .hint', e => e.textContent)));
+  // URL から
+  ok('the add panel has a URL field and button', (await P.$$eval('#urlin, #urlpick', e => e.length)) === 2);
+  await S(() => window.__sp.importUrl('http://localhost:8766/cors/scan.ply')); await P.waitForTimeout(4000);
+  L = await splats();
+  ok('a file URL with CORS loads', L.length === 3 && L[2].name === 'scan.ply', JSON.stringify(L));
+  await S(() => window.__sp.importUrl('http://localhost:8766/nocors/scan.ply')); await P.waitForTimeout(1500);
+  ok('without CORS it says so instead of failing silently', /URL から取れませんでした/.test(await P.$eval('#toast', e => e.textContent)) && (await splats()).length === 3);
+  await S(() => window.__sp.importUrl('https://scaniverse.com/scan/abcdef')); await P.waitForTimeout(300);
+  ok('a share-page URL is turned down with a pointer to "Direct link"', /Direct link/.test(await P.$eval('#toast', e => e.textContent)));
+  // 1 カットの上限（SPLAT_MAX）に当たるので 1 つ消してから
+  await S(() => { const s = window.__sp; const st = s.state(); st.items.splice(st.items.indexOf(st.items.filter(i => i.type === 'splat').pop()), 1); s.rebuild(); });
+  await P.click('#addfab'); await P.fill('#urlin', 'http://localhost:8766/cors/scan.sog'); await P.keyboard.press('Enter'); await P.waitForTimeout(4000);
+  L = await splats();
+  ok('Enter in the URL field loads a .sog too', L.length === 3 && L[2].name === 'scan.sog', JSON.stringify(L));
+  // CORS で弾かれたときのブラウザ自身のコンソールエラーは、こちらが期待した結果
+  const errs = t.errors.filter(e => !/CORS policy/.test(e));
+  ok('crop run clean', errs.length === 0, errs.join(' | '));
+  srv2.close(); await t.ctx.close();
 }
 
 await browser.close(); server.close();
