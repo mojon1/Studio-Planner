@@ -377,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.26.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.27.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -596,7 +596,7 @@ const EN = {
   'テクスチャ定義':'texture defs','テクスチャ':'textures','外部':'external','失敗':'failed','面':'faces','材質未指定':'no material',
   '届く範囲':'Reach','約':'about','灯':'lights','点':'items','枚':'','文字':'chars','型':'version','個':'','台':'',
   '実寸':'Actual size','残す範囲':'Kept range','グリッド':'Grid','案件名':'Project','人物ポーズ':'Pose',
-  '好きな色':'Custom color','車種':'Car model','形':'Shape','角テーブル':'Rectangular','丸テーブル':'Round','直径':'Diameter','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
+  '好きな色':'Custom color','車種':'Car model','横':'W','縦':'H','形':'Shape','角テーブル':'Rectangular','丸テーブル':'Round','直径':'Diameter','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
 };
 // 数字や名前が入る文。$n は括弧、tr() で中身も訳す
 const EN_RULES = [
@@ -713,7 +713,13 @@ function sensorName(it){
   return s ? s.name : `センサー ${sensorW(it)}mm`;
 }
 // horizontal angle of view: wide aspects use the full sensor width, tall ones crop into it
-function hfov(it){ const sw = sensorW(it), ar = ASPECTS[it.aspect]; return 2*Math.atan((ar >= 1 ? sw : sw*ar)/2/it.focal); }
+// 画面比率。プリセットの名前（'16:9'）か 'custom'（寺村さんの指示）。手動は横：縦の 2 つの数字で持つ
+// （aspectW / aspectH。どちらも正の数。比率としては 1/4〜4 に収める）。名前で引いていた所は全部ここを通す
+const aspectOf = it => it?.aspect === 'custom'
+  ? clamp((+it.aspectW > 0 ? +it.aspectW : 16) / (+it.aspectH > 0 ? +it.aspectH : 9), 0.25, 4)
+  : ASPECTS[it?.aspect] || 16/9;
+const aspectName = it => it?.aspect === 'custom' ? `${+it.aspectW > 0 ? +it.aspectW : 16}:${+it.aspectH > 0 ? +it.aspectH : 9}` : it?.aspect || '16:9';
+function hfov(it){ const sw = sensorW(it), ar = aspectOf(it); return 2*Math.atan((ar >= 1 ? sw : sw*ar)/2/it.focal); }
 const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
 // rotations live in -180..180 so a slider has zero in the middle
 const norm = a => { const n = ((a % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
@@ -2174,7 +2180,7 @@ function setShotCam(ci, aspect){
 const fRay = new THREE.Raycaster();
 function buildFrustum(ci){
   frustumGroup.clear(); if (!ci) return;
-  setShotCam(ci, ASPECTS[ci.aspect]);
+  setShotCam(ci, aspectOf(ci));
   const targets = studioGroup.children.filter(o => !o.userData.noHit);
   const N = 10; const ring = []; const corners = [];
   const border = [];
@@ -2782,7 +2788,7 @@ const safeInset = v => { const s = getComputedStyle(v === '--vsab' ? viewEl : do
 // 箱のほうを縦横比に合わせる。9:16 なら縦長の小窓になる。バー（24 px）は比率の外。
 // 別ウィンドウのファインダーだけは余白を付けてよい（そちらは drawPop の letterbox のまま）。
 const PIP_BAR = 24, PIP_BORDER = 2;             // CSS の #pip の border と同じ値。枠のぶんも比率から外す
-const pipAspect = () => ASPECTS[camItem()?.aspect] || 16/9;
+const pipAspect = () => aspectOf(camItem());
 let pipAr = 0;                                   // 最後に箱を合わせた比率。変わったら frame() が組み直す
 function layoutPip(){
   const small = W < 760, ar = pipAspect();
@@ -2987,7 +2993,7 @@ function drawView(view, rect, isMain){
     renderer.setClearColor(0x111214); renderer.clear();
     if (isMain && !capturing) drawLabels(view, shotCam, rect);
     if (!ci) return;
-    const ar = ASPECTS[ci.aspect]; let iw = rect.w, ih = rect.w/ar; if (ih > rect.h){ ih = rect.h; iw = rect.h*ar; }
+    const ar = aspectOf(ci); let iw = rect.w, ih = rect.w/ar; if (ih > rect.h){ ih = rect.h; iw = rect.h*ar; }
     const ix = rect.x + (rect.w-iw)/2, iy = rect.y + (rect.h-ih)/2;
     setShotCam(ci, iw/ih);
     renderer.setViewport(ix, H-iy-ih, iw, ih); renderer.setScissor(ix, H-iy-ih, iw, ih);
@@ -3064,11 +3070,11 @@ function updateInfo(){
   if (gridStep !== 1) t += `\nグリッド ${gridStep} m`;
   if (ci){
     const eq = equiv(ci), many = cams().length > 1;          // the name only earns its place with more than one
-    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${ci.aspect}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${a1(ci.pitch)}°`:''}`;
+    t += `\n${many ? camName(ci) + '  ' : ''}${sensorName(ci)} ${ci.focal}mm${eq?` (換算 ${eq}mm)`:''}  ${aspectName(ci)}\nカメラ高さ ${ci.y.toFixed(2)} m  ${ci.pitch? `チルト ${a1(ci.pitch)}°`:''}`;
   }
   el.textContent = t;
   document.getElementById('pipname').textContent = ci ? camName(ci) : 'カメラ';
-  document.getElementById('pipinfo').textContent = ci ? `${ci.focal}mm ${ci.aspect}` : 'カメラ無し';
+  document.getElementById('pipinfo').textContent = ci ? `${ci.focal}mm ${aspectName(ci)}` : 'カメラ無し';
   layoutInfo();
 }
 // 右上の読み値は、他のボタンや小窓に重なるくらいなら出さない。
@@ -3438,7 +3444,7 @@ function drawPop(){
   popCtx.drawImage(canvas, 0, 0, Math.round(rw*ratio), Math.round(rh*ratio), 0, 0, bw, bh);
   const ci = camItem();
   popWin.document.getElementById('n').textContent = ci ? camName(ci) : 'カメラ';
-  popWin.document.getElementById('i').textContent = ci ? `${sensorName(ci)} ${ci.focal}mm  ${ci.aspect}` : 'カメラ無し';
+  popWin.document.getElementById('i').textContent = ci ? `${sensorName(ci)} ${ci.focal}mm  ${aspectName(ci)}` : 'カメラ無し';
 }
 
 // ---------- view switching ----------
@@ -4023,7 +4029,10 @@ function renderSel(){
     }
     h += `<h2>レンズ</h2>` + range('focal','焦点距離',10,400,1,it.focal,'mm')
        + btns('focal', (LENSES[it.sensor]||LENSES.ff).map(f => [f, f+'mm']), it.focal);
-    h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]), it.aspect);
+    h += `<h2>画面の比率</h2>` + btns('aspect', Object.keys(ASPECTS).map(k => [k,k]).concat([['custom','手動']]), it.aspect);
+    if (it.aspect === 'custom')   // 横：縦の 2 つの数字（2.39:1 のような比率もそのまま打てる）
+      h += `<div class="row"><label class="f"><span>横</span><input type="number" data-num="aspectW" step="0.01" min="0.1" max="100" value="${+it.aspectW > 0 ? +it.aspectW : 16}"></label>`
+         + `<label class="f"><span>縦</span><input type="number" data-num="aspectH" step="0.01" min="0.1" max="100" value="${+it.aspectH > 0 ? +it.aspectH : 9}"></label></div>`;
 
   } else if (it.type === 'light'){
     const t = lightType(it);
@@ -4210,9 +4219,9 @@ const CAM_FACE = 180;
 const rotShown = it => it.type === 'camera' ? norm(it.rot - CAM_FACE) : it.rot;
 const rotStored = (it, v) => it.type === 'camera' ? norm(v + CAM_FACE) : v;
 function setProp(it, k, v, live=false){
-  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power'].includes(k)) v = parseFloat(v);
+  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH'].includes(k)) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
-  if ((k === 'sensorW' || k === 'targetH') && !(v > 0)) return;
+  if ((k === 'sensorW' || k === 'targetH' || k === 'aspectW' || k === 'aspectH') && !(v > 0)) return;
   if (k === 'cropOn'){ it.crop = v ? cropFull(it) : null; }
   else if (k.startsWith('crop.')){
     const c = {...cropBox(it)}, f = cropFull(it), n = k.slice(5);
@@ -4235,6 +4244,8 @@ function setProp(it, k, v, live=false){
   // 写真のポーズは 23 関節の座標をアイテムに持つ。別のポーズを選んだら捨てる（リンクを重くしない）
   else if (k === 'posture'){ it.posture = v; if (v !== 'photo') delete it.photo; }
   else if (k === 'shape'){ it.shape = v === 'round' ? 'round' : 'rect'; }
+  // 手動に切り替えた瞬間は今の比率から始める（16:9 なら 16 と 9）。数字が無いと絵が変わらず「効いていない」に見える
+  else if (k === 'aspect' && v === 'custom' && it.aspect !== 'custom'){ const [a, b] = (ASPECTS[it.aspect] ? it.aspect : '16:9').split(':'); it.aspect = 'custom'; it.aspectW = +a; it.aspectH = +b; }
   else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
@@ -5122,7 +5133,7 @@ function exportCams(){
   const out = [];
   for (const it of state.items){
     if (it.type !== 'camera' || it.hidden) continue;
-    const c = new THREE.PerspectiveCamera(50, ASPECTS[it.aspect] || 16/9, 0.05, 200);
+    const c = new THREE.PerspectiveCamera(50, aspectOf(it), 0.05, 200);
     c.name = camName(it);
     c.filmGauge = sensorW(it); c.setFocalLength(it.focal); c.updateProjectionMatrix();
     c.position.set(it.x, camY(it), it.z);
@@ -5235,7 +5246,7 @@ function cameraRows(){
   const eq = equiv(ci);
   let h = prow('センサー', `${sensorName(ci)}  ${sensorW(ci)} mm`);
   h += prow('レンズ', `${ci.focal} mm${eq ? `（35mm換算 ${eq} mm）` : ''}`);
-  h += prow('画面比率', ci.aspect);
+  h += prow('画面比率', aspectName(ci));
   h += prow('水平画角', `${THREE.MathUtils.radToDeg(hfov(ci)).toFixed(1)}°`);
   h += prow('カメラ高さ', `${ci.y.toFixed(2)} m`);
   h += prow('上下の向き', `${a1(ci.pitch)}°`);

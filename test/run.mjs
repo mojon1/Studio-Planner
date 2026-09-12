@@ -2865,6 +2865,39 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t.ctx.close();
 }
 
+// --- 41. 画面比率の手動設定 -------------------------------------------------------
+{
+  const t = await open('aspect-custom', { width: 1300, height: 900 });
+  const P = t.page;
+  await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'camera').id, true); }); await P.waitForTimeout(400);
+  const labels = await P.$$eval('#selbody [data-set="aspect"]', b => b.map(x => x.textContent.trim()));
+  ok('the aspect buttons end with 手動', labels[labels.length - 1] === '手動' && labels.includes('16:9'), labels.join('/'));
+  ok('no number fields until 手動 is chosen', await P.$$eval('#selbody [data-num="aspectW"]', n => n.length) === 0);
+  await P.click('#selbody [data-set="aspect"][data-val="custom"]'); await P.waitForTimeout(400);
+  const cam = () => P.evaluate(() => { const s = window.__sp; const c = s.state().items.find(i => i.type === 'camera'); return {aspect:c.aspect, w:c.aspectW, h:c.aspectH, hfov:+(2*Math.atan(36/2/c.focal)*180/Math.PI).toFixed(2)}; });
+  let c = await cam();
+  ok('手動 starts from the ratio that was set (16:9)', c.aspect === 'custom' && c.w === 16 && c.h === 9, JSON.stringify(c));
+  ok('and shows two number fields', await P.$$eval('#selbody [data-num="aspectW"], #selbody [data-num="aspectH"]', n => n.length) === 2);
+  await P.fill('#selbody [data-num="aspectW"]', '2.39'); await P.press('#selbody [data-num="aspectW"]', 'Enter'); await P.waitForTimeout(300);
+  await P.fill('#selbody [data-num="aspectH"]', '1'); await P.press('#selbody [data-num="aspectH"]', 'Enter'); await P.waitForTimeout(500);
+  c = await cam();
+  ok('2.39:1 is accepted', c.w === 2.39 && c.h === 1, JSON.stringify(c));
+  ok('the readout says 2.39:1', /2\.39:1/.test(await P.$eval('#info', e => e.textContent)) && /2\.39:1/.test(await P.$eval('#pipinfo', e => e.textContent)));
+  const body = await P.locator('#pip .body').boundingBox();
+  ok('the camera window takes the custom ratio', Math.abs(body.width / body.height - 2.39) < 0.02, String(body.width / body.height));
+  await P.click('[data-view="cam"]'); await P.waitForTimeout(500);
+  ok('so does the finder camera', Math.abs(await P.evaluate(() => window.__sp.camera().aspect) - 2.39) < 0.001);
+  const link = await P.evaluate(() => location.hash);
+  await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1200);
+  c = await cam();
+  ok('the custom ratio survives the share link', c.aspect === 'custom' && c.w === 2.39 && c.h === 1, JSON.stringify(c));
+  // 0 や負は弾く
+  await P.evaluate(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'camera'), 'aspectH', '0'); });
+  ok('zero is refused', (await cam()).h === 1);
+  ok('aspect custom runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
