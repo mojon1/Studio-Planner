@@ -376,7 +376,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.23.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.23.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -3326,7 +3326,9 @@ function setMain(v){
 function setOrthoZoom(z){
   for (const c of [planCam, sideCam, frontCam]){ c.zoom = z; c.updateProjectionMatrix(); }
 }
-function syncViewBtns(){ document.querySelectorAll('#viewbtns button').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
+// ビューのボタンだけ。定規とグリッドは同じ列に居るが、on は自分の状態（showDims / showGrid）で持つ。
+// 以前は全ボタンを回していたので、起動時のビュー設定で定規とグリッドの on が消え、オンなのにグレーで出ていた（寺村さんの指摘）
+function syncViewBtns(){ document.querySelectorAll('#viewbtns button[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === mainView)); }
 document.querySelectorAll('#viewbtns button[data-view]').forEach(b => b.addEventListener('click', () => setMain(b.dataset.view)));
 const pipCloseBtn = document.getElementById('pipclose'), pipBtn = document.getElementById('pipbtn');
 function setPipOpen(v){ pip.open = v; if (!v) closePop(); savePip(); layoutPip(); needRender = true; }

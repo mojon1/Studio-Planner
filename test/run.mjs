@@ -153,6 +153,13 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
   const rows = await t.page.$$eval('#items .itemrow > button.name', b => b.map(x => x.textContent.trim()));
   ok('all presets placed', rows.length === 13, `${rows.length} rows`);
+  // 定規とグリッドは起動時にオンで、ボタンもオレンジ（以前はビューの同期で on が外れてグレーだった）
+  const iconOn = await t.page.evaluate(() => ['ruler', 'gridbtn'].map(id => document.getElementById(id).classList.contains('on')));
+  ok('ruler and grid buttons show as on at startup', iconOn.every(Boolean), iconOn.join(','));
+  await t.page.click('[data-view="plan"]'); await t.page.waitForTimeout(200);
+  const iconOn2 = await t.page.evaluate(() => ['ruler', 'gridbtn'].map(id => document.getElementById(id).classList.contains('on')));
+  ok('and stay on after switching the view', iconOn2.every(Boolean), iconOn2.join(','));
+  await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(200);
   ok('人 labelled by kind', rows.some(r => r.startsWith('男性')) && rows.some(r => r.startsWith('女性')));
 
   // a second camera becomes the active one
