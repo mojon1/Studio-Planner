@@ -94,7 +94,8 @@ const MIME = {'.html':'text/html; charset=utf-8', '.glb':'model/gltf-binary', '.
   '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml',
   '.task':'application/octet-stream', '.wasm':'application/wasm', '.jpg':'image/jpeg'};
 const server = http.createServer((req, res) => {
-  const p = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0].split('#')[0]);
+  const u = req.url.split('?')[0].split('#')[0];   // ?eng のような検索文字列は落とす
+  const p = path.join(ROOT, u === '/' ? 'index.html' : u);
   if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript'});
   res.end(fs.readFileSync(p));
@@ -108,11 +109,12 @@ const browser = await chromium.launch({
   // every file "download", which looks exactly like a bug in the app
   env: { ...process.env, LANG: process.env.LANG || 'C.UTF-8' },
 });
-async function open(name, viewport, mobile = false, hash = ''){
+async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // Service Worker はページの route を素通りして本物の CDN を取りに行くので、
   // three をローカルへ差し替えているこの一連の確認では止めておく。
   // オフラインそのものは最後のブロックで別に確かめる。
-  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true, serviceWorkers: 'block' });
+  // ヘッドレスの Chromium は en-US なので、何もしないと英語表示のテストになってしまう。既定は日本語のブラウザ
+  const ctx = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true, serviceWorkers: 'block', locale: 'ja-JP', ...extra });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -1132,7 +1134,7 @@ async function open(name, viewport, mobile = false, hash = ''){
     res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript', 'cache-control':'no-cache'});
     res.end(body);
   }).listen(8766);
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 }, locale: 'ja-JP' });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -1722,7 +1724,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   await t.ctx.close();
 
   // ---- ダブルクリック相当。通信は 1 本も出さない ----
-  const ctx = await browser.newContext({ viewport: { width: 1200, height: 820 } });
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 820 }, locale: 'ja-JP' });
   const page = await ctx.newPage();
   const errors = [], outbound = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -1992,7 +1994,7 @@ async function open(name, viewport, mobile = false, hash = ''){
   // iOS のファイル App は、accept に知らない拡張子が並ぶと中身をまとめてグレーアウトする。
   // .spz / .ply / .glb / .fbx はどれも UTI を持たないので、iPhone では accept ごと外す
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
-    deviceScaleFactor: 1, serviceWorkers: 'block',
+    deviceScaleFactor: 1, serviceWorkers: 'block', locale: 'ja-JP',
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
   const page = await ctx.newPage();
   const errors = [];
@@ -2611,6 +2613,89 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('never in the finder', await disc() === false, String(await disc()));
   ok('foot disc runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+}
+
+// --- 37. 英語表示 ---------------------------------------------------------------
+// 設定は無い。?eng（または ?lang=en）で英語、無ければブラウザの言語で決まる。
+// 画面に出た文字を辞書で差し替える方式なので、「日本語が 1 つも残っていない」を
+// パネル・一覧・追加の一覧・カット・共有・用紙のバーで見る
+{
+  const JP = /[぀-ヿ一-鿿：、。（）「」・〜]/;
+  const jpIn = (p, sel) => p.evaluate(({ sel, JP }) => {
+    const re = new RegExp(JP), out = [];
+    for (const root of document.querySelectorAll(sel)){
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      for (let n = w.currentNode; n; n = w.nextNode()){
+        if (n.nodeType === 3){ if (re.test(n.nodeValue)) out.push(n.nodeValue.trim()); }
+        else for (const a of ['title', 'aria-label', 'placeholder']){ const v = n.getAttribute(a); if (v && re.test(v)) out.push(a + '=' + v); }
+      }
+    }
+    return out;
+  }, { sel, JP: JP.source });
+  const t = await open('english', { width: 1500, height: 950 }, false, '?eng');
+  const p = t.page;
+  ok('?eng switches the page to English', await p.evaluate(() => document.documentElement.lang) === 'en');
+  const tabs = await p.$$eval('#tabs button', b => b.map(x => x.textContent.trim()));
+  ok('tabs are English', tabs.join('|') === 'Objects|Shots|Save / Share', tabs.join('|'));
+  const views = await p.$$eval('#viewbtns [data-view]', b => b.map(x => x.textContent.trim()));
+  ok('view buttons are English', views.join('|') === 'Top|Side|Front|3D|Finder', views.join('|'));
+  const rows = await p.$$eval('#items .itemrow > button.name', b => b.map(x => x.textContent.trim()));
+  ok('list rows are English (Studio / Man 1 / Camera)', rows.join('|') === 'Studio|Man 1|Camera', rows.join('|'));
+  ok('the top-right readout is English', /^Studio 10 × 8 × H 4\.5 m/.test(await p.$eval('#info', e => e.textContent.trim())), await p.$eval('#info', e => e.textContent.trim()));
+  // 人物・カメラ・ライト・背景布の設定パネルと、追加の一覧
+  await p.evaluate(() => { const sp = window.__sp; sp.select(sp.state().items.find(i => i.type === 'person').id, true); }); await p.waitForTimeout(300);
+  const poses = await p.$$eval('#selbody .poses button small', b => b.map(x => x.textContent.trim()));
+  ok('pose names are English', poses.includes('Sit on floor') && poses.includes('Lie on back') && poses[poses.length - 1] === 'Pose from photo', poses.join('|'));
+  let left = await jpIn(p, '#panel');
+  ok('no Japanese left in the person panel', left.length === 0, left.slice(0, 5).join(' | '));
+  await p.click('#addfab'); await p.waitForTimeout(300);
+  left = await jpIn(p, '#addpop');
+  ok('no Japanese left in the add list', left.length === 0, left.slice(0, 5).join(' | '));
+  ok('add list title is English', await p.$eval('#addpop .pophead strong, #addpop h1, #addpop .pophead', e => e.textContent.trim()) .then(v => /Add object/.test(v)));
+  await p.click('[data-add="light"]'); await p.waitForTimeout(400);
+  const hint = await p.$$eval('#selbody .hint', h => h.map(x => x.textContent).join(' '));
+  ok('the light panel keeps the set.a.light note, in English', /Lights are schematic.*set\.a\.light 3D/.test(hint), hint.slice(0, 120));
+  for (const k of ['chroma', 'mirror', 'koma', 'car', 'chair', 'table', 'box', 'camera']){
+    await t.add(`[data-add="${k}"]`);
+    left = await jpIn(p, '#panel');
+    ok(`no Japanese left with ${k} selected`, left.length === 0, left.slice(0, 5).join(' | '));
+  }
+  await p.evaluate(() => window.__sp.select(null)); await p.waitForTimeout(200);
+  left = await jpIn(p, '#panel');
+  ok('no Japanese left in the studio panel', left.length === 0, left.slice(0, 5).join(' | '));
+  const dims = await p.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  ok('dimension labels are English', dims.length > 0 && dims.every(d => !JP.test(d)) && dims.some(d => /^Width 10 m$/.test(d)), dims.join('|'));
+  await t.tab('cut');
+  ok('the shot row reads "Shot 1"', await p.$eval('#cuts .itemrow > button.name span', e => e.textContent.trim()) === 'Shot 1', await p.$eval('#cuts .itemrow > button.name', e => e.textContent.trim()));
+  left = await jpIn(p, '#panel'); ok('no Japanese left in the shots tab', left.length === 0, left.slice(0, 5).join(' | '));
+  await t.tab('share');
+  left = await jpIn(p, '#panel'); ok('no Japanese left in the share tab', left.length === 0, left.slice(0, 5).join(' | '));
+  await p.click('#qrbtn'); await p.waitForTimeout(500);
+  ok('the QR dialog title is English', await p.$eval('#qrtitle', e => e.textContent.trim()) === 'QR code for Shot 1', await p.$eval('#qrtitle', e => e.textContent.trim()));
+  left = await jpIn(p, '#qrdlg'); ok('no Japanese left in the QR dialog', left.length === 0, left.slice(0, 5).join(' | '));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  // トーストは後から出る文字。observer が拾う
+  await p.evaluate(() => window.__sp.toast('リンクをコピーしました')); await p.waitForTimeout(100);
+  ok('a toast written in Japanese shows up in English', await p.$eval('#toast', e => e.textContent) === 'Link copied', await p.$eval('#toast', e => e.textContent));
+  ok('tr() handles numbers and names', await p.evaluate(() => [window.__sp.tr('カメラ 2 奥壁まで 6.40 m'), window.__sp.tr('x.glb は大きすぎます（120MB まで）')].join('|')) === 'Camera 2: 6.40 m to back wall|x.glb is too large (max 120 MB)');
+  // 用紙のバーと用紙そのもの
+  await p.click('#makepdf'); await p.waitForTimeout(4000);
+  left = await jpIn(p, '.pmbar, #papers'); ok('no Japanese left on the PDF sheet', left.length === 0, left.slice(0, 5).join(' | '));
+  const paper = await p.$eval('#papers', e => e.textContent);
+  ok('the sheet uses English headings', /Studio \/ Subjects/.test(paper) && /Printed /.test(paper) && /Shot 1/.test(paper));
+  await p.click('#paperclose'); await p.waitForTimeout(300);
+  ok('english mode runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+
+  // ブラウザの言語で決まる。日本語のブラウザは今までどおり
+  const en = await open('english-auto', { width: 1200, height: 800 }, false, '', { locale: 'en-US' });
+  ok('an English browser gets English without ?eng', await en.page.$eval('[data-tab="list"]', e => e.textContent.trim()) === 'Objects');
+  await en.ctx.close();
+  const ja = await open('japanese-auto', { width: 1200, height: 800 }, false, '', { locale: 'ja-JP' });
+  ok('a Japanese browser stays Japanese', await ja.page.$eval('[data-tab="list"]', e => e.textContent.trim()) === 'オブジェクト' && await ja.page.evaluate(() => document.documentElement.lang) === 'ja');
+  await ja.page.goto('http://localhost:8765/?lang=en'); await ja.page.waitForTimeout(1200);
+  ok('?lang=en forces English on a Japanese browser', await ja.page.$eval('[data-tab="list"]', e => e.textContent.trim()) === 'Objects');
+  await ja.ctx.close();
 }
 
 await browser.close(); server.close();

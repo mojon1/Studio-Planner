@@ -72,6 +72,7 @@ body{background:var(--bg);color:var(--ink);font-family:"Noto Sans JP","Hiragino 
 #view{position:relative;background:var(--viewport);touch-action:none;overflow:hidden}
 #view canvas{display:block;width:100%;height:100%;touch-action:none}
 #view.drop::after{content:"ここに落とすと取り込みます";position:absolute;inset:8px;border:3px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,22,26,.55);font-weight:700;z-index:6;pointer-events:none}
+html[lang="en"] #view.drop::after{content:"Drop to import"}
 #panel{background:var(--panel);border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0;z-index:2;
   padding-left:var(--sal);padding-bottom:var(--sab)}
 /* パネルは一回り小さく。rem と px が混在しているので、まとめて縮めるのは zoom がいちばん確実 */
@@ -375,7 +376,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.22.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.23.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -492,6 +493,204 @@ let savedSensors = [];
 try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
 function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ---------- 英語表示 ----------
+// 設定は持たない（寺村さんの指示）。ブラウザの言語が日本語でなければ英語、
+// 確認用に ?eng か ?lang=en で英語、?lang=ja で日本語。
+// ソースの文字列は日本語のまま。画面に出た文字を辞書で差し替える（translateTree）。
+// MutationObserver が後から出た文字も面倒を見るので、パネル・トースト・ラベル・用紙の
+// どこに何を書いても、辞書に載っていれば英語になる。載っていなければ日本語のまま出る。
+// 数字入りの文は EN_RULES（正規表現）で、それでも残った語は長い順に語単位で置き換える。
+const LANG = (() => {
+  const q = new URLSearchParams(location.search);
+  if (q.has('eng') || q.get('lang') === 'en') return 'en';
+  if (q.get('lang') === 'ja') return 'ja';
+  return /^ja\b/i.test(navigator.language || '') ? 'ja' : 'en';
+})();
+const EN = {
+  '人':'People','倍':'×','可':'yes','右':'Right','奥':'Back','左':'Left','布':'Backdrop','幅':'Width','床':'Floor','木':'Wood','白':'White',
+  '箱':'Box','緑':'Green','赤':'Red','車':'Car','鏡':'Mirror','青':'Blue','黒':'Black','色':'Color','高':'H','なし':'None','に。':'.',
+  'パン':'Pan','ボケ':'Softness','メモ':'Notes','上端':'Top','上面':'Top','下端':'Bottom','不可':'no','人物':'Person','保存':'Save',
+  '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
+  '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
+  '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
+  '載せ方':'Mount','切り取り':'Crop','切り取る':'Crop','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
+  'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
+  'パース':'3D','ピンク':'Pink','ブルー':'Blue','ブーム':'Boom','ミラー':'Mirror','モデル':'Model','ライト':'Light','ロック':'Lock',
+  'ロール':'Roll','壁まで':'To wall','女の子':'Girl','小道具':'Props','広がり':'Spread','床の鏡':'Floor mirror','座面高':'Seat height',
+  '手前端':'Near edge','未配置':'Not placed','欧米系':'Western','男の子':'Boy','立て鏡':'Standing mirror','背景布':'Backdrop',
+  '閉じる':'Close','A4 横':'A4 landscape','A4 縦':'A4 portrait','やり直す':'Redo','アジア系':'Asian','カット名':'Shot name',
+  'グリーン':'Green','スタジオ':'Studio','スタンド':'Stand','スポット':'Spot','センサー':'Sensor','タイトル':'Title','チューブ':'Tube',
+  'テーブル':'Table','ベージュ':'Beige','中華提灯':'Lantern','元に戻す':'Undo','全カット':'All shots','取り込む':'Import',
+  '奥壁まで':'To back wall','寸法表示':'Dimensions','拡大縮小':'Scale','水平画角':'Horizontal FOV','焦点距離':'Focal length',
+  '画面比率':'Aspect','種類不明':'Unknown type','素の姿勢':'Rest pose','表示する':'Show','記載内容':'Views','高さ調整':'Lift',
+  'このカット':'This shot','アフリカ系':'African','カジュアル':'Casual','カメラまで':'To camera','カメラ無し':'No camera',
+  'カメラ高さ':'Camera height','デーライト':'Daylight','フルサイズ':'Full frame','ホリゾント':'Cove','上下の向き':'Tilt',
+  '中心に戻す':'Recenter','他のカメラ':'Other cameras','保存・共有':'Save / Share','共有リンク':'Share link','名前を変更':'Rename',
+  '床に垂らす':'Drape on floor','数値で入力':'Custom size','新規カット':'New shot','設定の開閉':'Toggle settings','LEDパネル':'LED panel',
+  'オブジェクト':'Objects','カットを複製':'Duplicate shot','カメラの小窓':'Camera window','グリッド表示':'Grid','スーパー35':'Super 35',
+  'タングステン':'Tungsten','ファインダー':'Finder','ロックを外す':'Unlock','ロック中です':'Locked','保存しました':'Saved',
+  '小窓を閉じる':'Close window','申し送り事項':'Notes for the crew','画像書き出し':'Export image','背もたれ上端':'Backrest top',
+  'PDF にする':'Make PDF','PDF に保存':'Save as PDF','PDF資料作成':'PDF sheet','このカットだけ':'This shot only',
+  'ソフトボックス':'Softbox','ロックしました':'Locked','共有QRコード':'Share QR code','図の位置を戻す':'Reset views',
+  '外部3Dデータ':'External 3D data','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
+  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','このカットを削除':'Delete this shot',
+  '取り込んだモデル':'Imported model','名前をつけて保存':'Save as','表示を中心に戻す':'Recenter view','○○ CM 30秒':'Project name',
+  'この配置を編集する':'Edit this layout','オブジェクトを追加':'Add object','ドラッグで並べ替え':'Drag to reorder',
+  'ロックを外しました':'Unlocked','別ウィンドウで開く':'Open in a new window','マイクロフォーサーズ':'Micro Four Thirds',
+  '保存できませんでした':'Could not save','写真を読んでいます…':'Reading the photo…','名前を入れてください':'Enter a name',
+  '書き出せませんでした':'Could not export','リンクをコピーしました':'Link copied','写真を読めませんでした':'Could not read the photo',
+  '1 枚にまとめています…':'Packing into one file…','リンクを読めませんでした':'Could not read the link',
+  '写真のポーズを写しました':'Pose copied from the photo','図は 1 つ以上必要です':'Keep at least one view',
+  '書き出すものがありません':'Nothing to export','アプリ本体を読んでいます…':'Reading the app…',
+  '共有リンクの QR コード':'QR code of the share link','（3DGS は入りません）':'(3DGS not included)',
+  '3Dデータ書き出し（GLB）':'Export 3D data (GLB)','画面の比率':'Aspect ratio','カットは 1 つ以上必要です':'Keep at least one shot',
+  'ライトの種類':'Light type','このカットを開く QR コード':'QR code for this shot','小スタジオ 6×5×3.5 m':'Small studio 6×5×3.5 m',
+  '※外部3Dデータは含まれません。':'* External 3D data is not included.','ポーズのデータを読めませんでした':'Could not load the pose data',
+  '下の欄から手でコピーしてください':'Copy it from the field below','写真ポーズ指定には通信が必要です':'Pose from photo needs a network connection',
+  '写真から人物を検出できませんでした':'No person was found in the photo','名前とメモは PDF の頭に入ります。':'The name and notes go at the top of the PDF.',
+  '6 畳の部屋 3.6×2.7×2.4 m':'Small room 3.6×2.7×2.4 m','大きさが怪しいので「高さ」で直してください':'The size looks off. Fix it with Height',
+  'URL共有時には外部3Dデータは含まれません。':'External 3D data is not included in share links.',
+  'ドラッグでパン・チルト / ホイールで焦点距離':'Drag to pan and tilt / wheel for focal length',
+  '中スタジオ 10×8×4.5 m（白ホリ 奥）':'Medium studio 10×8×4.5 m (back cove)',
+  'まだ何も置いていません。＋ から選んでください。':'Nothing placed yet. Use + to add something.',
+  '付属ファイルが多すぎるので一部を読みませんでした':'Too many companion files; some were skipped',
+  'GLB / glTF / FBX を選んでください':'Choose a GLB / glTF / FBX file','大スタジオ 15×12×6 m（白ホリ 奥+左右）':'Large studio 15×12×6 m (back + side coves)',
+  '読み込み中…':'Loading…','対応3DGS（.spz / .ply）240MB以下':'3DGS (.spz / .ply) up to 240 MB',
+  'スマホのカメラを向けると、この配置がそのまま開きます。':'Point a phone camera at it to open this layout.',
+  'ポーズ検出の部品を読み込んでいます（初回だけ 21 MB）':'Loading the pose detector (21 MB, first time only)',
+  'GLB / glTF / FBX の本体も一緒に選んでください':'Select the GLB / glTF / FBX file itself as well',
+  'まとめられませんでした。通信を確かめてもう一度お試しください。':'Could not pack the file. Check the connection and try again.',
+  '対応3Dデータ（GLB / glTF / FBX）120MB以下':'3D data (GLB / glTF / FBX) up to 120 MB',
+  'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください':'No textures inside. Embed the textures when exporting',
+  '上が奥の壁。1 マス 1 m。':'The top is the back wall. One square = 1 m.','隠し中。目のマークで戻せます。':'Hidden. Use the eye icon to show it.',
+  'ライトは簡易表示です。正確なシミュレーションが必要な場合は set.a.light 3D などの専用ソフトをお使いください。':'Lights are schematic. For an accurate simulation use dedicated software such as set.a.light 3D.',
+  '案件名未入力':'Untitled project','写真ポーズ指定':'Pose from photo','背もたれを座面まで下げるとスツール。':'Lower the backrest to the seat for a stool.',
+  'ブラウザにポップアップを止められました。許可してからもう一度お試しください。':'The browser blocked the pop-up. Allow it and try again.',
+  'ホリゾント（R 壁）を付ける辺':'Cove (curved wall) sides','このファイルは「まとめて書き出した」ものです。モデルも3DGSも中に入っています。':'This file is a packed export. The models and 3DGS are inside.',
+  'この配置はリンクが長すぎて QR に入りません。リンクをコピーして送ってください。':'This layout is too long for a QR code. Copy the link instead.',
+  '図はドラッグで移動、ホイールで拡大縮小（ファインダーを除く）。印刷画面で「送信先」を':'Drag a view to move it, wheel to zoom (except the finder). In the print dialog set the destination to',
+  '実体はこの端末にありません。実寸の箱で表示中。':'The file is not on this device. Shown as a box at real size.','名前なし':'Unnamed',
+  'パンは 0° で奥向き。図面のリングでも回せます。':'Pan 0° faces the back. The ring in the drawing turns it too.',
+  '写真の奥行きは推定です。体の向きは「向き」で合わせてください。':'Depth from a photo is an estimate. Set the facing with Direction.',
+  '300 × 450 × 150 mm。標準寸法なので大きさは変わりません。':'300 × 450 × 150 mm. A standard size, so it does not change.',
+  '消えたぶんも並べ替えの手間には残るので、軽くはなりません。絵と図面が整うだけです。':'Cropped splats are still sorted, so it does not get lighter. It only tidies the picture and the drawing.',
+  '外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。':'Exports one HTML file with all external 3D data and the people and car models. It opens on an offline PC.',
+  '古い形式（スペキュラ／グロス）のマテリアルなので three.js が読めません。メタリック／ラフネスで書き出し直してください':'Legacy specular/gloss materials; three.js cannot read them. Re-export with metallic/roughness',
+  'スキャンの実体はこの端末にありません。共有リンクには置き方だけが乗ります（PDF と画像には写ります）。':'The scan is not on this device. Share links carry only its placement (it does appear in PDFs and images).',
+  'Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。1/100〜100 倍まで対数で刻みます。':'Scaniverse exports at real scale (1 = 1 m). Change this only if it is off. Logarithmic from 1/100 to 100×.',
+  '1 型 13.2 / MFT 17.3 / APS-C 23.5 / S35 24.9〜28 / フルサイズ 36 / ビスタビジョン 41 / ALEXA 65 は 54 前後':'1-inch 13.2 / MFT 17.3 / APS-C 23.5 / S35 24.9–28 / Full frame 36 / VistaVision 41 / ALEXA 65 about 54',
+  '実機は 24.9〜28.3mm。正確には「手動」で。':'Real cameras are 24.9–28.3 mm. Use Custom for the exact value.',
+  '人物モデルはサーバーから開いたときだけ出ます。file:// では読めません。':'People models load only from a server. Not available from file://.',
+  '人物モデルはサーバーから開いたときだけ出ます。プレビュー枠では読めません。':'People models load only from a server. Not available in a preview frame.',
+  '車のモデルはサーバーから開いたときだけ出ます。file:// では読めません。実寸の箱で表示しています。':'Car models load only from a server. Not available from file://. Shown as a box at real size.',
+  '車のモデルはサーバーから開いたときだけ出ます。プレビュー枠では読めません。実寸の箱で表示しています。':'Car models load only from a server. Not available in a preview frame. Shown as a box at real size.',
+  '横倒しを起こす':'Stand upright','機材の名前':'Name','この幅を保存':'Save this width','タップで数値を入力':'Tap to type a value',
+  'スタジオ・被写体':'Studio / Subjects','1 マス = 1 m。寸法は概算です。':'One square = 1 m. Dimensions are approximate.',
+  '幅 (m)':'Width (m)','奥行 (m)':'Depth (m)','高さ (m)':'Height (m)','幅・奥行・高さ':'W × D × H','幅・高さ':'W × H',
+  'ここに落とすと取り込みます':'Drop to import','スタジオの広さ、演者の立ち位置、カメラの画角、反射面の映り込みをブラウザで確かめて、A4 の図面と共有リンクにする。登録もインストールも不要。':'Check the studio size, where people stand, the camera angle of view and reflections in a browser, then turn it into an A4 sheet and a share link. No sign-up, no install.',
+  '布幅':'Width','布高':'Height','布奥':'Drape','鏡幅':'Mirror W','鏡高':'Mirror H','床鏡幅':'Mirror W','床鏡奥行':'Mirror D',
+  '換算':'equiv.','三脚':'tripod','出力':'Printed','参照':'refs','画像':'images','マテリアル':'materials','メッシュ':'meshes',
+  'テクスチャ定義':'texture defs','テクスチャ':'textures','外部':'external','失敗':'failed','面':'faces','材質未指定':'no material',
+  '届く範囲':'Reach','約':'about','灯':'lights','点':'items','枚':'','文字':'chars','型':'version','個':'','台':'',
+  '実寸':'Actual size','残す範囲':'Kept range','グリッド':'Grid','案件名':'Project','人物ポーズ':'Pose',
+  '好きな色':'Custom color','車種':'Car model','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
+};
+// 数字や名前が入る文。$n は括弧、tr() で中身も訳す
+const EN_RULES = [
+  [/^(.+?)：(.+)$/, (a, b) => `${tr(a)}: ${tr(b)}`],
+  [/^(.+?) (奥壁|右壁|左壁)まで ([\d.]+ m)$/, (c, w, n) => `${tr(c)}: ${n} to ${tr(w).toLowerCase()}`],
+  [/^(.+?)まで ([\d.]+ m)$/, (a, n) => `${n} to ${tr(a)}`],
+  [/^スタジオ ([\d.]+) × ([\d.]+) × 高 ([\d.]+) m$/, (w, d, h) => `Studio ${w} × ${d} × H ${h} m`],
+  [/^幅 ([\d.]+) × 奥行 ([\d.]+) × 高 ([\d.]+) m$/, (w, d, h) => `W ${w} × D ${d} × H ${h} m`],
+  [/^幅 ([\d.]+) × 奥行 ([\d.]+) m。高さを変えると全体が拡大縮小します。$/, (w, d) => `W ${w} × D ${d} m. Changing the height scales the whole model.`],
+  [/^ライトを置くと自動で (\d+) に下がります（無いときは (\d+)）。0 で真っ暗。パースとファインダーに効きます。$/, (a, b) => `Drops to ${a} by itself once a light is placed (${b} without). 0 is pitch dark. Affects the 3D view and the finder.`],
+  [/^強さは相対の目盛りです（単位はありません）。届く範囲 約 ([\d.]+) m。$/, n => `Power is a relative scale (no unit). Reach about ${n} m.`],
+  [/^カメラ高さ ([\d.]+) m(.*)$/, (n, r) => `Camera height ${n} m${tr(r)}`],
+  [/^(\d+) (点|灯|枚|台|個)$/, (n, u) => `${n} ${{'点':'items', '灯':'lights', '枚':'', '台':'', '個':''}[u]}`.trim()],
+  [/^(\d+) 文字 \/ 型 (\d+)$/, (n, v) => `${n} chars / version ${v}`],
+  [/^([\d.]+) MB のファイルにまとめました。ダブルクリックで開けます（通信は要りません）。$/, n => `Packed into a ${n} MB file. Double-click to open it (no network needed).`],
+  [/^3DGSは 1 カットに (\d+) 個までです$/, n => `Up to ${n} 3DGS per shot`],
+  [/^部品を集めています… (\d+)$/, n => `Collecting parts… ${n}`],
+  [/^モデルを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing models… ${a} / ${b}`],
+  [/^取り込んだデータを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing imported data… ${a} / ${b}`],
+  [/^([\d.-]+)°（0° で奥）$/, n => `${n}° (0° = back)`],
+  [/^(.+) を読み込み中$/, f => `Loading ${f}`],
+  [/^(.+) を読めませんでした。\.bin とテクスチャも一緒に選んでください$/, f => `Could not read ${f}. Select the .bin and textures too`],
+  [/^(.+) を読めませんでした$/, f => `Could not read ${f}`],
+  [/^(.+) は大きすぎます（(\d+)MB まで）$/, (f, n) => `${f} is too large (max ${n} MB)`],
+  [/^(.+) に形がありません$/, f => `${f} has no geometry`],
+  [/^(.+) は読めない種類です$/, f => `${f} is not a supported type`],
+  [/^(.+) を置きました。共有リンクには入りません（PDF と画像には写ります）$/, f => `${f} placed. Not included in share links (it appears in PDFs and images)`],
+  [/^(.+) はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます$/, f => `${f} could not be kept on this device. It works now but is gone after a reload`],
+  [/^(.+) は重いのでスマホでは動きが鈍くなります$/, f => `${f} is heavy; phones may be sluggish`],
+  [/^(.+) は圧縮形式で、変換部品を取りに行けませんでした$/, f => `${f} is compressed and the decoder could not be fetched`],
+  [/^「(.+)」を保存しました$/, n => `Saved “${n}”`],
+  [/^(.+) を消す$/, n => `Remove ${n}`],
+  [/^(.+) を開く QR コード$/, n => `QR code for ${tr(n)}`],
+  [/^ファインダー（(.+)）$/, n => `Finder (${tr(n)})`],
+  [/^(\d+) 個と カメラ (\d+) 台$/, (a, b) => `${a} meshes and ${b} cameras`],
+  [/^画像 (\d+) 枚を読み込めませんでした（(.*)）$/, (n, m) => `Could not load ${n} images (${m})`],
+  [/^(\d+) 個の面にマテリアルが割り当たっていません。書き出しの前にマテリアルを付け直してください$/, n => `${n} faces have no material. Assign materials before exporting`],
+  [/^画像は (\d+) 枚ありますが、マテリアルから参照されていません。(.*)$/, n => `There are ${n} images but no material uses them. The textures were not linked to materials on export`],
+  [/^(.+) が見つかりません。一緒に選ぶかフォルダごとドラッグしてください$/, f => `${f} not found. Select them too, or drag the whole folder`],
+  [/^テクスチャ (\d+) 枚。$/, n => `${n} textures.`],
+  [/^実寸 (.+) × (.+) × 高 (.+) m$/, (w, d, h) => `Actual size ${w} × ${d} × H ${h} m`],
+  [/^残す範囲 (.+) × (.+) × 高 (.+) m。(.*)$/, (w, d, h, r) => `Kept range ${w} × ${d} × H ${h} m.${tr(r)}`],
+  [/^カット (\d+)$/, n => `Shot ${n}`],                                     // 一覧の見出しは Shots、1 つは Shot
+  [/^幅 ([\d.]+) × 高 ([\d.]+)( × 床 ([\d.]+))? m$/, (w, h, _, d) => `W ${w} × H ${h}${d ? ` × floor ${d}` : ''} m`],
+  [/^(.+?) (\d+)$/, (a, n) => EN[a] ? `${EN[a]} ${n}` : null],            // 男性 1
+  [/^(.+?) ([\d.]+) m$/, (a, n) => EN[a] ? `${EN[a]} ${n} m` : null],     // 幅 3 m、身長 1.7 m
+  [/^(.+?) ([\d.]+)mm(.*)$/, (a, n, r) => EN[a] ? `${EN[a]} ${n}mm${tr(r)}` : null],
+];
+const JP_RE = /[぀-ヿ一-鿿：、。（）「」・〜]/;
+const EN_WORDS = Object.keys(EN).filter(k => k.length >= 1).sort((a, b) => b.length - a.length);
+const JP_PUNCT = [['：', ': '], ['、', ', '], ['。', '. '], ['（', ' ('], ['）', ') '], ['「', ' “'], ['」', '” '], ['・', ' / '], ['〜', '–'], ['＋', '+']];
+function trLine(s){
+  if (!JP_RE.test(s)) return s;
+  const m = s.match(/^(\s*)(.*?)(\s*)$/), out = trCore(m[2]);
+  return (/^[,.:)]/.test(out) ? '' : m[1]) + out + m[3];   // 「に。」→「.」は前の語に付ける
+}
+function trCore(core){
+  if (EN[core] !== undefined) return EN[core];
+  for (const [re, fn] of EN_RULES){ const mm = core.match(re); if (mm){ const r = fn(...mm.slice(1)); if (r != null) return r; } }
+  // 残った語を長い順に。前後に英数字が来るときは空白を挟む
+  let out = core;
+  for (const k of EN_WORDS){ if (out.includes(k)) out = out.split(k).join(` ${EN[k]} `); }
+  for (const [a, b] of JP_PUNCT) out = out.split(a).join(b);
+  return out.replace(/\s+([,.:)])/g, '$1').replace(/\(\s+/g, '(').replace(/\s{2,}/g, ' ').trim();
+}
+const tr = s => LANG === 'en' && typeof s === 'string' ? s.split('\n').map(trLine).join('\n') : s;
+const TR_ATTRS = ['title', 'aria-label', 'placeholder', 'alt', 'content'];
+function translateTree(root){
+  if (LANG !== 'en' || !root) return;
+  const walk = (root.ownerDocument || root).createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  const skip = new Set(['SCRIPT', 'STYLE', 'TEXTAREA']);
+  for (let n = walk.currentNode; n; n = walk.nextNode()){
+    if (n.nodeType === 3){
+      if (skip.has(n.parentNode?.nodeName)) continue;
+      const v = n.nodeValue; if (JP_RE.test(v)){ const t = tr(v); if (t !== v) n.nodeValue = t; }
+    } else if (n.nodeType === 1){
+      for (const a of TR_ATTRS){ const v = n.getAttribute(a); if (v && JP_RE.test(v)){ const t = tr(v); if (t !== v) n.setAttribute(a, t); } }
+    }
+  }
+}
+if (LANG === 'en'){
+  document.documentElement.lang = 'en';
+  translateTree(document.documentElement);
+  // 後から出る文字（パネル・トースト・寸法ラベル・用紙）は変化を見て差し替える。
+  // 差し替えた文字は日本語を含まないので、二度目は素通り。
+  // **同じ値を書き戻さないこと。** 訳せず日本語が残った属性を setAttribute で
+  // 同じ値のまま書くと、その mutation でまた呼ばれて画面が固まる（実際に固まった）
+  new MutationObserver(recs => {
+    for (const r of recs){
+      if (r.type === 'characterData'){ const v = r.target.nodeValue; if (JP_RE.test(v)){ const t = tr(v); if (t !== v) r.target.nodeValue = t; } }
+      else if (r.type === 'attributes'){ const v = r.target.getAttribute(r.attributeName); if (v && JP_RE.test(v)){ const t = tr(v); if (t !== v) r.target.setAttribute(r.attributeName, t); } }
+      else for (const n of r.addedNodes){ if (n.nodeType === 3){ const v = n.nodeValue; if (JP_RE.test(v)){ const t = tr(v); if (t !== v) n.nodeValue = t; } } else if (n.nodeType === 1) translateTree(n); }
+    }
+  }).observe(document.documentElement, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:TR_ATTRS});
+}
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
 const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4,
@@ -3066,6 +3265,7 @@ function popOut(){
   try { win = window.open('', 'studioPlannerFinder', `popup=yes,width=${w},height=${h}`); } catch {}
   if (!win){ toast('ブラウザにポップアップを止められました。許可してからもう一度お試しください。'); return; }
   win.document.open(); win.document.write(POP_HTML); win.document.close();
+  if (LANG === 'en'){ win.document.documentElement.lang = 'en'; translateTree(win.document.documentElement); }   // 別ウィンドウも英語に
   popWin = win;
   popCv = win.document.getElementById('c'); popCtx = popCv.getContext('2d');
   const done = () => { if (popWin === win){ popWin = null; popCv = null; popCtx = null; layoutPip(); needRender = true; } };
@@ -5298,10 +5498,10 @@ markStandalone();
 try { matchMedia('(display-mode: standalone)').addEventListener('change', markStandalone); } catch {}
 
 // ---------- boot ----------
-document.documentElement.lang = 'ja';     // there is no <html> tag of ours to put it on
+document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

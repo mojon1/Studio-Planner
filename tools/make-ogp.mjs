@@ -14,7 +14,7 @@ http.createServer((q,s)=>{const p=path.join(ROOT,q.url==='/'?'index.html':q.url.
   s.writeHead(200,{'content-type':p.endsWith('.html')?'text/html; charset=utf-8':p.endsWith('.glb')?'model/gltf-binary':'text/javascript'});
   s.end(fs.readFileSync(p));}).listen(8770);
 const b = await chromium.launch({ executablePath: process.env.PW_CHROME, args:['--use-gl=swiftshader','--enable-unsafe-swiftshader'], env:{...process.env, LANG:'C.UTF-8'} });
-const p = await (await b.newContext({viewport:{width:1200,height:630}, deviceScaleFactor:1})).newPage();
+const p = await (await b.newContext({viewport:{width:1200,height:630}, deviceScaleFactor:1, locale:'ja-JP'})).newPage();   // 英語の環境で焼いても日本語の絵にする
 p.on('pageerror', e => console.log('PAGEERROR', e.message));
 await p.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', r => {
   const f = path.join(NM,'three', r.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/',''));
