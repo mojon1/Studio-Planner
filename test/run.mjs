@@ -2927,6 +2927,29 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await P.mouse.move(hb.x, hb.y); await P.mouse.down(); await P.mouse.move(hb.x + 40, hb.y - 20); await P.mouse.move(hb.x + 80, hb.y - 40); await P.mouse.up(); await P.waitForTimeout(300);
   const r2 = await ruler();
   ok('dragging an end handle moves that end only', (r2.b[0] !== r.b[0] || r2.b[2] !== r.b[2]) && r2.a.join() === r.a.join() && r2.x === r.x, JSON.stringify({before:r.b, after:r2.b}));
+  // 定規には向きのつまみもマニピュレータも無い（寺村さんの指示）。本体を掴んでも動かない
+  ok('the ruler panel has no orientation slider', !(await P.$$eval('#selbody [data-range]', r => r.map(x => x.dataset.range))).includes('rot'));
+  ok('and no manipulator', await S(() => window.__sp.gizmo.visible) === false);
+  const mid = await screenOf([(r2.a[0] + r2.b[0]) / 2 + r2.x, 0.02, (r2.a[2] + r2.b[2]) / 2 + r2.z]);
+  ok('the body is still pickable', (await S(([x, y]) => { const rr = document.getElementById('view').getBoundingClientRect(); return window.__sp.pick(x - rr.left, y - rr.top); }, [mid.x, mid.y]))?.id != null);
+  await P.mouse.move(mid.x, mid.y); await P.mouse.down(); await P.mouse.move(mid.x + 60, mid.y + 30, {steps: 4}); await P.mouse.up(); await P.waitForTimeout(200);
+  const r3 = await ruler();
+  ok('but dragging the body does not move the ruler', r3.x === r2.x && r3.z === r2.z && r3.a.join() === r2.a.join() && r3.b.join() === r2.b.join(), JSON.stringify({before:r2, after:r3}));
+  // 「起点をカメラにする」: a がカメラのレンズの位置に来る（定規の座標で）
+  ok('the panel offers "start at camera"', await P.$$eval('#selbody [data-set="fromCam"]', b => b.length) === 1);
+  await P.click('#selbody [data-set="fromCam"]'); await P.waitForTimeout(300);
+  const fc = await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'ruler'); const ci = s.state().items.find(i => i.type === 'camera'); return {a:it.a, x:it.x, z:it.z, cam:[ci.x, ci.y, ci.z]}; });
+  ok('and it puts the start on the camera lens', Math.abs(fc.a[0] + fc.x - fc.cam[0]) < 0.01 && Math.abs(fc.a[1] - fc.cam[1]) < 0.01 && Math.abs(fc.a[2] + fc.z - fc.cam[2]) < 0.01, JSON.stringify(fc));
+  // 3D ビューで、視点の外側にある薄い壁の裏には吸い付かない（床に落ちる）
+  await S(() => { const s = window.__sp; s.orbit.theta = Math.PI / 2; s.orbit.phi = 1.2; s.orbit.radius = 9; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
+  await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
+  const sw = await S(() => window.__sp.state().studio.w);
+  const pw = await screenOf([sw / 2, 1.0, 0.3]);
+  await P.mouse.click(pw.x, pw.y); await P.waitForTimeout(300);
+  r = await ruler();
+  ok('a tap through a faded wall lands on the floor, not on the wall\'s back', r.n === 2 && r.a[1] === 0 && r.x < sw / 2 - 0.5, JSON.stringify(r));
+  await P.keyboard.press('Escape');
+  await S(() => { const s = window.__sp; s.orbit.theta = 0.7; s.orbit.phi = 1.0; s.orbit.radius = 7; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
   // 箱の天面をタップすると、その高さに乗る
   await t.add('[data-add="box"]');
   await S(() => { const s = window.__sp; const b = s.state().items.find(i => i.type === 'box'); s.setProp(b, 'h', 0.8); s.setProp(b, 'x', -2); s.setProp(b, 'z', 0); });
@@ -2934,23 +2957,25 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const pb = await screenOf([-2, 0.8, 0]);
   await P.mouse.click(pb.x, pb.y); await P.waitForTimeout(300);
   r = await ruler();
-  ok('a tap on a box lands on its top', r.n === 2 && Math.abs(r.a[1] - 0.8) < 0.01 && Math.abs(r.x + 2) < 0.05, JSON.stringify(r));
+  ok('a tap on a box lands on its top', r.n === 3 && Math.abs(r.a[1] - 0.8) < 0.01 && Math.abs(r.x + 2) < 0.05, JSON.stringify(r));
   await P.keyboard.press('Escape');
   ok('the ruler stays out of the GLB export', await S(async () => { const s = window.__sp; const glb = (await s.glb()).buf; const j = JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, new DataView(glb).getUint32(12, true)))); return !(j.nodes || []).some(n => /定規/.test(n.name || '')); }));
   const link = await S(() => location.hash);
   await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1200);
-  ok('rulers survive the share link', (await ruler()).n === 2);
-  // --- 3DGS: ワールド軸まわりの傾き、軸の位置、高さ
+  ok('rulers survive the share link', (await ruler()).n === 3);
+  // --- 3DGS: ワールド軸まわりの傾き、中心のオフセット、高さ
   const ply = `${OUT}/scan-ruler.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
   await P.setInputFiles('#file', ply);
   await P.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 }); await P.waitForTimeout(2500);
   const sp = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; });
     m.updateMatrixWorld(true); const c = m.getBoundingBox(true).getCenter(new s.THREE.Vector3()).applyMatrix4(m.matrixWorld);
-    return {rot:it.rot, tiltX:it.tiltX || 0, tiltZ:it.tiltZ || 0, q:it.q || null, off:it.off || null, x:it.x, z:it.z, lift:it.lift || 0, gy:+g.position.y.toFixed(3), centre:c.toArray().map(v => +v.toFixed(3))}; });
+    return {rot:it.rot, tiltX:it.tiltX || 0, tiltZ:it.tiltZ || 0, q:it.q || null, off:it.off || null, x:it.x, z:it.z, lift:it.lift || 0, gy:+g.position.y.toFixed(3), gpos:g.position.toArray().map(v => +v.toFixed(3)), centre:c.toArray().map(v => +v.toFixed(3)), axes:s.handles().children.filter(k => k.userData.axes).length}; });
   await S(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'splat').id, true); }); await P.waitForTimeout(400);
   const ranges = await P.$$eval('#selbody [data-range]', r => Object.fromEntries(r.map(x => [x.dataset.range, [+x.min, +x.max]])));
   ok('the 3DGS panel has tilt sliders and a ±50 m height', ranges.tiltX && ranges.tiltZ && ranges.lift[0] === -50 && ranges.lift[1] === 50, JSON.stringify(ranges));
-  ok('and three pivot sliders', ranges['off.x'] && ranges['off.y'] && ranges['off.z'], Object.keys(ranges).join(','));
+  ok('and three offset sliders', ranges['off.x'] && ranges['off.y'] && ranges['off.z'], Object.keys(ranges).join(','));
+  ok('under the heading 中心のオフセット', (await P.$$eval('#selbody h2', h => h.map(x => x.textContent))).includes('中心のオフセット'));
+  ok('the axis is drawn while the scan is selected', (await sp()).axes === 1);
   const c0 = (await sp()).centre;
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'tiltX', 30); }); await P.waitForTimeout(300);
   let q = await sp();
@@ -2958,10 +2983,16 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'rot', 90); }); await P.waitForTimeout(300);
   const q1 = await sp();
   ok('then turning 90° goes around the world Y axis, not the tilted one', Math.abs(q1.centre[0] - q.centre[2]) < 0.01 && Math.abs(q1.centre[1] - q.centre[1]) < 0.01 && Math.abs(q1.centre[2]) < 0.01, JSON.stringify(q1.centre));
-  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'off.x', 1); s.setProp(it, 'off.y', 0.5); }); await P.waitForTimeout(300);
+  // 中心のオフセットはスキャンのほうを動かす。軸（group）と位置・高さ調整は動かない（寺村さんの指示）。
+  // つまみを引いているあいだ（live）は並べ直さず、離したときの 1 回だけ
+  await S(() => { const sr = window.__sp.spark(); window.__upd = 0; const o = sr.update.bind(sr); sr.update = (...a) => { window.__upd++; return o(...a); }; });
+  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); for (let i = 1; i <= 10; i++) s.setProp(it, 'off.x', i * 0.1, true); s.setProp(it, 'off.x', 1); s.setProp(it, 'off.y', 0.5); }); await P.waitForTimeout(300);
   const q2 = await sp();
-  ok('moving the pivot leaves the scan where it was', q2.centre.every((v, i) => Math.abs(v - q1.centre[i]) < 0.01) && (q2.x !== q1.x || q2.lift !== q1.lift), JSON.stringify({before:q1.centre, after:q2.centre, x:q2.x, lift:q2.lift}));
-  ok('and the pivot is in the state', q2.off && q2.off[0] === 1 && q2.off[1] === 0.5, JSON.stringify(q2.off));
+  const moved = Math.hypot(...q2.centre.map((v, i) => v - q1.centre[i]));
+  ok('moving the offset moves the scan by that much', Math.abs(moved - Math.hypot(1, 0.5)) < 0.02, JSON.stringify({before:q1.centre, after:q2.centre, moved}));
+  ok('while the axis, position and lift stay put', q2.gpos.join() === q1.gpos.join() && q2.x === q1.x && q2.z === q1.z && q2.lift === q1.lift, JSON.stringify({g0:q1.gpos, g1:q2.gpos, x:q2.x, lift:q2.lift}));
+  ok('and the offset is in the state', q2.off && q2.off[0] === 1 && q2.off[1] === 0.5, JSON.stringify(q2.off));
+  ok('ten live slider steps re-sort the splats only twice (once per release)', await S(() => window.__upd) === 2, String(await S(() => window.__upd)));
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'tiltReset', '1'); }); await P.waitForTimeout(300);
   const q3 = await sp();
   ok('reset keeps only the turn', q3.q === null && q3.tiltX === 0 && q3.tiltZ === 0 && q3.rot === 90, JSON.stringify(q3));
@@ -2972,7 +3003,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const link2 = await S(() => location.hash);
   await P.goto('http://localhost:8765/' + link2); await P.waitForTimeout(1500);
   const q4 = await S(() => { const it = window.__sp.state().items.find(i => i.type === 'splat'); return {q:it.q, off:it.off, tiltZ:it.tiltZ}; });
-  ok('orientation and pivot survive the share link', Array.isArray(q4.q) && q4.q.length === 4 && q4.off[0] === 1 && q4.tiltZ === 20, JSON.stringify(q4));
+  ok('orientation and offset survive the share link', Array.isArray(q4.q) && q4.q.length === 4 && q4.off[0] === 1 && q4.tiltZ === 20, JSON.stringify(q4));
   // 3DGS の上をタップすると、その面に定規の端が乗る（Spark の raycast）
   await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
   const st = await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; }); m.updateMatrixWorld(true);
