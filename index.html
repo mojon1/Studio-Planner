@@ -195,7 +195,8 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #pip .bar small{font-weight:400;color:#bbb;font-family:"IBM Plex Mono",monospace;margin-left:auto}
 #pip .bar button{margin-left:6px;width:22px;height:20px;border:0;border-radius:4px;background:transparent;color:#ddd;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
 #pip .bar button:hover{background:rgba(255,255,255,.18)}
-#pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab}
+#pip .body{position:absolute;left:0;right:0;top:24px;bottom:0;cursor:grab;background:#3b3f47}
+#pip .body canvas{display:block;width:100%;height:100%;pointer-events:none}
 #pip .grip{position:absolute;right:0;bottom:0;width:26px;height:26px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.8) 50%);border-bottom-right-radius:4px}
 /* ＋ と設定は同じ大きさで縦並び。下が設定 */
 #addfab{position:absolute;left:calc(12px + var(--vsal));bottom:calc(74px + var(--vsab));z-index:4;width:52px;height:52px;border:0;border-radius:50%;background:var(--accent);color:#fff;font-size:1.8rem;line-height:1;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:0}
@@ -376,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.24.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.25.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -385,7 +386,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       <button data-view="plan">上面</button>
       <button data-view="side">側面</button>
       <button data-view="front">正面</button>
-      <button data-view="pers" class="on">パース</button>
+      <button data-view="pers" class="on">3D</button>
       <button data-view="cam">ファインダー</button>
       <button id="ruler" class="icon on" title="寸法表示" aria-label="寸法表示">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 9h20v6H2z"/><path d="M6 9v3M10 9v4M14 9v3M18 9v4"/></svg>
@@ -400,7 +401,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     </button>
     <div id="labels"></div>
     <div id="info"></div>
-    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipout" title="別ウィンドウで開く" aria-label="別ウィンドウで開く"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"></div><div class="grip"></div></div>
+    <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipout" title="別ウィンドウで開く" aria-label="別ウィンドウで開く"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"><canvas id="pipcv"></canvas></div><div class="grip"></div></div>
     <button id="addfab" data-openadd title="オブジェクトを追加" aria-label="オブジェクトを追加">＋</button>
     <button id="pipbtn" class="on" title="カメラの小窓" aria-label="カメラの小窓">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -447,7 +448,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <div class="pmgrp"><span>用紙</span>
       <button class="pmopt on" data-orient="landscape">A4 横</button><button class="pmopt" data-orient="portrait">A4 縦</button></div>
     <div class="pmgrp"><span>記載内容</span>
-      <button class="pmopt on" data-pane="plan">上面</button><button class="pmopt on" data-pane="side">側面</button><button class="pmopt" data-pane="front">正面</button><button class="pmopt on" data-pane="pers">パース</button><button class="pmopt on" data-pane="cam">ファインダー</button></div>
+      <button class="pmopt on" data-pane="plan">上面</button><button class="pmopt on" data-pane="side">側面</button><button class="pmopt" data-pane="front">正面</button><button class="pmopt on" data-pane="pers">3D</button><button class="pmopt on" data-pane="cam">ファインダー</button></div>
     <div class="pmgrp"><span>範囲</span>
       <button class="pmopt on" data-scope="one">このカットだけ</button><button class="pmopt" data-scope="all">全カット</button></div>
     <div class="pmgrp"><span>タイトル</span>
@@ -595,7 +596,7 @@ const EN = {
   'テクスチャ定義':'texture defs','テクスチャ':'textures','外部':'external','失敗':'failed','面':'faces','材質未指定':'no material',
   '届く範囲':'Reach','約':'about','灯':'lights','点':'items','枚':'','文字':'chars','型':'version','個':'','台':'',
   '実寸':'Actual size','残す範囲':'Kept range','グリッド':'Grid','案件名':'Project','人物ポーズ':'Pose',
-  '好きな色':'Custom color','車種':'Car model','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
+  '好きな色':'Custom color','車種':'Car model','形':'Shape','角テーブル':'Rectangular','丸テーブル':'Round','直径':'Diameter','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
 };
 // 数字や名前が入る文。$n は括弧、tr() で中身も訳す
 const EN_RULES = [
@@ -605,7 +606,7 @@ const EN_RULES = [
   [/^スタジオ ([\d.]+) × ([\d.]+) × 高 ([\d.]+) m$/, (w, d, h) => `Studio ${w} × ${d} × H ${h} m`],
   [/^幅 ([\d.]+) × 奥行 ([\d.]+) × 高 ([\d.]+) m$/, (w, d, h) => `W ${w} × D ${d} × H ${h} m`],
   [/^幅 ([\d.]+) × 奥行 ([\d.]+) m。高さを変えると全体が拡大縮小します。$/, (w, d) => `W ${w} × D ${d} m. Changing the height scales the whole model.`],
-  [/^ライトを置くと自動で (\d+) に下がります（無いときは (\d+)）。0 で真っ暗。パースとファインダーに効きます。$/, (a, b) => `Drops to ${a} by itself once a light is placed (${b} without). 0 is pitch dark. Affects the 3D view and the finder.`],
+  [/^ライトを置くと自動で (\d+) に下がります（無いときは (\d+)）。0 で真っ暗。3D とファインダーに効きます。$/, (a, b) => `Drops to ${a} by itself once a light is placed (${b} without). 0 is pitch dark. Affects the 3D view and the finder.`],
   [/^強さは相対の目盛りです（単位はありません）。届く範囲 約 ([\d.]+) m。$/, n => `Power is a relative scale (no unit). Reach about ${n} m.`],
   [/^カメラ高さ ([\d.]+) m(.*)$/, (n, r) => `Camera height ${n} m${tr(r)}`],
   [/^(\d+) (点|灯|枚|台|個)$/, (n, u) => `${n} ${{'点':'items', '灯':'lights', '枚':'', '台':'', '個':''}[u]}`.trim()],
@@ -861,8 +862,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;
 const shadowNext = () => { renderer.shadowMap.needsUpdate = true; };
 renderer.setClearColor(0x2a2d34);
-viewEl.appendChild(renderer.domElement);
-const canvas = renderer.domElement;
+// #view の**先頭**に入れる。小窓の中にも canvas（#pipcv）が居るので、後ろに足すと
+// `#view canvas` で最初に当たるのが小窓のほうになり、テストとツールが WebGL の context を取れない
+viewEl.prepend(renderer.domElement);
+const canvas = renderer.domElement; canvas.id = 'gl';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x3b3f47);
@@ -1829,8 +1832,18 @@ function legged(topW, topD, topH, h, legR, m, legM){
   return g;
 }
 function buildTable(it){
-  const g = new THREE.Group();
-  g.add(legged(it.w, it.d, 0.04, it.h, 0.025, mat(it.color || '#c8a882', {roughness:0.7}), mat(0x50555e)));
+  const g = new THREE.Group(), top = mat(it.color || '#c8a882', {roughness:0.7}), frame = mat(0x50555e);
+  if (isRound(it)){
+    // 丸テーブル。天板は直径 w（d は常に w と同じ）、真ん中の 1 本柱と丸い台座
+    const r = it.w / 2, br = Math.min(r * 0.6, 0.45);
+    const t = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 48), top)); t.position.y = it.h - 0.02; g.add(t);
+    const post = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, Math.max(0.02, it.h - 0.06), 12), frame)); post.position.y = 0.02 + Math.max(0.02, it.h - 0.06) / 2; g.add(post);
+    const base = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(br, br, 0.02, 32), frame)); base.position.y = 0.01; g.add(base);
+    const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({color:COLORS.table, transparent:true, opacity:0.45}));
+    m.rotation.x = -Math.PI/2; m.position.y = 0.008; m.userData.plan = true; g.add(m);
+    return g;
+  }
+  g.add(legged(it.w, it.d, 0.04, it.h, 0.025, top, frame));
   g.add(planeMarker(it.w, it.d, COLORS.table));
   return g;
 }
@@ -2384,6 +2397,15 @@ function buildMirror(it){
   g.add(refl); g.add(marker);
   return g;
 }
+// 筒の内側を表にする（法線を内向きに、面の向きも裏返す）。R の面は凹んだ内側を見せるが、
+// CylinderGeometry の法線は外向き。DoubleSide で絵は出ても、影の normalBias はジオメトリの
+// 法線で押すので、外向きのままだと光から遠ざかる側へ押されて R だけ自分の影に沈んでいた
+// （壁と床より一段暗い帯。寺村さんの指摘）
+function insideOut(geo){
+  const n = geo.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
+  const ix = geo.index; if (ix) for (let i = 0; i < ix.count; i += 3){ const a = ix.getX(i); ix.setX(i, ix.getX(i + 2)); ix.setX(i + 2, a); }
+  return geo;
+}
 function buildChroma(it){
   const g = new THREE.Group(); const col = new THREE.Color(it.color || '#1fb24a');
   const cloth = new THREE.MeshStandardMaterial({color:col, roughness:1, side:THREE.DoubleSide});
@@ -2394,7 +2416,7 @@ function buildChroma(it){
   const wall = shadowed(new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h - R), cloth)); wall.position.set(0, R + (it.h - R)/2, 0); g.add(wall);
   if (drape > 0){
     const fl = shadowed(new THREE.Mesh(new THREE.PlaneGeometry(it.w, drape - R), cloth)); fl.rotation.x = -Math.PI/2; fl.position.set(0, 0.012, R + (drape - R)/2); g.add(fl);
-    const cove = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(R, R, it.w, 24, 1, true, Math.PI, Math.PI/2), cloth)); cove.rotation.z = Math.PI/2; cove.position.set(0, R, R); g.add(cove);
+    const cove = shadowed(new THREE.Mesh(insideOut(new THREE.CylinderGeometry(R, R, it.w, 24, 1, true, Math.PI, Math.PI/2)), cloth)); cove.rotation.z = Math.PI/2; cove.position.set(0, R, R); g.add(cove);
   }
   // 上面図の記号。絵では壁の裏に帯が覗くので上面図だけ
   const marker = planOnly(new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:col}))); marker.rotation.x = -Math.PI/2; marker.position.y = 0.02; g.add(marker);
@@ -2598,7 +2620,9 @@ function tiltAngle(x, y, needRing){
 }
 // ---------- 背景布・鏡は辺をつまんで大きさを変える ----------
 // スライダーでも変えられるが、現場では「もう少し広く」を figure の横で示したい
-const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]}};
+const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
+                  box:{w:[0.1,8], d:[0.1,8], h:[0.05,4]}, table:{w:[0.4,4], d:[0.3,4], h:[0.2,1.2]}};   // スライダーと同じ範囲
+const isRound = it => it.type === 'table' && it.shape === 'round';
 const handleGeo = new THREE.BoxGeometry(0.13, 0.13, 0.13);
 const handleMat = gizMat(0xffffff);
 // つまみ 1 つは kx（幅の辺: sx が左右）・kz（奥行の辺: sz が前後。drape は手前の辺）・
@@ -2609,12 +2633,23 @@ function edgeHandles(it){
   const bottom = [{kx:'w', sx:1, p:[it.w/2, 0.02, 0]}, {kx:'w', sx:-1, p:[-it.w/2, 0.02, 0]}];
   if (it.type === 'mirror')
     return it.kind === 'floor'
-      ? bottom.concat([{kz:'h', sz:1, p:[0, 0.02, it.h/2]}, {kz:'h', sz:-1, p:[0, 0.02, -it.h/2]}])
+      ? [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => ({kx:'w', sx, kz:'h', sz, p:[sx*it.w/2, 0.02, sz*it.h/2]}))   // 床鏡も 4 角（幅と奥行を一度に）
       : bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
   if (it.type === 'chroma'){
     const dz = Math.max(it.drape || 0, 0.2);
     return [{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]},
             {kx:'w', sx:1, kz:'drape', sz:1, p:[it.w/2, 0.02, dz]}, {kx:'w', sx:-1, kz:'drape', sz:1, p:[-it.w/2, 0.02, dz]}];
+  }
+  // 箱とテーブルは天面の 4 角で幅と奥行（天面の高さの水平面で取る）、天面の真ん中で高さ。
+  // 高さのつまみは上面図では出さない — 真上からは高さが取れず、真ん中の十字（移動）と重なる。
+  // 丸テーブルは縁の 4 点。どれを引いても直径（w = d）
+  if (it.type === 'box' || it.type === 'table'){
+    const top = it.h, hs = isRound(it)
+      ? [{kx:'w', sx:1, p:[it.w/2, top, 0], py:1}, {kx:'w', sx:-1, p:[-it.w/2, top, 0], py:1},
+         {kz:'d', sz:1, p:[0, top, it.d/2], py:1}, {kz:'d', sz:-1, p:[0, top, -it.d/2], py:1}]
+      : [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => ({kx:'w', sx, kz:'d', sz, p:[sx*it.w/2, top, sz*it.d/2], py:1}));
+    if (mainView !== 'plan') hs.push({ky:'h', p:[0, top, 0]});
+    return hs;
   }
   // 3DGSは大きさではなく「切り取る箱の 6 面」をつまむ。
   // 面の真ん中に置くので、6 個が互いに重ならない
@@ -2959,7 +2994,7 @@ function frame(){
   fitOrtho();
   drawPop();                                     // 先に描いて写し、この後の本体描画で上書きする
   renderView(mainView, mainRect(), true);
-  if (pipShown()){ if (pipAspect() !== pipAr) layoutPip(); renderView('cam', pipRect(), false); }
+  if (pipShown()){ if (pipAspect() !== pipAr) layoutPip(); renderView('cam', pipRect(), false); copyPip(); }
   renderer.setScissorTest(false);
   updateInfo(); syncRecenter();
 }
@@ -3163,7 +3198,7 @@ function startHandle(h){
   const ax = new THREE.Vector2(c, -sn), az = new THREE.Vector2(sn, c), centre = new THREE.Vector2(it.x, it.z);
   const aX = centre.dot(ax), aZ = centre.dot(az);
   // 向かい側の辺の座標。掴んだ辺だけが動き、こちらはその場に残る（垂らしは壁際が固定）
-  return {handle:h, it, base, ax, az,
+  return {handle:h, it, base, ax, az, top: base + (it.h || 0),
     fixedX: aX - (h.sx || 0) * it.w / 2,
     fixedZ: h.kz === 'drape' ? aZ : aZ - (h.sz || 0) * (it[h.kz] || 0) / 2};
 }
@@ -3207,14 +3242,21 @@ function dragHandle(d, x, y){
     p = new THREE.Vector3();
     if (!ray.ray.intersectPlane(pl, p)) return;
     it[h.ky] = +clamp(p.y - d.base, ...lim(h.ky)).toFixed(2);
-  } else { p = floorHit(x, y); if (!p) return; }
+  } else { p = h.py ? levelHit(x, y, d.top) : floorHit(x, y); if (!p) return; }   // 天面のつまみは天面の高さの水平面で
   const q = new THREE.Vector2(p.x, p.z), cur = new THREE.Vector2(it.x, it.z);
   let cX = cur.dot(d.ax), cZ = cur.dot(d.az);
   if (h.kx){ const w = +clamp((q.dot(d.ax) - d.fixedX) * h.sx, ...lim(h.kx)).toFixed(2); it[h.kx] = w; cX = d.fixedX + h.sx * w / 2; }
   if (h.kz){ const t = +clamp((q.dot(d.az) - d.fixedZ) * h.sz, ...lim(h.kz)).toFixed(2); it[h.kz] = t;
     if (h.kz !== 'drape') cZ = d.fixedZ + h.sz * t / 2; }
   if (h.kx || (h.kz && h.kz !== 'drape')){ const nc = d.ax.clone().multiplyScalar(cX).add(d.az.clone().multiplyScalar(cZ)); setPos(it, nc.x, nc.y); }
+  if (isRound(it)){ if (h.kx) it.d = it.w; else if (h.kz) it.w = it.d; }   // 丸テーブルは直径ひとつ
   rebuildItem(it); needRender = true;
+}
+// 高さ yl の水平面との交点（天面のつまみ用。床で取ると背の高い箱の角が視線ぶんずれる）
+function levelHit(x, y, yl){
+  ray.setFromCamera(ndc(mainRect(), x, y), mainCam());
+  const p = new THREE.Vector3();
+  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -yl), p) ? p : null;
 }
 function setPos(it, x, z){
   // 範囲は moveLimit() が決める。外部3Dデータが無いあいだは部屋の中、
@@ -3308,6 +3350,16 @@ function bindPopInput(win, cv){
   cv.title = 'ドラッグでパン・チルト / ホイールで焦点距離';
 }
 // 本体のキャンバスへ 1 回描いて、その矩形を向こうへ写す
+// 小窓の絵は WebGL のキャンバスに描いたあと、小窓の中の 2D キャンバスへ写す。
+// 小窓の中身が透明のままだと、キャンバスより上に居るビューボタン（z-index 3）が
+// 小窓（z-index 4）の中に透けて見える（寺村さんの実機）。別ウィンドウと同じ手
+const pipCv = document.getElementById('pipcv'), pipCtx = pipCv.getContext('2d');
+function copyPip(){
+  const r = pipRect(), ratio = renderer.getPixelRatio();
+  const bw = Math.max(1, Math.round(r.w * ratio)), bh = Math.max(1, Math.round(r.h * ratio));
+  if (pipCv.width !== bw || pipCv.height !== bh){ pipCv.width = bw; pipCv.height = bh; }
+  pipCtx.drawImage(canvas, Math.round(r.x * ratio), Math.round(r.y * ratio), bw, bh, 0, 0, bw, bh);
+}
 function drawPop(){
   if (!popOpen() || !popCtx) return;
   const cssW = Math.max(1, popCv.clientWidth), cssH = Math.max(1, popCv.clientHeight);
@@ -3334,7 +3386,7 @@ function setMain(v){
   if (v === mainView) return;
   mainView = v;
   planCam.position.set(0,60,0); sideCam.position.set(60,state.studio.h/2,0); frontCam.position.set(0,state.studio.h/2,60);
-  setOrthoZoom(1); resetOrbit(); syncViewBtns(); layoutPip(); needRender = true;
+  setOrthoZoom(1); resetOrbit(); syncViewBtns(); layoutPip(); updateSelectionVisuals(); needRender = true;   // つまみはビューで変わる（箱の高さは上面図では出さない）
 }
 // 平行投影の 3 面はズームを共有する。1 つ動かしたら全部合わせる
 function setOrthoZoom(z){
@@ -3411,7 +3463,7 @@ function studioPanel(){
   // 環境光。ライトの有無で自動で切り替わる値がそのままつまみに出る
   const amb = ambientLevel();
   h += `<h2>環境光</h2><label class="f"><span>明るさ</span><input type="range" id="samb" min="0" max="100" step="1" value="${amb}"><span class="v" id="sambv">${amb}</span></label>`;
-  h += `<p class="hint">ライトを置くと自動で ${AMBIENT_LIT} に下がります（無いときは ${AMBIENT_OFF}）。0 で真っ暗。パースとファインダーに効きます。</p>`;
+  h += `<p class="hint">ライトを置くと自動で ${AMBIENT_LIT} に下がります（無いときは ${AMBIENT_OFF}）。0 で真っ暗。3D とファインダーに効きます。</p>`;
   return h;
 }
 function bindStudio(el){
@@ -3838,7 +3890,11 @@ function renderSel(){
     h += `<p class="hint">背もたれを座面まで下げるとスツール。</p>`;
     h += colors(PROP_SWATCHES, it.color || '#a58256');
   } else if (it.type === 'table'){
-    h += range('w','幅',0.40,4.00,0.05,it.w,'m') + range('d','奥行',0.30,2.00,0.05,it.d,'m') + range('h','高さ',0.20,1.20,0.01,it.h,'m');
+    // 形は角か丸（寺村さんの指示）。丸は直径ひとつで、奥行は幅に揃う
+    h += `<h2>形</h2>` + btns('shape', [['rect','角テーブル'], ['round','丸テーブル']], isRound(it) ? 'round' : 'rect');
+    h += isRound(it) ? range('w','直径',0.40,3.00,0.05,it.w,'m')
+                     : range('w','幅',0.40,4.00,0.05,it.w,'m') + range('d','奥行',0.30,2.00,0.05,it.d,'m');
+    h += range('h','高さ',0.20,1.20,0.01,it.h,'m');
     h += colors(PROP_SWATCHES, it.color || '#c8a882');
   } else if (it.type === 'box'){
     h += range('w','幅',0.10,8.00,0.05,it.w,'m') + range('d','奥行',0.10,8.00,0.05,it.d,'m') + range('h','高さ',0.05,4.00,0.05,it.h,'m');
@@ -4117,9 +4173,11 @@ function setProp(it, k, v, live=false){
     it.kind = t.kind; it.spread = t.spread; it.soft = t.soft; }
   // 写真のポーズは 23 関節の座標をアイテムに持つ。別のポーズを選んだら捨てる（リンクを重くしない）
   else if (k === 'posture'){ it.posture = v; if (v !== 'photo') delete it.photo; }
+  else if (k === 'shape'){ it.shape = v === 'round' ? 'round' : 'rect'; }
   else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
   else it[k] = v;
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
+  if (isRound(it)) it.d = it.w;                         // 丸テーブルは直径ひとつ
   if (k === 'rot') updateItemTransform(it);
   else if (it.type === 'camera') refreshCam(it);
   else if (it.type === 'splat' && (k === 'cropOn' || k.startsWith('crop.'))) refreshCrop(it);
@@ -4921,7 +4979,7 @@ async function capture(view, name){
 }
 let shotBlob = null, shotName = 'studio.png';
 document.getElementById('shotdl').addEventListener('click', () => { if (shotBlob) saveFile(shotName, shotBlob, 'image/png'); });
-const VIEW_NAME = {plan:'上面', side:'側面', front:'正面', pers:'パース', cam:'ファインダー'};
+const VIEW_NAME = {plan:'上面', side:'側面', front:'正面', pers:'3D', cam:'ファインダー'};
 document.getElementById('png').addEventListener('click', () => capture(mainView, VIEW_NAME[mainView]));
 document.getElementById('shotclose').addEventListener('click', () => document.getElementById('shot').classList.remove('show'));
 
@@ -5057,7 +5115,7 @@ try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' ||
 const papersEl = document.getElementById('papers'), paperModal = document.getElementById('papermodal');
 let pdfScope = 'one';        // 'one' = 今のカットだけ / 'all' = 全カット
 // 用紙に載せる図。順番はこの並びで、選んだ数に応じて割り付けが変わる
-const PDF_VIEWS = [['plan','上面'], ['side','側面'], ['front','正面'], ['pers','パース'], ['cam','ファインダー']];
+const PDF_VIEWS = [['plan','上面'], ['side','側面'], ['front','正面'], ['pers','3D'], ['cam','ファインダー']];
 let pdfPanes = ['plan','side','pers','cam'];
 try { const v = JSON.parse(localStorage.getItem('studio3d.panes')||'null');
   if (Array.isArray(v) && v.length) pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => v.includes(k)); } catch {}

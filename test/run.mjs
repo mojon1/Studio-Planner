@@ -863,7 +863,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   const P = t.page;
   const st = () => P.evaluate(() => window.__sp.state());
   ok('five views, front among them',
-     (await P.$$eval('#viewbtns button[data-view]', b => b.map(x => x.textContent))).join('/') === '上面/側面/正面/パース/ファインダー',
+     (await P.$$eval('#viewbtns button[data-view]', b => b.map(x => x.textContent))).join('/') === '上面/側面/正面/3D/ファインダー',
      (await P.$$eval('#viewbtns button[data-view]', b => b.map(x => x.textContent))).join('/'));
   await P.click('#viewbtns button[data-view="front"]'); await P.waitForTimeout(600);
   ok('the front view draws its own width and height',
@@ -1231,7 +1231,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t3.page.waitForTimeout(3000);
   await t3.page.click('[data-view="cam"]'); await t3.page.waitForTimeout(1200);
   const mid = await t3.page.evaluate(() => {
-    const c = document.querySelector('#view canvas'), g = c.getContext('webgl2') || c.getContext('webgl');
+    const c = document.querySelector('#gl'), g = c.getContext('webgl2') || c.getContext('webgl');
     const px = new Uint8Array(4);
     g.readPixels(Math.round(c.width/2), Math.round(c.height/2), 1, 1, g.RGBA, g.UNSIGNED_BYTE, px);
     return [...px];
@@ -1312,7 +1312,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 // --- 20. moving the view, and getting back to the middle --------------------------
 {
   const t = await open('pan', { width: 1200, height: 800 });
-  const box = await t.page.locator('#view canvas').boundingBox();
+  const box = await t.page.locator('#gl').boundingBox();
   const cx = box.x + box.width/2, cy = box.y + box.height/2;
   const shown = () => t.page.$eval('#recenter', e => e.classList.contains('on'));
   const cam = () => t.page.evaluate(() => { const c = window.__sp.camera();
@@ -1342,7 +1342,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 
   // 2 本指のスワイプ。ブラウザに 2 本目の指は作れないので、イベントを直に投げる
   await t.page.evaluate(([x, y]) => {
-    const c = document.querySelector('#view canvas');
+    const c = document.querySelector('#gl');
     const ev = (type, id, px, py) => c.dispatchEvent(new PointerEvent(type,
       {pointerId:id, pointerType:'touch', clientX:px, clientY:py, bubbles:true, isPrimary:id === 1}));
     ev('pointerdown', 1, x - 40, y); ev('pointerdown', 2, x + 40, y);
@@ -1468,9 +1468,9 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await m.page.click('[data-view="plan"]'); await m.page.waitForTimeout(600);
   const zoom = () => m.page.evaluate(() => window.__sp.camera().zoom);
   const before = await zoom();
-  const box = await m.page.locator('#view canvas').boundingBox();
+  const box = await m.page.locator('#gl').boundingBox();
   await m.page.evaluate(([x, y]) => {
-    const c = document.querySelector('#view canvas');
+    const c = document.querySelector('#gl');
     window.__ev = (type, id, px, py) => c.dispatchEvent(new PointerEvent(type,
       {pointerId:id, pointerType:'touch', clientX:px, clientY:py, bubbles:true, isPrimary:id === 1}));
     window.__p = [x, y];
@@ -1540,7 +1540,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
     const r = await t.page.evaluate(() => {
       const sp = window.__sp; sp.select(null);
       const it = sp.state().items[0], g = sp.group(it.id);
-      const cam = sp.camera(), box = document.querySelector('#view canvas').getBoundingClientRect();
+      const cam = sp.camera(), box = document.querySelector('#gl').getBoundingClientRect();
       // 脚 2 本のあいだ（三角錐の面の真ん中あたり）を狙う。軸の上だと、
       // 上面と正面では 1 本目の脚がちょうど重なって「隙間」にならない。
       // 三脚は spread = max(0.14, y*0.34)、脚の集まる高さ top = max(0.10, y-0.12)、
@@ -1590,7 +1590,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   const overIt = await t.page.evaluate(() => {
     const sp = window.__sp; sp.select(null);
     const s = sp.state().items.find(i => i.type === 'splat');
-    const box = document.querySelector('#view canvas').getBoundingClientRect();
+    const box = document.querySelector('#gl').getBoundingClientRect();
     const p = new sp.THREE.Vector3(s.x, (s.h || 2) * 0.5, s.z).project(sp.camera());
     return sp.pick((p.x + 1)/2 * box.width, (1 - p.y)/2 * box.height)?.id || null;
   });
@@ -1820,7 +1820,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // 鏡の面のまん中あたりを読む。スキャンを消したときと比べて、そこが変わっていれば映っている
   const readMirror = () => t.page.evaluate(() => {
     const sp = window.__sp, m = sp.state().items.find(i => i.type === 'mirror');
-    const cv0 = document.querySelector('#view canvas'), box = cv0.getBoundingClientRect();
+    const cv0 = document.querySelector('#gl'), box = cv0.getBoundingClientRect();
     const p = new sp.THREE.Vector3(m.x, m.h * 0.5, m.z).project(sp.camera());
     const cv = document.createElement('canvas'); cv.width = box.width; cv.height = box.height;
     const cx = cv.getContext('2d'); cx.drawImage(cv0, 0, 0, box.width, box.height);
@@ -2383,7 +2383,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     // どこに当たるかを狙って撮るより、**画面ぜんぶの平均**を見るほうが素直。
     // ゼラを替えて平均が動けば光が乗っている、動かなければ乗っていない
     const grab = () => t.page.evaluate(() => {
-      const cv = document.querySelector('#view canvas'), b = cv.getBoundingClientRect();
+      const cv = document.querySelector('#gl'), b = cv.getBoundingClientRect();
       const c = document.createElement('canvas'); c.width = Math.round(b.width/4); c.height = Math.round(b.height/4);
       const x = c.getContext('2d'); x.drawImage(cv, 0, 0, c.width, c.height);
       const d = x.getImageData(0, 0, c.width, c.height).data;
@@ -2517,7 +2517,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     }, posture);
     await p.waitForFunction(() => { const sp = window.__sp; const it = sp.state().items.find(i => i.type === 'person'); let s = false; sp.group(it.id)?.traverse(n => { if (n.isSkinnedMesh) s = true; }); return s; }, null, { timeout: 20000 });
     await p.waitForTimeout(1200);
-    const b64 = (await p.locator('#view canvas').screenshot()).toString('base64');
+    const b64 = (await p.locator('#gl').screenshot()).toString('base64');
     return p.evaluate(async (b64) => {
       const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
       const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
@@ -2729,6 +2729,76 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('resizing keeps the aspect', Math.abs(await bodyAr() - 4/3) < 0.012 && w1 < w0 - 40, `${w0} -> ${w1}, ar ${await bodyAr()}`);
   await setAspect('9:16'); await P.screenshot({ path: `${OUT}/pip-916.png` });
   ok('pip aspect runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 39. 角のつまみ（床鏡・箱・テーブル）、丸テーブル、小窓の canvas、背景布の R ------------
+{
+  const t = await open('corner-handles', { width: 1300, height: 900 });
+  const P = t.page;
+  const handles = () => P.evaluate(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray()));
+  const item = ty => P.evaluate(ty => ({...window.__sp.state().items.find(i => i.type === ty)}), ty);
+  const screenOf = i => P.evaluate(i => { const s = window.__sp; const v = s.handles().children.filter(k => k.isMesh)[i].position.clone().project(s.camera());
+    const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; }, i);
+  const drag = async (from, dx, dy) => { await P.mouse.move(from.x, from.y); await P.mouse.down(); await P.mouse.move(from.x + dx/2, from.y + dy/2); await P.mouse.move(from.x + dx, from.y + dy); await P.mouse.up(); await P.waitForTimeout(300); };
+  ok('the 3D view button is called 3D', await P.$eval('[data-view="pers"]', e => e.textContent.trim()) === '3D');
+  // 床鏡は 4 角
+  await t.add('[data-add="mirror"]');
+  let m = await item('mirror'), hs = await handles();
+  ok('the floor mirror has four corner handles', m.kind === 'floor' && hs.length === 4 && hs.every(([x, , z]) => Math.abs(Math.abs(x - m.x) - m.w/2) < 0.01 && Math.abs(Math.abs(z - m.z) - m.h/2) < 0.01), JSON.stringify({kind:m.kind, n:hs.length}));
+  await P.evaluate(() => { const sp = window.__sp; sp.setProp(sp.state().items.find(i => i.type === 'mirror'), 'hidden', true); });
+  // 箱: 天面の 4 角と真ん中（上面図では 4 つだけ）
+  await t.add('[data-add="box"]');
+  await P.evaluate(() => { const sp = window.__sp, b = sp.state().items.find(i => i.type === 'box'); sp.setProp(b, 'h', 1.2); sp.setProp(b, 'x', 2); sp.setProp(b, 'z', 0); sp.render(); }); await P.waitForTimeout(300);
+  let b = await item('box'); hs = await handles();
+  ok('a box has four top corners and a height handle', hs.length === 5 && hs.filter(([, y]) => Math.abs(y - 1.2) < 0.01).length === 5, JSON.stringify(hs));
+  await P.click('[data-view="plan"]'); await P.waitForTimeout(300);
+  ok('in the top view the height handle is left out', (await handles()).length === 4);
+  await P.click('[data-view="pers"]'); await P.waitForTimeout(400);
+  // 角を引くと幅と奥行が変わり、向かいの角は残る
+  const farIx = await P.evaluate(() => { const s = window.__sp, hs = s.handles().children.filter(k => k.isMesh); let best = 0, bd = -1; hs.forEach((h, i) => { const d = h.position.distanceTo(s.camera().position); if (d > bd){ bd = d; best = i; } }); return best; });
+  const nearIx = await P.evaluate(() => { const s = window.__sp, hs = s.handles().children.filter(k => k.isMesh); let best = 0, bd = 1e9; hs.forEach((h, i) => { if (Math.abs(h.position.x - 2) < 0.01 && Math.abs(h.position.z) < 0.01) return; const d = h.position.distanceTo(s.camera().position); if (d < bd){ bd = d; best = i; } }); return best; });
+  const far0 = hs[farIx];
+  await drag(await screenOf(nearIx), 70, 50);
+  const b1 = await item('box'); const hs1 = await handles();
+  ok('dragging a top corner changes width and depth', (b1.w !== b.w || b1.d !== b.d) && b1.h === b.h, JSON.stringify({before:[b.w, b.d], after:[b1.w, b1.d]}));
+  ok('and the opposite corner stays where it was', hs1.some(([x, , z]) => Math.abs(x - far0[0]) < 0.08 && Math.abs(z - far0[2]) < 0.08), JSON.stringify({far0, hs1}));
+  // 真ん中のつまみで高さ
+  const hIx = await P.evaluate(() => { const s = window.__sp, hs = s.handles().children.filter(k => k.isMesh); const it = s.state().items.find(i => i.type === 'box'); return hs.findIndex(h => Math.abs(h.position.x - it.x) < 0.01 && Math.abs(h.position.z - it.z) < 0.01); });
+  await drag(await screenOf(hIx), 0, -60);
+  const b2 = await item('box');
+  ok('the centre handle raises the box', b2.h > b1.h + 0.1 && b2.w === b1.w && b2.d === b1.d, JSON.stringify({h0:b1.h, h1:b2.h}));
+  await P.evaluate(() => { const sp = window.__sp; sp.setProp(sp.state().items.find(i => i.type === 'box'), 'hidden', true); });
+  // テーブル: 角／丸
+  await t.add('[data-add="table"]');
+  ok('the table panel offers square and round', await P.$$eval('#selbody [data-set="shape"]', b => b.map(x => x.textContent.trim()).join('/')) === '角テーブル/丸テーブル');
+  await P.click('#selbody [data-set="shape"][data-val="round"]'); await P.waitForTimeout(400);
+  let tb = await item('table');
+  ok('round makes depth follow the diameter', tb.shape === 'round' && tb.d === tb.w, JSON.stringify({w:tb.w, d:tb.d}));
+  ok('and the panel shows one diameter slider', await P.$$eval('#selbody .f span', s => s.map(x => x.textContent)).then(l => l.includes('直径') && !l.includes('奥行')));
+  ok('the round table is built from a round top', await P.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'table'); let n = 0; s.group(it.id).traverse(o => { if (o.geometry?.type === 'CylinderGeometry' && o.geometry.parameters.radiusTop > 0.6) n++; }); return n; }) === 1);
+  hs = await handles();
+  ok('a round table has four rim handles and a height handle', hs.length === 5, String(hs.length));
+  const rimIx = await P.evaluate(() => { const s = window.__sp, hs = s.handles().children.filter(k => k.isMesh), it = s.state().items.find(i => i.type === 'table'); return hs.findIndex(h => h.position.x - it.x > 0.3); });
+  await drag(await screenOf(rimIx), 60, 0);
+  const tb1 = await item('table');
+  ok('pulling the rim changes the diameter, depth follows', tb1.w > tb.w + 0.1 && tb1.d === tb1.w, JSON.stringify({w:tb1.w, d:tb1.d}));
+  const link = await P.evaluate(() => location.hash);
+  await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1200);
+  ok('the shape survives the share link', (await item('table')).shape === 'round');
+  // 小窓は自分の canvas に絵を持つ（ビューボタンが透けない）
+  const cv = await P.evaluate(() => { const c = document.getElementById('pipcv'), b = document.querySelector('#pip .body').getBoundingClientRect(), r = window.__sp.renderer.getPixelRatio();
+    const px = c.getContext('2d').getImageData(Math.floor(c.width/2), Math.floor(c.height/2), 1, 1).data;
+    return {w:c.width, h:c.height, bw:Math.round(b.width*r), bh:Math.round(b.height*r), alpha:px[3], sum:px[0]+px[1]+px[2], z: getComputedStyle(document.getElementById('pip')).zIndex, zb: getComputedStyle(document.getElementById('viewbtns')).zIndex}; });
+  ok('the camera window draws into its own canvas', Math.abs(cv.w - cv.bw) <= 2 && Math.abs(cv.h - cv.bh) <= 2 && cv.alpha === 255 && cv.sum > 0, JSON.stringify(cv));
+  ok('and that canvas sits above the view buttons', +cv.z > +cv.zb, JSON.stringify(cv));
+  // 背景布の R は内側が表（法線が内向き）。外向きだと影の normalBias で自分の影に沈む
+  await t.add('[data-add="chroma"]');
+  const inward = await P.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'chroma'); let r = null;
+    s.group(it.id).traverse(o => { if (o.geometry?.type === 'CylinderGeometry'){ const n = o.geometry.attributes.normal, p = o.geometry.attributes.position; let dot = 0; for (let i = 0; i < n.count; i++) dot += n.getX(i)*p.getX(i) + n.getZ(i)*p.getZ(i); r = dot; } });
+    return r; });
+  ok('the cove faces inward', inward !== null && inward < 0, String(inward));
+  ok('corner handles run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 
