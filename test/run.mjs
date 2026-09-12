@@ -2665,8 +2665,8 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await p.click('[data-add="light"]'); await p.waitForTimeout(400);
   const hint = await p.$$eval('#selbody .hint', h => h.map(x => x.textContent).join(' '));
   ok('the light panel keeps the set.a.light note, in English', /Lights are schematic.*set\.a\.light 3D/.test(hint), hint.slice(0, 120));
-  for (const k of ['chroma', 'mirror', 'koma', 'car', 'chair', 'table', 'box', 'camera']){
-    await t.add(`[data-add="${k}"]`);
+  for (const k of ['chroma', 'mirror', 'koma', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
+    await t.add(`[data-add="${k}"]`); await p.keyboard.press('Escape');   // 定規のタップ待ちは抜ける
     left = await jpIn(p, '#panel');
     ok(`no Japanese left with ${k} selected`, left.length === 0, left.slice(0, 5).join(' | '));
   }
@@ -2895,6 +2895,95 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await P.evaluate(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'camera'), 'aspectH', '0'); });
   ok('zero is refused', (await cam()).h === 1);
   ok('aspect custom runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 42. 定規と、3DGS の軸・傾き・高さ ------------------------------------------------
+{
+  const t = await open('ruler', { width: 1300, height: 900 });
+  const P = t.page, S = (fn, arg) => P.evaluate(fn, arg);
+  const ruler = () => S(() => { const its = window.__sp.state().items.filter(i => i.type === 'ruler'); const it = its[its.length - 1]; return {x:it.x, z:it.z, a:it.a, b:it.b, n:its.length}; });
+  const screenOf = v3 => S(v3 => { const s = window.__sp; const v = new s.THREE.Vector3(...v3).project(s.camera()); const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; }, v3);
+  await P.click('#addfab'); await P.waitForTimeout(300);
+  ok('the ruler is offered in the gear list', (await P.$$eval('#gearlist [data-add]', b => b.map(x => x.dataset.add))).includes('ruler'));
+  ok('and has a thumbnail', await P.$eval('#gearlist [data-add="ruler"] img', i => i.naturalWidth) > 0);
+  await P.click('[data-add="ruler"]'); await P.waitForTimeout(400);
+  ok('placing a ruler asks for the start point', /始点/.test(await P.$eval('#toast', e => e.textContent)));
+  await S(() => { const s = window.__sp; s.orbit.radius = 7; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
+  const p1 = await screenOf([1, 0, 1]), p2 = await screenOf([-1.5, 0, -0.5]);
+  await P.mouse.click(p1.x, p1.y); await P.waitForTimeout(400);
+  let r = await ruler();
+  ok('the first tap sets the start on the floor', Math.abs(r.x - 1) < 0.05 && Math.abs(r.z - 1) < 0.05 && r.a[1] === 0, JSON.stringify(r));
+  ok('and asks for the end', /終点/.test(await P.$eval('#toast', e => e.textContent)));
+  await P.mouse.click(p2.x, p2.y); await P.waitForTimeout(400);
+  r = await ruler();
+  const len = Math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1], r.b[2] - r.a[2]);
+  ok('the second tap sets the end', Math.abs(r.x + r.b[0] + 1.5) < 0.06 && Math.abs(r.z + r.b[2] + 0.5) < 0.06, JSON.stringify(r));
+  const L = await P.$$eval('#labels span', s => s.map(x => x.textContent));
+  ok('the length is written on the view', L.some(x => new RegExp(`定規[^\\d]*${len.toFixed(2)} m`).test(x)), L.join(' | '));
+  ok('the ruler shows two end handles', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 2);
+  // 端をドラッグ
+  const hb = await S(() => { const s = window.__sp; const v = s.handles().children.filter(k => k.isMesh)[1].position.clone().project(s.camera()); const rr = document.getElementById('view').getBoundingClientRect(); return {x: rr.left + (v.x+1)/2*rr.width, y: rr.top + (1-v.y)/2*rr.height}; });
+  await P.mouse.move(hb.x, hb.y); await P.mouse.down(); await P.mouse.move(hb.x + 40, hb.y - 20); await P.mouse.move(hb.x + 80, hb.y - 40); await P.mouse.up(); await P.waitForTimeout(300);
+  const r2 = await ruler();
+  ok('dragging an end handle moves that end only', (r2.b[0] !== r.b[0] || r2.b[2] !== r.b[2]) && r2.a.join() === r.a.join() && r2.x === r.x, JSON.stringify({before:r.b, after:r2.b}));
+  // 箱の天面をタップすると、その高さに乗る
+  await t.add('[data-add="box"]');
+  await S(() => { const s = window.__sp; const b = s.state().items.find(i => i.type === 'box'); s.setProp(b, 'h', 0.8); s.setProp(b, 'x', -2); s.setProp(b, 'z', 0); });
+  await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
+  const pb = await screenOf([-2, 0.8, 0]);
+  await P.mouse.click(pb.x, pb.y); await P.waitForTimeout(300);
+  r = await ruler();
+  ok('a tap on a box lands on its top', r.n === 2 && Math.abs(r.a[1] - 0.8) < 0.01 && Math.abs(r.x + 2) < 0.05, JSON.stringify(r));
+  await P.keyboard.press('Escape');
+  ok('the ruler stays out of the GLB export', await S(async () => { const s = window.__sp; const glb = (await s.glb()).buf; const j = JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, new DataView(glb).getUint32(12, true)))); return !(j.nodes || []).some(n => /定規/.test(n.name || '')); }));
+  const link = await S(() => location.hash);
+  await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1200);
+  ok('rulers survive the share link', (await ruler()).n === 2);
+  // --- 3DGS: ワールド軸まわりの傾き、軸の位置、高さ
+  const ply = `${OUT}/scan-ruler.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
+  await P.setInputFiles('#file', ply);
+  await P.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 }); await P.waitForTimeout(2500);
+  const sp = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; });
+    m.updateMatrixWorld(true); const c = m.getBoundingBox(true).getCenter(new s.THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    return {rot:it.rot, tiltX:it.tiltX || 0, tiltZ:it.tiltZ || 0, q:it.q || null, off:it.off || null, x:it.x, z:it.z, lift:it.lift || 0, gy:+g.position.y.toFixed(3), centre:c.toArray().map(v => +v.toFixed(3))}; });
+  await S(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'splat').id, true); }); await P.waitForTimeout(400);
+  const ranges = await P.$$eval('#selbody [data-range]', r => Object.fromEntries(r.map(x => [x.dataset.range, [+x.min, +x.max]])));
+  ok('the 3DGS panel has tilt sliders and a ±50 m height', ranges.tiltX && ranges.tiltZ && ranges.lift[0] === -50 && ranges.lift[1] === 50, JSON.stringify(ranges));
+  ok('and three pivot sliders', ranges['off.x'] && ranges['off.y'] && ranges['off.z'], Object.keys(ranges).join(','));
+  const c0 = (await sp()).centre;
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'tiltX', 30); }); await P.waitForTimeout(300);
+  let q = await sp();
+  ok('tilting 30° about X swings the scan around the pivot', Math.abs(q.centre[2] - c0[1] * Math.sin(Math.PI/6)) < 0.01 && Math.abs(q.centre[1] - c0[1] * Math.cos(Math.PI/6)) < 0.01, JSON.stringify({c0, c:q.centre}));
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'rot', 90); }); await P.waitForTimeout(300);
+  const q1 = await sp();
+  ok('then turning 90° goes around the world Y axis, not the tilted one', Math.abs(q1.centre[0] - q.centre[2]) < 0.01 && Math.abs(q1.centre[1] - q.centre[1]) < 0.01 && Math.abs(q1.centre[2]) < 0.01, JSON.stringify(q1.centre));
+  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'off.x', 1); s.setProp(it, 'off.y', 0.5); }); await P.waitForTimeout(300);
+  const q2 = await sp();
+  ok('moving the pivot leaves the scan where it was', q2.centre.every((v, i) => Math.abs(v - q1.centre[i]) < 0.01) && (q2.x !== q1.x || q2.lift !== q1.lift), JSON.stringify({before:q1.centre, after:q2.centre, x:q2.x, lift:q2.lift}));
+  ok('and the pivot is in the state', q2.off && q2.off[0] === 1 && q2.off[1] === 0.5, JSON.stringify(q2.off));
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'tiltReset', '1'); }); await P.waitForTimeout(300);
+  const q3 = await sp();
+  ok('reset keeps only the turn', q3.q === null && q3.tiltX === 0 && q3.tiltZ === 0 && q3.rot === 90, JSON.stringify(q3));
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 20); });
+  ok('the height goes far beyond 6 m now', (await sp()).gy === 20);
+  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'lift', 0); s.setProp(it, 'tiltZ', 20); s.setProp(it, 'cropOn', '1'); }); await P.waitForTimeout(400);
+  ok('crop handles still come out on a tilted scan', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 6);
+  const link2 = await S(() => location.hash);
+  await P.goto('http://localhost:8765/' + link2); await P.waitForTimeout(1500);
+  const q4 = await S(() => { const it = window.__sp.state().items.find(i => i.type === 'splat'); return {q:it.q, off:it.off, tiltZ:it.tiltZ}; });
+  ok('orientation and pivot survive the share link', Array.isArray(q4.q) && q4.q.length === 4 && q4.off[0] === 1 && q4.tiltZ === 20, JSON.stringify(q4));
+  // 3DGS の上をタップすると、その面に定規の端が乗る（Spark の raycast）
+  await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
+  const st = await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; }); m.updateMatrixWorld(true);
+    const b = m.getBoundingBox(true); const p = new s.THREE.Vector3(-1.5, b.max.y, -1.5).applyMatrix4(m.matrixWorld); s.orbit.target.copy(p); s.orbit.radius = 5; s.render(); return p.toArray(); });
+  await P.waitForTimeout(400);
+  const ps = await screenOf(st);
+  await P.mouse.click(ps.x, ps.y); await P.waitForTimeout(600);
+  r = await ruler();
+  ok('a tap on the scan lands on a splat, above the floor', r.a[1] > 0.05, JSON.stringify(r));
+  await P.keyboard.press('Escape');
+  ok('ruler run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

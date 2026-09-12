@@ -14,7 +14,7 @@ const S = 200;
 const PROPS = [
   {add:'car',    wait:3000},
   {add:'chair'}, {add:'table'}, {add:'box'}, {add:'koma'},
-  {add:'camera'}, {add:'light'}, {add:'mirror'}, {add:'chroma'},
+  {add:'camera'}, {add:'light'}, {add:'mirror'}, {add:'chroma'}, {add:'ruler'},
 ];
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.json':'application/json',
               '.glb':'model/gltf-binary','.webp':'image/webp','.png':'image/png','.webmanifest':'application/json'};

@@ -377,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.27.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.28.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -596,7 +596,7 @@ const EN = {
   'テクスチャ定義':'texture defs','テクスチャ':'textures','外部':'external','失敗':'failed','面':'faces','材質未指定':'no material',
   '届く範囲':'Reach','約':'about','灯':'lights','点':'items','枚':'','文字':'chars','型':'version','個':'','台':'',
   '実寸':'Actual size','残す範囲':'Kept range','グリッド':'Grid','案件名':'Project','人物ポーズ':'Pose',
-  '好きな色':'Custom color','車種':'Car model','横':'W','縦':'H','形':'Shape','角テーブル':'Rectangular','丸テーブル':'Round','直径':'Diameter','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
+  '好きな色':'Custom color','車種':'Car model','横':'W','縦':'H','定規':'Ruler','長さ':'Length','傾き（前後）':'Tilt (pitch)','傾き（左右）':'Tilt (roll)','傾きを戻す':'Reset tilt','軸の位置':'Pivot','左右':'Left / right','上下':'Up / down','前後':'Fore / aft','定規の始点をタップ':'Tap the start of the ruler','定規の終点をタップ':'Tap the end of the ruler','軸を動かしても見た目は変わりません。回転と拡大縮小の中心になります。':'Moving the pivot does not move the scan. It is the centre of rotation and scaling.','形':'Shape','角テーブル':'Rectangular','丸テーブル':'Round','直径':'Diameter','床に座る':'Sit on floor','仰向け':'Lie on back','うつ伏せ':'Lie face down','歩く':'Walk','ダンス':'Dance',
 };
 // 数字や名前が入る文。$n は括弧、tr() で中身も訳す
 const EN_RULES = [
@@ -639,6 +639,7 @@ const EN_RULES = [
   [/^テクスチャ (\d+) 枚。$/, n => `${n} textures.`],
   [/^実寸 (.+) × (.+) × 高 (.+) m$/, (w, d, h) => `Actual size ${w} × ${d} × H ${h} m`],
   [/^残す範囲 (.+) × (.+) × 高 (.+) m。(.*)$/, (w, d, h, r) => `Kept range ${w} × ${d} × H ${h} m.${tr(r)}`],
+  [/^長さ ([\d.]+) m。端の白いつまみをドラッグして始点と終点を動かします。$/, n => `Length ${n} m. Drag the white handles to move the ends.`],
   [/^カット (\d+)$/, n => `Shot ${n}`],                                     // 一覧の見出しは Shots、1 つは Shot
   [/^幅 ([\d.]+) × 高 ([\d.]+)( × 床 ([\d.]+))? m$/, (w, h, _, d) => `W ${w} × H ${h}${d ? ` × floor ${d}` : ''} m`],
   [/^(.+?) (\d+)$/, (a, n) => EN[a] ? `${EN[a]} ${n}` : null],            // 男性 1
@@ -694,9 +695,9 @@ if (LANG === 'en'){
 }
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4,
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4, ruler:0xe29a44,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'3DGS',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'3DGS', ruler:'定規',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -827,6 +828,8 @@ function migrateItems(st, studio){
     if (it.type === 'person' && it.posture === 'photo' && !(Array.isArray(it.photo) && (it.photo.length === 23 || it.photo.length === 24) &&
         it.photo.every(p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)))){ it.posture = null; delete it.photo; }
     if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
+    if (it.type === 'ruler') for (const k of ['a', 'b'])
+      if (!(Array.isArray(it[k]) && it[k].length === 3 && it[k].every(Number.isFinite))) it[k] = k === 'a' ? [-0.5, 0.02, 0] : [0.5, 0.02, 0];
     // 積み木の車は廃止。ワゴン・バン・軽は実物のモデルが入るまでセダンで置く。
     // 寸法はリンクの値をそのまま使うので、図面の大きさは変わらない
     if (it.type === 'car' && !CAR_BY_ID[it.kind]) it.kind = 'sedan';
@@ -1216,7 +1219,7 @@ function buildMeasures(){
   if (!ci || ci.hidden) return;
   const a = new V3(ci.x, 0.02, ci.z), picked = sel();
   for (const it of state.items){
-    if (it.hidden || it.type === 'camera' || it.type === 'splat') continue;   // 3DGS は寸法を出さない
+    if (it.hidden || it.type === 'camera' || it.type === 'splat' || it.type === 'ruler') continue;   // 3DGS と定規は寸法を出さない
     if (it.dimCam !== true && it !== picked) continue;
     const b = new V3(it.x, 0.02, it.z);
     if (a.distanceTo(b) > 0.1) measure(a, b, `${itemName(it)}まで ${a.distanceTo(b).toFixed(2)} m`);
@@ -1259,6 +1262,11 @@ function itemLabels(view){
   for (const it of state.items){
     if (it.hidden || !(dimOn(it) || (it.id === selectedId && !capturing && !viewerMode))) continue;   // 選んでいる物は一時的に出す
     if (it.type === 'splat') continue;      // 3DGS は現場そのもの。寸法を書いても図面にならない
+    if (it.type === 'ruler'){               // 定規は長さそのものが用。どのビューにも出す
+      const a = handleWorld(it, {p:it.a}), b = handleWorld(it, {p:it.b});
+      out.push({p:a.clone().lerp(b, 0.5).add(new V3(0, 0.12, 0)), text:`${itemName(it)} ${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','side','front','pers']});
+      continue;
+    }
     // 背景布と鏡は、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
     if (it.type === 'chroma' || it.type === 'mirror'){
       for (const L of panelDims(it)) if (L.views.includes(view)) out.push(L);
@@ -1323,7 +1331,7 @@ function drawLabels(view, cam, rect){
 const itemObjs = new Map();
 const modelCache = new Map();   // key -> parsed Object3D for models this device holds
 const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
-const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma,
+const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma, ruler:buildRuler,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox,
                   koma:buildKoma, model:buildModel, splat:buildSplat};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
@@ -1396,7 +1404,7 @@ const PEOPLE_MODELS = [
 ];
 // `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
 const PROPS = ['car','chair','table','box','koma'];
-const GEAR = ['camera','light','mirror','chroma'];
+const GEAR = ['camera','light','mirror','chroma','ruler'];
 const REGIONS = {asia:'アジア系', af:'アフリカ系', us:'欧米系'};
 const KIND_LABEL = {man:'男性', woman:'女性', boy:'男の子', girl:'女の子'};
 const WEAR_LABEL = Object.fromEntries(WEARS);
@@ -1912,6 +1920,20 @@ function planeMarker(w, d, color, opacity=0.45){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({color, transparent:true, opacity}));
   m.rotation.x = -Math.PI/2; m.position.y = 0.008; m.userData.plan = true; return m;
 }
+// 定規（寺村さんの指示）。2 点 a・b（group の座標。y は床から）を棒で結ぶ。長さは itemLabels が書く。
+// 端の白いつまみで動かす（edgeHandles の pt）。棒と玉は選択のための当たり判定にもなる
+function buildRuler(it){
+  const g = new THREE.Group(), a = new V3(...it.a), b = new V3(...it.b);
+  const m = mat(it.color || '#e29a44', {roughness:0.5, emissive:0x4a2a08});
+  const len = a.distanceTo(b);
+  const bar = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, Math.max(len, 0.001), 8), m));
+  bar.position.copy(a).lerp(b, 0.5);
+  if (len > 1e-6) bar.quaternion.setFromUnitVectors(new V3(0, 1, 0), b.clone().sub(a).normalize());
+  g.add(bar);
+  for (const p of [a, b]){ const s = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), m); s.position.copy(p); g.add(s); }
+  g.traverse(n => { n.userData.noSurf = true; });   // 定規の端を定規自身の上には置けない（surfaceHit が飛ばす）
+  return g;
+}
 function buildBox(it){
   const g = new THREE.Group();
   const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, it.d), mat(it.color || '#a9b0bd', {roughness:0.8})));
@@ -2052,9 +2074,37 @@ function cropFull(it){
 }
 const cropBox = it => it.crop ? {...cropFull(it), ...it.crop} : cropFull(it);
 // 箱を「置いたあとの座標」へ。s は拡大率、lift は高さ調整
+// 高さ調整（lift）は group の y に持つ（restY）。箱は group の座標系（軸 = 原点）で返す。
+// 軸の位置（off）のぶんだけ中身がずれるので、ここでも引く
 function cropWorldBox(it){
-  const c = cropBox(it), s = it.scale || 1, lift = (it.lift || 0) * s;
-  return {x0:c.x0*s, x1:c.x1*s, y0:c.y0*s + lift, y1:c.y1*s + lift, z0:c.z0*s, z1:c.z1*s};
+  const c = cropBox(it), s = it.scale || 1, [ox, oy, oz] = splatOff(it);
+  return {x0:(c.x0-ox)*s, x1:(c.x1-ox)*s, y0:(c.y0-oy)*s, y1:(c.y1-oy)*s, z0:(c.z0-oz)*s, z1:(c.z1-oz)*s};
+}
+// ---------- 3DGS の軸と向き（寺村さんの指示） ----------
+// 軸の位置 it.off … スキャン自身の座標（拡大前・床が 0・中心が原点）で、group の原点を
+//   どこに置くか。回転と拡大縮小の中心になる。軸を動かしても見た目は動かない（setProp が
+//   group の位置で埋め合わせる）。
+// 向き it.q … group の向きの四元数。**スライダーはワールド軸まわりの差分で回す**
+//   （spinSplat）。向き・傾き（前後）・傾き（左右）はどれも「センター軸を通るワールドの
+//   X/Y/Z 軸で、今の向きからそのぶん回す」。C4D のワールド回転と同じ手触り。
+//   3 つの数字は積算の表示値で、本当の向きは q にある。q が無ければ rot（yaw）だけ。
+// 高さ調整 it.lift … ±50 m。group の y に持つ（傾けても真上に動く）。
+const splatOff = it => (Array.isArray(it.off) && it.off.length === 3 && it.off.every(Number.isFinite)) ? it.off : [0, 0, 0];
+function splatQuat(it){
+  const q = new THREE.Quaternion();
+  if (Array.isArray(it.q) && it.q.length === 4 && it.q.every(Number.isFinite)) return q.fromArray(it.q).normalize();
+  return q.setFromAxisAngle(new V3(0, 1, 0), THREE.MathUtils.degToRad(it.rot || 0));
+}
+const AXIS = {x: new V3(1, 0, 0), y: new V3(0, 1, 0), z: new V3(0, 0, 1)};
+function spinSplat(it, axis, deg){
+  if (!deg) return;
+  const d = new THREE.Quaternion().setFromAxisAngle(AXIS[axis], THREE.MathUtils.degToRad(deg));
+  it.q = d.multiply(splatQuat(it)).normalize().toArray().map(v => +v.toFixed(5));
+}
+// group の向きを入れる。3DGS だけ四元数、ほかは今までどおり yaw
+function setGroupRot(g, it){
+  if (it.type === 'splat') g.quaternion.copy(splatQuat(it));
+  else g.rotation.set(0, THREE.MathUtils.degToRad(it.rot || 0), 0);
 }
 // SplatEdit はメッシュの子に付ける。scene 直下に置くと「全部のスキャンに効く」
 // 扱いになるので（Spark は SplatMesh の先祖を探している）、必ず m.add() で。
@@ -2092,9 +2142,11 @@ function buildSplat(it){
     const m = cached.mesh;
     const bb = splatBox.get(it.key) || {floor:0, cx:0, cz:0};
     // スキャンの床を y=0 に、中心を原点に置いてから、こちらの寸法で動かす
-    m.scale.setScalar(it.scale || 1);
-    m.position.set(-bb.cx*(it.scale||1), (bb.floor + (it.lift||0))*(it.scale||1), -bb.cz*(it.scale||1));
+    const sc = it.scale || 1, [ox, oy, oz] = splatOff(it);
+    m.scale.setScalar(sc);
+    m.position.set((-bb.cx - ox)*sc, (bb.floor - oy)*sc, (-bb.cz - oz)*sc);   // 高さ調整は group の y（restY）
     m.rotation.set(0, 0, 0);
+    m.userData.splat = true;                       // クリックでは選ばない（pick が読み飛ばす）
     applyCropTo(it, m);
     g.add(m);
   } else {
@@ -2487,7 +2539,7 @@ function overTop(o, u){
 function standHeight(it){
   const top = new Map();                              // 台ごとの天面の高さ
   const base = (o, ordered) => {
-    if (o.type === 'chroma' || o.type === 'splat') return 0;   // 布とスキャンは何にも乗らない
+    if (o.type === 'chroma' || o.type === 'splat' || o.type === 'ruler') return 0;   // 布とスキャンと定規は何にも乗らない
     let y = 0;
     for (const u of state.items){
       if (u === o){ if (ordered) break; continue; }    // 台は自分より前の台にだけ
@@ -2507,6 +2559,7 @@ function standHeight(it){
 // 椅子の座面を上げれば standHeight が上がるので、座った人も一緒に上がる。
 // 座面が低いと足が床にめり込むが、寺村さんの指示は「お尻を座面に」なので許す
 function restY(it){
+  if (it.type === 'splat') return (it.lift || 0) * (it.scale || 1);   // 高さ調整。傾けても真上に動く
   const base = standHeight(it);
   if (it.type !== 'person' || base <= 0) return base;
   const seat = itemObjs.get(it.id)?.group.userData.seatY;
@@ -2611,7 +2664,7 @@ function rebuildItems(){
   itemObjs.clear();
   for (const it of state.items){
     const g = (BUILDERS[it.type] || buildBox)(it);
-    g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
+    g.userData.id = it.id; g.position.set(it.x, 0, it.z); setGroupRot(g, it); g.visible = !it.hidden;
     itemsGroup.add(g); itemObjs.set(it.id, {group:g});
   }
   restack();
@@ -2624,7 +2677,7 @@ function rebuildItem(it){
   const o = itemObjs.get(it.id); if (!o) return rebuildItems();
   const wasVis = o.group.visible;
   const g = (BUILDERS[it.type] || buildBox)(it);
-  g.userData.id = it.id; g.position.set(it.x, 0, it.z); g.rotation.y = THREE.MathUtils.degToRad(it.rot); g.visible = !it.hidden;
+  g.userData.id = it.id; g.position.set(it.x, 0, it.z); setGroupRot(g, it); g.visible = !it.hidden;
   itemsGroup.remove(o.group); disposeGroup(o.group); itemsGroup.add(g); o.group = g;
   restack();
   updateSelectionVisuals();
@@ -2634,7 +2687,7 @@ function rebuildItem(it){
 }
 function updateItemTransform(it){
   const o = itemObjs.get(it.id); if (!o) return;
-  o.group.position.set(it.x, restY(it), it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
+  o.group.position.set(it.x, restY(it), it.z); setGroupRot(o.group, it);
   if (SUPPORTS.has(it.type)) restack();      // 台が動けば、その上のものも上げ下げする
   else if (it.type === 'light') syncLights();
   if (it.type === 'camera') buildFrustum(it);
@@ -2706,6 +2759,7 @@ function edgeHandles(it){
   // 箱とテーブルは天面の 4 角で幅と奥行（天面の高さの水平面で取る）、天面の真ん中で高さ。
   // 高さのつまみは上面図では出さない — 真上からは高さが取れず、真ん中の十字（移動）と重なる。
   // 丸テーブルは縁の 4 点。どれを引いても直径（w = d）
+  if (it.type === 'ruler') return [{pt:'a', p:it.a}, {pt:'b', p:it.b}];   // 端の 2 点
   // カメラは頭の少し上の 1 つで高さ（寺村さんの指示）。上面図では高さが取れないので出さない
   if (it.type === 'camera') return mainView === 'plan' ? [] : [{ky:'y', p:[0, it.y + 0.14, 0], dy:0.14}];
   if (it.type === 'box' || it.type === 'table'){
@@ -2727,8 +2781,10 @@ function edgeHandles(it){
   return [];
 }
 function handleWorld(it, h){
+  const g = itemObjs.get(it.id)?.group;
+  if (it.type === 'splat' && g) return new V3(...h.p).applyQuaternion(g.quaternion).add(g.position);   // 傾けてあっても箱に付いていく
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
-  const base = itemObjs.get(it.id)?.group.position.y || 0;
+  const base = g?.position.y || 0;
   return new THREE.Vector3(it.x + h.p[0]*c + h.p[2]*sn, base + h.p[1], it.z - h.p[0]*sn + h.p[2]*c);
 }
 const cropLineMat = new THREE.LineBasicMaterial({color:0xe29a44, depthTest:false, transparent:true});
@@ -2738,12 +2794,11 @@ function updateHandles(){
   // 切り取っている範囲は線の箱で見せる。どこを切ったか分からないまま
   // 「消えた」と思われるのがいちばん困る
   if (it && cropVisible(it)){
-    const c = cropWorldBox(it), r = THREE.MathUtils.degToRad(it.rot || 0);
+    const c = cropWorldBox(it), g = itemObjs.get(it.id)?.group;
     const e = new THREE.LineSegments(new THREE.EdgesGeometry(
       new THREE.BoxGeometry(Math.max(c.x1-c.x0, 0.02), Math.max(c.y1-c.y0, 0.02), Math.max(c.z1-c.z0, 0.02))), cropLineMat);
     e.position.set((c.x0+c.x1)/2, (c.y0+c.y1)/2, (c.z0+c.z1)/2);
-    e.applyMatrix4(new THREE.Matrix4().makeRotationY(r));
-    e.position.add(new THREE.Vector3(it.x, standHeight(it), it.z));
+    if (g){ e.position.applyQuaternion(g.quaternion).add(g.position); e.quaternion.copy(g.quaternion); }
     e.renderOrder = 10; handleGroup.add(e);
   }
   for (const h of edgeHandles(it)){
@@ -3136,7 +3191,7 @@ function pick(x,y){
   ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
   const hits = ray.intersectObjects(itemsGroup.children.filter(g => g.visible), true);
   for (const h of hits){
-    if (h.object.isLine || h.object.isPoints || h.object.userData.noHit) continue;
+    if (h.object.isLine || h.object.isPoints || h.object.userData.noHit || h.object.userData.splat) continue;   // 3DGS は一覧から選ぶ
     let n = h.object; while (n && !n.userData.id) n = n.parent; if (n) return {id:n.userData.id};
   }
   return null;
@@ -3163,6 +3218,7 @@ canvas.addEventListener('pointerdown', e => {
     drag = null; return; }
   if (mainView === 'cam'){ const ci = camItem(); drag = ci && !viewerMode ? {look:true, rot0:ci.rot, pitch0:ci.pitch} : null; return; }
   if (viewerMode){ drag = {pan:true}; return; }
+  if (rulerTap && e.button === 0){ drag = {rulerTap:true, sx:x, sy:y}; return; }   // 定規の 2 点タップ。動かしたらただの画面操作
   const hit = pick(x,y);
   if (hit?.id || hit?.move || hit?.rotate) armLongPress(hit.id || selectedId, e);
   if (hit?.handle){ drag = startHandle(hit.handle); return; }
@@ -3218,6 +3274,7 @@ canvas.addEventListener('pointermove', e => {
     needRender = true; return;
   }
   if (!drag) return;
+  if (drag.rulerTap){ if (Math.hypot(x - drag.sx, y - drag.sy) > 6) drag = {pan:true}; return; }
   if (drag.panView){ if (drag.rmb && Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) > 4) drag.moved = true; panView(dx, dy); return; }
   if (drag.look){ lookDrag(dx, dy); return; }
   if (drag.handle){ dragHandle(drag, x, y); return; }
@@ -3226,7 +3283,8 @@ canvas.addEventListener('pointermove', e => {
     if (it.type === 'light') rebuildItem(it); else refreshCam(it);
     placeTilt(it); needRender = true; return; }
   if (drag.move){ const it = sel(); const p = floorHit(x,y); if (!p) return; setPos(it, p.x + drag.ox, p.z + drag.oz); updateItemTransform(it); needRender = true; return; }
-  if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; it.rot = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z)))); updateItemTransform(it); needRender = true; return; }
+  if (drag.rotate){ const it = sel(); const p = floorHit(x,y); if (!p) return; const nr = norm(Math.round(THREE.MathUtils.radToDeg(Math.atan2(p.x-it.x, p.z-it.z))));
+    if (it.type === 'splat') spinSplat(it, 'y', nr - (it.rot || 0)); it.rot = nr; updateItemTransform(it); if (it.type === 'splat') splatRefresh(); needRender = true; return; }
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
     // パースは何もない場所のドラッグで回す。平行投影の 3 面は動かす
     if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, 1.5); needRender = true; return; }
@@ -3240,7 +3298,8 @@ function endPointer(e){
   if (pointers.size < 2) pinch = null;
   if (pointers.size === 0 && drag){
     if (drag.rmb){ rmbUp = performance.now(); if (!drag.moved) openCtxAt(e.clientX, e.clientY); }
-    if (drag.pan && drag.maybeDeselect) select(null);
+    if (drag.rulerTap && rulerTap){ const r = canvas.getBoundingClientRect(); rulerTapAt(e.clientX - r.left, e.clientY - r.top); }
+    else if (drag.pan && drag.maybeDeselect) select(null);
     else if (drag.move || drag.rotate || drag.look || drag.handle || drag.tilt){ const ci = camItem(); if (ci) ci.pitch = a1(ci.pitch); renderSel(); renderList(); saveHash(); }
     drag = null;
   }
@@ -3258,7 +3317,7 @@ canvas.addEventListener('wheel', e => {
 // つまんだ辺だけが動き、向かい側の辺はその場に残る
 function startHandle(h){
   const it = sel(), base = itemObjs.get(it.id)?.group.position.y || 0;
-  if (h.crop) return {handle:h, it, base};
+  if (h.crop || h.pt) return {handle:h, it, base};
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   const ax = new THREE.Vector2(c, -sn), az = new THREE.Vector2(sn, c), centre = new THREE.Vector2(it.x, it.z);
   const aX = centre.dot(ax), aZ = centre.dot(az);
@@ -3270,6 +3329,9 @@ function startHandle(h){
 // 切り取る箱の 6 面。掴んだ面だけが動き、向かい側はその場に残る
 function dragCrop(d, x, y){
   const it = d.it, h = d.handle, s = it.scale || 1, full = cropFull(it), c = {...cropBox(it)};
+  // 世界の点 → 箱の座標（拡大前・軸のずれを戻す）。傾けてあっても group の向きで戻す
+  const g = itemObjs.get(it.id)?.group, off = splatOff(it);
+  const toBox = p => { const q = p.clone(); if (g){ q.sub(g.position).applyQuaternion(g.quaternion.clone().invert()); } else q.sub(new V3(it.x, d.base, it.z)); return q.divideScalar(s).add(new V3(...off)); };
   if (h.ax === 'y'){
     // 上下は床では取れない。視線の入っている垂直面との交点で見る
     ray.setFromCamera(ndc(mainRect(),x,y), mainCam());
@@ -3278,14 +3340,12 @@ function dragCrop(d, x, y){
       new THREE.Vector3(Math.sin(r), 0, Math.cos(r)), new THREE.Vector3(it.x, 0, it.z));
     const p = new THREE.Vector3();
     if (!ray.ray.intersectPlane(pl, p)) return;
-    const v = (p.y - d.base) / s - (it.lift || 0);
+    const v = toBox(p).y;
     c.y1 = h.crop === 'y1' ? clamp(v, c.y0 + CROP_MIN, full.y1) : c.y1;
     c.y0 = h.crop === 'y0' ? clamp(v, full.y0, c.y1 - CROP_MIN) : c.y0;
   } else {
     const p = floorHit(x, y); if (!p) return;
-    const r = THREE.MathUtils.degToRad(it.rot || 0), co = Math.cos(r), sn = Math.sin(r);
-    const dx = p.x - it.x, dz = p.z - it.z;
-    const lx = (dx*co - dz*sn) / s, lz = (dx*sn + dz*co) / s;
+    const l = toBox(p), lx = l.x, lz = l.z;
     if (h.crop === 'x1') c.x1 = clamp(lx, c.x0 + CROP_MIN, full.x1);
     if (h.crop === 'x0') c.x0 = clamp(lx, full.x0, c.x1 - CROP_MIN);
     if (h.crop === 'z1') c.z1 = clamp(lz, c.z0 + CROP_MIN, full.z1);
@@ -3297,6 +3357,13 @@ function dragCrop(d, x, y){
 function dragHandle(d, x, y){
   const h = d.handle, it = d.it, lim = k => SIZE_LIM[it.type]?.[k] || [0.3, 20];
   if (h.crop) return dragCrop(d, x, y);
+  if (h.pt){
+    // 定規の端。面の上を滑る。何にも当たらなければ今の高さの水平面
+    const cur = handleWorld(it, h), p = surfaceHit(x, y, cur.y); if (!p) return;
+    const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r), dx = p.x - it.x, dz = p.z - it.z;
+    it[h.pt] = [+(dx*c - dz*sn).toFixed(3), +(p.y - d.base).toFixed(3), +(dx*sn + dz*c).toFixed(3)];
+    rebuildItem(it); needRender = true; return;
+  }
   let p;
   if (h.ky){
     // 高さは床では取れない。壁の面（幅の軸を含む垂直面）との交点で、高さと幅を一度に
@@ -3592,8 +3659,41 @@ document.getElementById('addpop').addEventListener('click', e => {
   const b = e.target.closest('[data-add]');
   if (!b) return;
   closeAdd();
-  addItem(b.dataset.add, null);
+  const it = addItem(b.dataset.add, null);
+  if (b.dataset.add === 'ruler') beginRulerTap(it.id);
 });
+// ---------- 定規の 2 点タップ ----------
+// ＋ で定規を選んだあと、画面を 2 回タップして始点と終点を置く。タップした先の面
+// （スタジオ・置いた物・3DGS）の上に置き、何にも当たらなければ床。ドラッグは今までどおり
+// 画面の操作。Escape か、別の物を置いたら終わる（1 m の棒はそのまま残る）
+let rulerTap = null;                          // {id, step}
+function beginRulerTap(id){ rulerTap = {id, step:0}; toast('定規の始点をタップ'); }
+function rulerTapAt(x, y){
+  const it = state.items.find(i => i.id === rulerTap.id); if (!it){ rulerTap = null; return; }
+  const p = surfaceHit(x, y, 0); if (!p) return;
+  const y3 = +p.y.toFixed(3);
+  if (rulerTap.step === 0){ setPos(it, p.x, p.z); it.rot = 0; it.a = [0, y3, 0]; it.b = [0, y3, 0]; rulerTap.step = 1; toast('定規の終点をタップ'); }
+  else { it.b = [+(p.x - it.x).toFixed(3), y3, +(p.z - it.z).toFixed(3)]; rulerTap = null; }
+  rebuildItem(it); select(it.id); renderSel(); renderList(); saveHash(); needRender = true;
+}
+addEventListener('keydown', e => { if (e.key === 'Escape') rulerTap = null; });
+// タップした先の面の上の点。スタジオと置いた物はレイキャスト、3DGS は Spark の raycast
+// （SplatMesh.raycast。スプラットの楕円体に当たる）。図面の記号・当たり判定の殻・
+// 定規自身は飛ばす。何にも当たらなければ高さ fallbackY の水平面
+function surfaceHit(x, y, fallbackY = 0){
+  ray.setFromCamera(ndc(mainRect(), x, y), mainCam());
+  const shown = o => { for (let n = o; n; n = n.parent) if (!n.visible) return false; return true; };
+  const hits = ray.intersectObjects([studioGroup, ...itemsGroup.children.filter(g => g.visible)], true);
+  for (const h of hits){
+    const o = h.object;
+    if (o.isLine || o.isPoints || o.userData.noHit || o.userData.plan || o.userData.planOnly || o.userData.selOnly || o.userData.noSurf) continue;
+    if (o.material && !Array.isArray(o.material) && o.material.opacity === 0) continue;
+    if (!shown(o)) continue;
+    return h.point.clone();
+  }
+  const p = new V3();
+  return ray.ray.intersectPlane(new THREE.Plane(new V3(0, 1, 0), -fallbackY), p) ? p : null;
+}
 function addItem(type, opt){
   const {w,d,h} = state.studio; const id = type[0] + (Date.now()%100000) + (uid++);
   let it;
@@ -3612,10 +3712,12 @@ function addItem(type, opt){
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
+  // 定規は 1 m の棒で置き、＋ から来たときは続けて 2 回のタップで始点と終点を決める（beginRulerTap）
+  else if (type === 'ruler') it = {id, type, x:0, z:0, rot:0, a:[-0.5, 0.02, 0], b:[0.5, 0.02, 0], dim:true};
   else it = {id, type, x:0, z:0.5, rot:0, kind:'floor', w:3, h:2};
   // drop it next to what is already there rather than on top of it
   const foot = o => Math.max(o.w || 0.4, o.d || 0.4, 0.4) * 0.5;
-  let tries = type === 'splat' ? 99 : 0;
+  let tries = (type === 'splat' || type === 'ruler') ? 99 : 0;
   while (tries++ < 60 && state.items.some(o => o.type !== 'splat' && Math.hypot(o.x - it.x, o.z - it.z) < foot(o) + foot(it) + 0.2)){
     it.x += 0.5;
     if (it.x > w/2 - 0.3){ it.x = -w/2 + 0.5; it.z += 0.8; if (it.z > d/2 - 0.3) break; }
@@ -3978,9 +4080,16 @@ function renderSel(){
       ? `<p class="hint">読み込み中…</p>`
       : `<p class="hint">スキャンの実体はこの端末にありません。共有リンクには置き方だけが乗ります（PDF と画像には写ります）。</p>`;
     else if (bb) h += `<p class="hint">実寸 ${fmt(bb.w*(it.scale||1))} × ${fmt(bb.d*(it.scale||1))} × 高 ${fmt(bb.h*(it.scale||1))} m</p>`;
+    // 向き・傾きはワールド軸まわりの差分（寺村さんの指示）。数字は積算なので、戻すボタンを置く
     h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
-    h += range('lift','高さ調整',-5,5,0.01,it.lift || 0,'m');
+    h += range('tiltX','傾き（前後）',-180,180,1,a1(it.tiltX || 0),'°') + range('tiltZ','傾き（左右）',-180,180,1,a1(it.tiltZ || 0),'°');
+    if (it.q) h += `<div class="row"><button class="btn" data-set="tiltReset" data-val="1">傾きを戻す</button></div>`;
+    h += range('lift','高さ調整',-50,50,0.01,it.lift || 0,'m');
     h += logRange('scale','拡大縮小',0.01,100,it.scale || 1,'倍');
+    // 軸の位置。回転と拡大縮小の中心。動かしても見た目は動かない
+    { const [ox, oy, oz] = splatOff(it), R = Math.max(5, Math.ceil(Math.max(bb?.w || 0, bb?.d || 0, bb?.h || 0)));
+      h += `<h2>軸の位置</h2>` + range('off.x','左右',-R,R,0.01,ox,'m') + range('off.y','上下',-R,R,0.01,oy,'m') + range('off.z','前後',-R,R,0.01,oz,'m');
+      h += `<p class="hint">軸を動かしても見た目は変わりません。回転と拡大縮小の中心になります。</p>`; }
     h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。1/100〜100 倍まで対数で刻みます。</p>`;
     // 現場のスキャンには要らないものが必ず入る。箱で囲んで外を消す
     h += `<h2>切り取り</h2>`;
@@ -4049,6 +4158,10 @@ function renderSel(){
     h += `<h2>色</h2>` + colors(LIGHT_GELS, lightGel(it).toLowerCase());
     h += `<p class="hint">ライトは簡易表示です。正確なシミュレーションが必要な場合は`
        + ` set.a.light 3D などの専用ソフトをお使いください。</p>`;
+  } else if (it.type === 'ruler'){
+    const a = new V3(...it.a), b = new V3(...it.b);
+    h += `<p class="hint">長さ ${a.distanceTo(b).toFixed(2)} m。端の白いつまみをドラッグして始点と終点を動かします。</p>`;
+    h += colors(PROP_SWATCHES, it.color || '#e29a44');
   } else if (it.type === 'chroma'){
     h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
@@ -4083,10 +4196,10 @@ function renderSel(){
   // 寸法表示は**どのオブジェクトでもいちばん下**（寺村さんの指示。以前は向きの上に居て、
   // 人物ではポーズの上、他では最後、と物によって位置が違った）。3DGS は現場そのものなので出さない
   if (it.type !== 'splat'){
-    const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
+    const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : it.type === 'ruler' ? '長さ' : 'サイズ';
     h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
       + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
-                              : dimBtn('dimCam', 'カメラ距離', it.dimCam === true)) + `</div>`;
+       : it.type === 'ruler' ? '' : dimBtn('dimCam', 'カメラ距離', it.dimCam === true)) + `</div>`;
   }
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
@@ -4219,7 +4332,7 @@ const CAM_FACE = 180;
 const rotShown = it => it.type === 'camera' ? norm(it.rot - CAM_FACE) : it.rot;
 const rotStored = (it, v) => it.type === 'camera' ? norm(v + CAM_FACE) : v;
 function setProp(it, k, v, live=false){
-  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH'].includes(k)) v = parseFloat(v);
+  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH','tiltX','tiltZ'].includes(k) || k.startsWith('off.')) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH' || k === 'aspectW' || k === 'aspectH') && !(v > 0)) return;
   if (k === 'cropOn'){ it.crop = v ? cropFull(it) : null; }
@@ -4244,6 +4357,19 @@ function setProp(it, k, v, live=false){
   // 写真のポーズは 23 関節の座標をアイテムに持つ。別のポーズを選んだら捨てる（リンクを重くしない）
   else if (k === 'posture'){ it.posture = v; if (v !== 'photo') delete it.photo; }
   else if (k === 'shape'){ it.shape = v === 'round' ? 'round' : 'rect'; }
+  // 3DGS の向きと傾きはワールド軸まわりの差分で回す（センター軸を通る）。数字は積算の表示値
+  else if (k === 'rot' && it.type === 'splat'){ spinSplat(it, 'y', v - (it.rot || 0)); it.rot = v; }
+  else if (k === 'tiltX'){ spinSplat(it, 'x', v - (it.tiltX || 0)); it.tiltX = v; }
+  else if (k === 'tiltZ'){ spinSplat(it, 'z', v - (it.tiltZ || 0)); it.tiltZ = v; }
+  else if (k === 'tiltReset'){ delete it.q; it.tiltX = 0; it.tiltZ = 0; }        // 向き（yaw）だけ残す
+  // 軸の位置。動かしても見た目は動かない — 中身がずれるぶん group の位置で埋め合わせる
+  else if (k.startsWith('off.')){
+    const o = splatOff(it).slice(), i = {x:0, y:1, z:2}[k.slice(4)], sc = it.scale || 1;
+    if (i == null || !Number.isFinite(v)) return;
+    const dv = new V3(); dv.setComponent(i, (v - o[i]) * sc); dv.applyQuaternion(splatQuat(it));
+    o[i] = +v.toFixed(3); it.off = o;
+    setPos(it, it.x + dv.x, it.z + dv.z); it.lift = +((it.lift || 0) + dv.y / sc).toFixed(3);
+  }
   // 手動に切り替えた瞬間は今の比率から始める（16:9 なら 16 と 9）。数字が無いと絵が変わらず「効いていない」に見える
   else if (k === 'aspect' && v === 'custom' && it.aspect !== 'custom'){ const [a, b] = (ASPECTS[it.aspect] ? it.aspect : '16:9').split(':'); it.aspect = 'custom'; it.aspectW = +a; it.aspectH = +b; }
   else if (k === 'sensor' && it.sensor !== v){ it.sensor = v; it.focal = LENSES[v][2]; if (v === 'custom' && !it.sensorW) it.sensorW = 36; }
@@ -4253,7 +4379,7 @@ function setProp(it, k, v, live=false){
   if (k === 'rot') updateItemTransform(it);
   else if (it.type === 'camera') refreshCam(it);
   else if (it.type === 'splat' && (k === 'cropOn' || k.startsWith('crop.'))) refreshCrop(it);
-  else rebuildItem(it);
+  else { rebuildItem(it); if (it.type === 'splat') splatRefresh(); }   // 置き方が変わったら並べ直す
   if (!live){ renderSel(); renderList(); saveHash(); }
   needRender = true;
 }
@@ -5072,7 +5198,7 @@ function exportHide(){
   // 書き出しのあいだは「絵」として扱い、置いたとおりの強さを入れる
   applyLightMood('pers');
   // 3DGS は点の集まりなので 3D データにはできない
-  for (const it of state.items) if (it.type === 'splat') hide(itemObjs.get(it.id)?.group);
+  for (const it of state.items) if (it.type === 'splat' || it.type === 'ruler') hide(itemObjs.get(it.id)?.group);   // 定規は測る道具で現場には無い
   scene.traverse(n => {
     if (!n.visible) return;
     if (n.userData.plan || n.userData.noHit || n.userData.grid || n.isLine || n.isPoints) return hide(n);
