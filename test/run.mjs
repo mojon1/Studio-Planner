@@ -527,11 +527,14 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the ones taken out of the list stay out',
      !poses.some(p => ['stand-1','stand-4','walk','dance'].includes(p)), poses.join(', '));
   ok('and there is nothing left to unfold', await t.page.$$eval('.disc', b => b.length) === 0);
-  ok('the pose list sits at the bottom, under the direction slider',
+  // ポーズは向きの下、寸法表示だけがその下（寸法表示はどのオブジェクトでも最後。寺村さんの指示）
+  ok('the pose list sits under the direction slider, with only 寸法表示 below it',
      await t.page.$eval('#selbody', el => {
        const kids = [...el.children];
-       return kids.findIndex(k => k.classList.contains('poses')) === kids.length - 1
-           && kids[kids.length - 2].textContent.includes('ポーズ');
+       const poses = kids.findIndex(k => k.classList.contains('poses'));
+       const h2 = kids.map((k, i) => k.tagName === 'H2' ? i : -1).filter(i => i >= 0), last = h2[h2.length - 1];
+       return poses > 0 && kids[poses - 1].textContent.includes('ポーズ')
+           && last === poses + 1 && kids[last].textContent.trim() === '寸法表示';
      }));
   const poseThumbs = await t.page.$$eval('.poses img', i => i.map(x => x.naturalWidth));
   ok('the pose thumbnails load', poseThumbs.length === 8 && poseThumbs.every(w => w === 200), poseThumbs.join(','));
@@ -2799,6 +2802,66 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
     return r; });
   ok('the cove faces inward', inward !== null && inward < 0, String(inward));
   ok('corner handles run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
+// --- 40. 寸法表示は最下部、カメラの高さつまみ、椅子・箱に座る ----------------------------
+{
+  const t = await open('sit', { width: 1300, height: 900 });
+  const P = t.page;
+  await P.waitForFunction(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'person'); let k = false; s.group(it.id)?.traverse(n => { if (n.isSkinnedMesh) k = true; }); return k; }, null, { timeout: 20000 });
+  const h2s = () => P.$$eval('#selbody h2', h => h.map(x => x.textContent.trim()));
+  const person = () => P.evaluate(() => { const s = window.__sp; const p = s.state().items.find(i => i.type === 'person');
+    return {posture: p.posture || null, sitting: s.isSitting(p), seatY: s.group(p.id).userData.seatY ?? null, y: +s.group(p.id).position.y.toFixed(3), stand: +s.standHeight(p).toFixed(3)}; });
+  await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'person').id, true); }); await P.waitForTimeout(600);
+  let h = await h2s();
+  ok('the person panel ends with 寸法表示 (below the poses)', h[h.length - 1] === '寸法表示' && h.indexOf('ポーズ') < h.length - 1, h.join('/'));
+  ok('the camera-distance switch is called カメラ距離', (await P.$$eval('#selbody [data-dim]', b => b.map(x => x.textContent.trim()))).join('/') === '身長/カメラ距離');
+  // 椅子を人の下に
+  await t.add('[data-add="chair"]');
+  await P.evaluate(() => { const s = window.__sp; const p = s.state().items.find(i => i.type === 'person'), c = s.state().items.find(i => i.type === 'chair'); s.setProp(c, 'x', p.x); s.setProp(c, 'z', p.z); }); await P.waitForTimeout(300);
+  let q = await person();
+  ok('a standing person stands on the seat', !q.sitting && q.y === 0.42 && q.stand === 0.42, JSON.stringify(q));
+  await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'person').id, true); }); await P.waitForTimeout(500);
+  await P.click('[data-pose="sit-chair"]'); await P.waitForTimeout(900);
+  q = await person();
+  ok('the chair pose is recognised as sitting (thigh angle)', q.sitting === true, JSON.stringify(q));
+  ok('and the seat bottom is measured below the hip', q.seatY > 0.25 && q.seatY < 0.5, String(q.seatY));
+  ok('so the person snaps down until the seat bottom rests on the seat', Math.abs(q.y - (0.42 - q.seatY)) < 0.002, JSON.stringify(q));
+  await P.evaluate(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'chair'), 'seatH', 0.7); }); await P.waitForTimeout(400);
+  const q2 = await person();
+  ok('raising the seat lifts the seated person with it', Math.abs(q2.y - (0.7 - q.seatY)) < 0.002, JSON.stringify(q2));
+  await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'person').id, true); }); await P.waitForTimeout(400);
+  await P.click('[data-pose="sit-floor"]'); await P.waitForTimeout(900);
+  q = await person();
+  ok('sitting on the floor is not a hanging-legs pose: it just rests on top', !q.sitting && q.y === 0.7, JSON.stringify(q));
+  await P.click('[data-pose="lie-up"]'); await P.waitForTimeout(900);
+  q = await person();
+  ok('nor is lying', !q.sitting && q.y === 0.7, JSON.stringify(q));
+  // 写真ポーズも同じ式（椅子のポーズの関節をそのまま写真として持たせる）
+  await P.evaluate(() => { const s = window.__sp; const p = s.state().items.find(i => i.type === 'person'); p.photo = s.poses().poses.find(x => x.id === 'sit-chair').p.map(r => r.slice()); s.setProp(p, 'posture', 'photo'); }); await P.waitForTimeout(900);
+  q = await person();
+  ok('a photo pose with hanging legs sits too', q.sitting === true && q.seatY > 0.25 && Math.abs(q.y - (0.7 - q.seatY)) < 0.002, JSON.stringify(q));
+  // 椅子を外へ動かせば床に戻る
+  await P.evaluate(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'chair'), 'x', 3); }); await P.waitForTimeout(400);
+  q = await person();
+  ok('with no seat underneath the person is back on the floor', q.y === 0 && q.stand === 0, JSON.stringify(q));
+  // カメラの高さのつまみ
+  await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'camera').id); }); await P.waitForTimeout(300);
+  h = await h2s();
+  ok('the camera panel ends with 寸法表示 too', h[h.length - 1] === '寸法表示', h.join('/'));
+  const cam = await P.evaluate(() => ({...window.__sp.state().items.find(i => i.type === 'camera')}));
+  let hs = await P.evaluate(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray()));
+  ok('the camera has one handle just above its head', hs.length === 1 && Math.abs(hs[0][1] - (cam.y + 0.14)) < 0.01, JSON.stringify(hs));
+  const sc = await P.evaluate(() => { const s = window.__sp; const v = s.handles().children.filter(k => k.isMesh)[0].position.clone().project(s.camera()); const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; });
+  await P.mouse.move(sc.x, sc.y); await P.mouse.down(); await P.mouse.move(sc.x, sc.y - 40); await P.mouse.move(sc.x, sc.y - 80); await P.mouse.up(); await P.waitForTimeout(300);
+  const cam2 = await P.evaluate(() => ({...window.__sp.state().items.find(i => i.type === 'camera')}));
+  ok('dragging it up raises the camera', cam2.y > cam.y + 0.3 && cam2.x === cam.x && cam2.z === cam.z, `${cam.y} -> ${cam2.y}`);
+  ok('and the finder follows', Math.abs(await P.evaluate(() => { document.querySelector('[data-view="cam"]').click(); return window.__sp.camera().position.y; }) - cam2.y) < 0.001);
+  await P.click('[data-view="plan"]'); await P.waitForTimeout(300);
+  hs = await P.evaluate(() => window.__sp.handles().children.filter(k => k.isMesh).length);
+  ok('the height handle stays out of the top view', hs === 0);
+  ok('sit run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
 

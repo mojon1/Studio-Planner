@@ -377,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.25.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.26.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -526,7 +526,7 @@ const EN = {
   'テーブル':'Table','ベージュ':'Beige','中華提灯':'Lantern','元に戻す':'Undo','全カット':'All shots','取り込む':'Import',
   '奥壁まで':'To back wall','寸法表示':'Dimensions','拡大縮小':'Scale','水平画角':'Horizontal FOV','焦点距離':'Focal length',
   '画面比率':'Aspect','種類不明':'Unknown type','素の姿勢':'Rest pose','表示する':'Show','記載内容':'Views','高さ調整':'Lift',
-  'このカット':'This shot','アフリカ系':'African','カジュアル':'Casual','カメラまで':'To camera','カメラ無し':'No camera',
+  'このカット':'This shot','アフリカ系':'African','カジュアル':'Casual','カメラまで':'To camera','カメラ距離':'Camera distance','カメラ無し':'No camera',
   'カメラ高さ':'Camera height','デーライト':'Daylight','フルサイズ':'Full frame','ホリゾント':'Cove','上下の向き':'Tilt',
   '中心に戻す':'Recenter','他のカメラ':'Other cameras','保存・共有':'Save / Share','共有リンク':'Share link','名前を変更':'Rename',
   '床に垂らす':'Drape on floor','数値で入力':'Custom size','新規カット':'New shot','設定の開閉':'Toggle settings','LEDパネル':'LED panel',
@@ -1274,7 +1274,7 @@ function itemLabels(view){
     } else if (it.type === 'camera' || it.type === 'light'){ top = it.y; txt = `高さ ${fmt(it.y)} m`; }
     else if (it.h != null){ top = it.h; txt = `高さ ${num(it.h)} m`; }
     else continue;
-    out.push({p:new V3(it.x, standHeight(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side','front']});
+    out.push({p:new V3(it.x, restY(it) + top + 0.25, it.z), text:`${itemName(it)}：${txt}`, cls:'', views:['side','front']});
   }
   return out;
 }
@@ -1691,6 +1691,48 @@ function posedBox(root){
   });
   return box;
 }
+// 「脚を垂らして座っている」か。両太ももが鉛直から 60° 以上倒れていて、腰が足より
+// 脚の長さの 45% 以上高い。椅子に座る＝真、床に座る・寝る・立つ・片脚上げ＝偽。
+// 判定は脚の骨の角度（寺村さんの案）。写真ポーズも同じ 23 関節なので同じ式で見る
+function isSittingPose(pose){
+  if (!pose || !POSES) return false;
+  const J = POSES.joints, at = j => { const i = J.indexOf(j); return i < 0 ? null : new V3().fromArray(pose.p[i]); };
+  const hip = at('Hips'); if (!hip) return false;
+  let legLen = 0, minY = Infinity, ok = true;
+  for (const side of ['Left', 'Right']){
+    const th = at(side + 'UpLeg'), kn = at(side + 'Leg'), ft = at(side + 'Foot');
+    if (!th || !kn || !ft) return false;
+    const d = kn.clone().sub(th); const ang = Math.acos(clamp(-d.y / (d.length() || 1), -1, 1)) * 180 / Math.PI;
+    if (ang < 60) ok = false;
+    legLen = Math.max(legLen, d.length() + ft.distanceTo(kn));
+  }
+  for (const r of pose.p) minY = Math.min(minY, r[1]);
+  return ok && legLen > 0 && (hip.y - minY) > 0.45 * legLen;
+}
+const isSitting = it => it.type === 'person' && personModel(it) && !!it.posture &&
+  isSittingPose(it.posture === 'photo' ? photoPoseOf(it) : poseById(it.posture));
+// 骨盤と上腿に付いた頂点のいちばん下（親 group の空間）。座ったときのお尻の底
+function seatBottom(root){
+  let min = Infinity; const v = new V3();
+  root.traverse(n => {
+    if (!n.isSkinnedMesh) return;
+    const g = n.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight; if (!si || !sw) return;
+    // Tripo の皮は Hip / Pelvis が支配する頂点をほとんど持たず、お尻は上腿のねじり骨（ThighTwist01）と
+    // 腰（Waist）に付いている。上腿までを「座面に触る側」として拾う（実測: sit-chair で 0.38 m、腰の関節は 0.52）
+    const pelvis = new Set(); n.skeleton.bones.forEach((b, i) => { if (/^(Hip|Pelvis|Waist|[LR]_Thigh(Twist01)?)$/.test(b.name)) pelvis.add(i); });
+    if (!pelvis.size) return;
+    for (let i = 0; i < si.count; i++){
+      let bi = si.getX(i), bw = sw.getX(i);
+      if (sw.getY(i) > bw){ bw = sw.getY(i); bi = si.getY(i); }
+      if (sw.getZ(i) > bw){ bw = sw.getZ(i); bi = si.getZ(i); }
+      if (sw.getW(i) > bw){ bw = sw.getW(i); bi = si.getW(i); }
+      if (!pelvis.has(bi)) continue;
+      v.fromBufferAttribute(g.attributes.position, i); n.applyBoneTransform(i, v); v.applyMatrix4(n.matrixWorld);
+      if (v.y < min) min = v.y;
+    }
+  });
+  return min;
+}
 const restH = new WeakMap();
 function buildRealPerson(it, src){
   const g = new THREE.Group();
@@ -1704,6 +1746,8 @@ function buildRealPerson(it, src){
   const pose = it.posture === 'photo' ? photoPoseOf(it) : it.posture && POSES ? poseById(it.posture) : null;
   if (pose) applyPose(inst, pose);
   const bb = posedBox(inst);
+  // 脚を垂らして座るポーズなら、お尻の底の高さを控えておく（restY が台に吸着させる）
+  if (pose && isSittingPose(pose)){ const sb = seatBottom(inst); if (isFinite(sb)) g.userData.seatY = sb - bb.min.y; }
   inst.position.set(-(bb.min.x + bb.max.x)/2, -bb.min.y, -(bb.min.z + bb.max.z)/2);
   inst.traverse(n => {
     if (!n.isMesh && !n.isSkinnedMesh) return;
@@ -2427,7 +2471,8 @@ function buildChroma(it){
 // **台どうしを積むときだけ、上下をリストの並び順で決める**（後から置いたものが上）。
 // これが無いと、重なった 2 つが互いに相手の上に乗ろうとして高さが決まらない。
 // 人やカメラは台ではないので、その制約は要らない（どの台にでも乗る）。
-const SUPPORTS = new Set(['box', 'koma', 'table']);
+const SUPPORTS = new Set(['box', 'koma', 'table', 'chair']);
+const topOf = u => u.type === 'chair' ? u.seatH : u.h;   // 椅子の天面は座面（背もたれではない）
 function overTop(o, u){
   const r = THREE.MathUtils.degToRad(u.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   const dx = o.x - u.x, dz = o.z - u.z;
@@ -2446,14 +2491,26 @@ function standHeight(it){
     return y;
   };
   for (const u of state.items)
-    if (SUPPORTS.has(u.type) && !u.hidden) top.set(u.id, base(u, true) + u.h);
-  return top.has(it.id) ? top.get(it.id) - it.h : base(it, false);
+    if (SUPPORTS.has(u.type) && !u.hidden) top.set(u.id, base(u, true) + topOf(u));
+  return top.has(it.id) ? top.get(it.id) - topOf(it) : base(it, false);
+}
+// 人物の置き高さ。**脚を垂らして座るポーズ**の人が台（椅子・箱・テーブル）に重なったら、
+// お尻（骨盤の頂点のいちばん下 = group.userData.seatY）を天面に吸着させる（寺村さんの指示）。
+// 立つポーズなら今までどおり天面の上に立つ。床に座る・寝るは、いちばん低いところが
+// お尻や背中なので、天面の上に置くだけで合う（isSitting が false を返す）。
+// 椅子の座面を上げれば standHeight が上がるので、座った人も一緒に上がる。
+// 座面が低いと足が床にめり込むが、寺村さんの指示は「お尻を座面に」なので許す
+function restY(it){
+  const base = standHeight(it);
+  if (it.type !== 'person' || base <= 0) return base;
+  const seat = itemObjs.get(it.id)?.group.userData.seatY;
+  return seat != null ? base - seat : base;
 }
 // 箱が動いたり大きさが変わったりすると、上に乗っているものの高さも変わる
 function restack(){
   for (const it of state.items){
     const o = itemObjs.get(it.id);
-    if (o) o.group.position.y = standHeight(it);
+    if (o) o.group.position.y = restY(it);
   }
   syncLights();
 }
@@ -2571,7 +2628,7 @@ function rebuildItem(it){
 }
 function updateItemTransform(it){
   const o = itemObjs.get(it.id); if (!o) return;
-  o.group.position.set(it.x, standHeight(it), it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
+  o.group.position.set(it.x, restY(it), it.z); o.group.rotation.y = THREE.MathUtils.degToRad(it.rot);
   if (SUPPORTS.has(it.type)) restack();      // 台が動けば、その上のものも上げ下げする
   else if (it.type === 'light') syncLights();
   if (it.type === 'camera') buildFrustum(it);
@@ -2621,7 +2678,7 @@ function tiltAngle(x, y, needRing){
 // ---------- 背景布・鏡は辺をつまんで大きさを変える ----------
 // スライダーでも変えられるが、現場では「もう少し広く」を figure の横で示したい
 const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
-                  box:{w:[0.1,8], d:[0.1,8], h:[0.05,4]}, table:{w:[0.4,4], d:[0.3,4], h:[0.2,1.2]}};   // スライダーと同じ範囲
+                  box:{w:[0.1,8], d:[0.1,8], h:[0.05,4]}, table:{w:[0.4,4], d:[0.3,4], h:[0.2,1.2]}, camera:{y:[0.2,4]}};   // スライダーと同じ範囲
 const isRound = it => it.type === 'table' && it.shape === 'round';
 const handleGeo = new THREE.BoxGeometry(0.13, 0.13, 0.13);
 const handleMat = gizMat(0xffffff);
@@ -2643,6 +2700,8 @@ function edgeHandles(it){
   // 箱とテーブルは天面の 4 角で幅と奥行（天面の高さの水平面で取る）、天面の真ん中で高さ。
   // 高さのつまみは上面図では出さない — 真上からは高さが取れず、真ん中の十字（移動）と重なる。
   // 丸テーブルは縁の 4 点。どれを引いても直径（w = d）
+  // カメラは頭の少し上の 1 つで高さ（寺村さんの指示）。上面図では高さが取れないので出さない
+  if (it.type === 'camera') return mainView === 'plan' ? [] : [{ky:'y', p:[0, it.y + 0.14, 0], dy:0.14}];
   if (it.type === 'box' || it.type === 'table'){
     const top = it.h, hs = isRound(it)
       ? [{kx:'w', sx:1, p:[it.w/2, top, 0], py:1}, {kx:'w', sx:-1, p:[-it.w/2, top, 0], py:1},
@@ -3241,7 +3300,7 @@ function dragHandle(d, x, y){
       new THREE.Vector3(Math.sin(r), 0, Math.cos(r)), new THREE.Vector3(it.x, 0, it.z));
     p = new THREE.Vector3();
     if (!ray.ray.intersectPlane(pl, p)) return;
-    it[h.ky] = +clamp(p.y - d.base, ...lim(h.ky)).toFixed(2);
+    it[h.ky] = +clamp(p.y - d.base - (h.dy || 0), ...lim(h.ky)).toFixed(2);   // dy はつまみを頭から浮かせているぶん
   } else { p = h.py ? levelHit(x, y, d.top) : floorHit(x, y); if (!p) return; }   // 天面のつまみは天面の高さの水平面で
   const q = new THREE.Vector2(p.x, p.z), cur = new THREE.Vector2(it.x, it.z);
   let cX = cur.dot(d.ax), cZ = cur.dot(d.az);
@@ -3250,7 +3309,8 @@ function dragHandle(d, x, y){
     if (h.kz !== 'drape') cZ = d.fixedZ + h.sz * t / 2; }
   if (h.kx || (h.kz && h.kz !== 'drape')){ const nc = d.ax.clone().multiplyScalar(cX).add(d.az.clone().multiplyScalar(cZ)); setPos(it, nc.x, nc.y); }
   if (isRound(it)){ if (h.kx) it.d = it.w; else if (h.kz) it.w = it.d; }   // 丸テーブルは直径ひとつ
-  rebuildItem(it); needRender = true;
+  if (it.type === 'camera') refreshCam(it); else rebuildItem(it);          // カメラは撮影範囲と小窓も追う
+  needRender = true;
 }
 // 高さ yl の水平面との交点（天面のつまみ用。床で取ると背の高い箱の角が視線ぶんずれる）
 function levelHit(x, y, yl){
@@ -3989,16 +4049,9 @@ function renderSel(){
     h += range('w','幅', 0.5, 20, 0.1, it.w, 'm') + range('h', it.kind==='wall'?'高さ':'奥行', 0.3, 20, 0.1, it.h, 'm');
 
   }
-  // 3DGS は現場そのものなので寸法を出さない（向きは splat の枠の中で先に出してある）
-  if (it.type !== 'splat'){
-    const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
-    h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
-      + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
-                              : dimBtn('dimCam', 'カメラまで', it.dimCam === true)) + `</div>`;
-    // 提灯は丸いので向きを持たない（回しても何も変わらない）
-    if (it.type !== 'camera' && !(it.type === 'light' && !lightHas(it, 'rot')))
-      h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
-  }
+  // 向き（3DGS は自分の枠の中で先に出してある。提灯は丸いので向きを持たない）
+  if (it.type !== 'splat' && it.type !== 'camera' && !(it.type === 'light' && !lightHas(it, 'rot')))
+    h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
   // 服装はポーズの上（寺村さんの指示）。同じ地域・同じ種別の別の服に着替えるだけで、
   // 誰かは変わらない。子どもはスーツを持っていないので、そのときは出さない
   if (it.type === 'person' && personModel(it)){
@@ -4017,6 +4070,14 @@ function renderSel(){
       `<path d="M4 8h3.2l1.8-2.6h6L16.8 8H20a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.4"/></svg>` +
       `<small>写真ポーズ指定</small></button></div>`;
     if (it.posture === 'photo') h += `<p class="hint">写真の奥行きは推定です。体の向きは「向き」で合わせてください。</p>`;
+  }
+  // 寸法表示は**どのオブジェクトでもいちばん下**（寺村さんの指示。以前は向きの上に居て、
+  // 人物ではポーズの上、他では最後、と物によって位置が違った）。3DGS は現場そのものなので出さない
+  if (it.type !== 'splat'){
+    const ownDim = it.type === 'person' ? '身長' : (it.type === 'camera' || it.type === 'light') ? '高さ' : 'サイズ';
+    h += `<h2>寸法表示</h2><div class="row">${dimBtn('own', ownDim, dimOn(it))}`
+      + (it.type === 'camera' ? dimBtn('dimWall', '壁まで', it.dimWall === true)
+                              : dimBtn('dimCam', 'カメラ距離', it.dimCam === true)) + `</div>`;
   }
   el.innerHTML = h;
   el.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { setProp(it, b.dataset.set, b.dataset.val); }));
@@ -5575,7 +5636,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
