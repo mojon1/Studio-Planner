@@ -2705,6 +2705,33 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await ja.ctx.close();
 }
 
+// --- 38. 小窓はカメラの比率そのもの ---------------------------------------------
+// 黒い余白で埋めずに箱のほうを縦横比に合わせる（寺村さんの指示）。9:16 なら縦長になる。
+// 別ウィンドウのファインダーだけは余白を付けてよい（そちらは触っていない）
+{
+  const t = await open('pip-aspect', { width: 1300, height: 900 });
+  const P = t.page;
+  const bodyAr = async () => { const b = await P.locator('#pip .body').boundingBox(); return b.width / b.height; };
+  const setAspect = async a => { await P.evaluate(a => { const sp = window.__sp; sp.setProp(sp.state().items.find(i => i.type === 'camera'), 'aspect', a); sp.render(); }, a); await P.waitForTimeout(400); };
+  ok('the docked window opens at the camera aspect (16:9)', Math.abs(await bodyAr() - 16/9) < 0.012, String(await bodyAr()));
+  await setAspect('9:16');
+  ok('9:16 makes it a portrait box, no black bars', Math.abs(await bodyAr() - 9/16) < 0.012, String(await bodyAr()));
+  const inside = await P.evaluate(() => { const r = document.getElementById('pip').getBoundingClientRect(), v = document.getElementById('view').getBoundingClientRect(); return r.top >= v.top && r.bottom <= v.bottom + 1 && r.right <= v.right + 1; });
+  ok('and it still fits inside the view', inside);
+  await setAspect('4:3');
+  ok('4:3 follows too', Math.abs(await bodyAr() - 4/3) < 0.012, String(await bodyAr()));
+  // つまみで引いても比率は変わらない
+  const g = await P.locator('#pip .grip').boundingBox();
+  const w0 = (await P.locator('#pip').boundingBox()).width;
+  await P.mouse.move(g.x + g.width/2, g.y + g.height/2); await P.mouse.down();
+  await P.mouse.move(g.x + g.width/2 - 60, g.y + g.height/2 - 10); await P.mouse.move(g.x + g.width/2 - 80, g.y + g.height/2 - 20); await P.mouse.up(); await P.waitForTimeout(300);
+  const w1 = (await P.locator('#pip').boundingBox()).width;
+  ok('resizing keeps the aspect', Math.abs(await bodyAr() - 4/3) < 0.012 && w1 < w0 - 40, `${w0} -> ${w1}, ar ${await bodyAr()}`);
+  await setAspect('9:16'); await P.screenshot({ path: `${OUT}/pip-916.png` });
+  ok('pip aspect runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

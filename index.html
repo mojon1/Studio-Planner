@@ -376,7 +376,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.23.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.24.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -2682,12 +2682,22 @@ function resize(){
   layoutPip(); fitOrtho(); layoutInfo(); needRender = true;
 }
 function mainRect(){ return {x:0,y:0,w:W,h:H}; }
-function pipRect(){ return {x:pip.x, y:pip.y+24, w:pip.w, h:Math.max(1, pip.h-24)}; }
+function pipRect(){ const b = PIP_BORDER; return {x:pip.x+b, y:pip.y+b+PIP_BAR, w:Math.max(1, pip.w-2*b), h:Math.max(1, pip.h-2*b-PIP_BAR)}; }
 const safeInset = v => { const s = getComputedStyle(v === '--vsab' ? viewEl : document.documentElement).getPropertyValue(v); return parseFloat(s) || 0; };
+// 小窓の中身はカメラの比率そのもの（寺村さんの指示）。黒い余白で埋めずに、
+// 箱のほうを縦横比に合わせる。9:16 なら縦長の小窓になる。バー（24 px）は比率の外。
+// 別ウィンドウのファインダーだけは余白を付けてよい（そちらは drawPop の letterbox のまま）。
+const PIP_BAR = 24, PIP_BORDER = 2;             // CSS の #pip の border と同じ値。枠のぶんも比率から外す
+const pipAspect = () => ASPECTS[camItem()?.aspect] || 16/9;
+let pipAr = 0;                                   // 最後に箱を合わせた比率。変わったら frame() が組み直す
 function layoutPip(){
-  const small = W < 760;
+  const small = W < 760, ar = pipAspect();
   const maxW = Math.max(120, W - 20), maxH = Math.max(90, H - 20);
-  if (pip.w > maxW || pip.h > maxH || (small && pip.w > W*0.55 && !pip.user)){ const k = small ? 0.42 : 0.3; pip.w = Math.round(clamp(W*k, 120, 420)); pip.h = Math.round(pip.w*0.66+24); }
+  if (pip.w > maxW || (small && pip.w > W*0.55 && !pip.user)){ const k = small ? 0.42 : 0.3; pip.w = Math.round(clamp(W*k, 120, 420)); }
+  // 高さは幅と比率から。縦長で画面に収まらないときは幅のほうを詰める
+  const frame = PIP_BAR + PIP_BORDER * 2;
+  if ((pip.w - PIP_BORDER * 2) / ar + frame > maxH) pip.w = Math.max(60, Math.floor((maxH - frame) * ar) + PIP_BORDER * 2);
+  pip.h = Math.round((pip.w - PIP_BORDER * 2) / ar) + frame; pipAr = ar;
   if (pip.x < 0 || pip.y < 0 || pip.x + pip.w > W || pip.y + pip.h > H){ pip.x = W - pip.w - 10; pip.y = Math.max(0, H - pip.h - 74); }
   // ホーム画面から起動した iPhone はノッチの下に潜る。バーが掴めなくなるので、上端は安全域より下に
   const top = safeInset('--sat'), bottom = safeInset('--vsab');
@@ -2949,7 +2959,7 @@ function frame(){
   fitOrtho();
   drawPop();                                     // 先に描いて写し、この後の本体描画で上書きする
   renderView(mainView, mainRect(), true);
-  if (pipShown()) renderView('cam', pipRect(), false);
+  if (pipShown()){ if (pipAspect() !== pipAr) layoutPip(); renderView('cam', pipRect(), false); }
   renderer.setScissorTest(false);
   updateInfo(); syncRecenter();
 }
@@ -3230,7 +3240,11 @@ function refreshCam(ci){ const o = itemObjs.get(ci.id); if (o){ const g = buildC
     if (pin && pp.size === 2){ const [a,b] = [...pp.values()]; const k = Math.hypot(a.x-b.x,a.y-b.y)/pin.d0; const ci = camItem(); if (ci && !viewerMode){ ci.focal = clamp(Math.round(pin.f0*k),10,400); refreshCam(ci); needRender = true; } return; }
     if (!mode) return;
     if (mode === 'move'){ pip.x = clamp(start.px + e.clientX - start.x, 0, W - pip.w); pip.y = clamp(start.py + e.clientY - start.y, 0, H - pip.h); pip.user = true; layoutPip(); needRender = true; }
-    else if (mode === 'resize'){ pip.w = clamp(start.pw + e.clientX - start.x, 120, W - pip.x); pip.h = clamp(start.ph + e.clientY - start.y, 90, H - pip.y); pip.user = true; layoutPip(); needRender = true; }
+    else if (mode === 'resize'){
+      // 比率は固定なので幅だけ決める。横に引いたぶんと縦に引いたぶん（比率で幅に換算）の大きいほうに従う
+      const ar = pipAspect(), dxw = e.clientX - start.x, dyw = (e.clientY - start.y) * ar;
+      const w = start.pw + (Math.abs(dxw) >= Math.abs(dyw) ? dxw : dyw);
+      pip.w = clamp(w, 120, Math.min(W - pip.x, (H - pip.y - PIP_BAR - PIP_BORDER * 2) * ar + PIP_BORDER * 2)); pip.user = true; layoutPip(); needRender = true; }
     else if (mode === 'look' && !viewerMode) lookDrag(dx, dy);
   });
   const end = e => { pp.delete(e.pointerId); if (pp.size < 2) pin = null; if (pp.size === 0){ if (mode === 'look'){ const ci = camItem(); if (ci){ ci.pitch = a1(ci.pitch); renderSel(); saveHash(); } } if (mode === 'move' || mode === 'resize') savePip(); mode = null; } };
