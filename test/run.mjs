@@ -1653,6 +1653,25 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(1800);
   ok('and bringing it back fills it again',
      (await t.page.evaluate(() => window.__sp.spark()?.activeSplats ?? 0)) > 0);
+  // 組み直した直後の並べ直しで、スキャンが原点に飛んだ位置で 1 枚描かれていた（寺村さんの指摘：
+  // 他の物の目のマークを押すと 3DGS が一瞬パッと動く）。Spark の update() は同期で
+  // updateMatrixWorld()（親を辿らない）を呼ぶので、先に scene の行列を更新しておく
+  const jump = await t.page.evaluate(() => {
+    const s = window.__sp, it = s.state().items.find(i => i.type === 'splat');
+    s.setProp(it, 'x', 3); s.setProp(it, 'lift', 1); s.setProp(it, 'rot', 40);
+    s.rebuild();                                   // 組み直し → splatRefresh（同期部分で Spark が行列を読む）
+    let mesh = null; s.group(it.id).traverse(o => { if (o.userData.splat) mesh = o; });
+    const seen = mesh.matrixWorld.clone(); s.scene.updateMatrixWorld(true);
+    return {same: seen.equals(mesh.matrixWorld), seen: seen.elements.slice(12, 15).map(v => +v.toFixed(3)), real: mesh.matrixWorld.elements.slice(12, 15).map(v => +v.toFixed(3))};
+  });
+  ok('re-sorting right after a rebuild sees the scan where it really is (no one-frame jump)', jump.same, JSON.stringify(jump));
+  // 他の物の目のマークはその 1 個だけ組み直す。3DGS の group は作り直されない
+  const gBefore = await t.page.evaluate(() => { const s = window.__sp; return s.group(s.state().items.find(i => i.type === 'splat').id).uuid; });
+  await t.page.click('#items .itemrow[data-kind="person"] .ico.eye'); await t.page.waitForTimeout(400);
+  const gAfter = await t.page.evaluate(() => { const s = window.__sp; return {uuid: s.group(s.state().items.find(i => i.type === 'splat').id).uuid, hidden: s.state().items.find(i => i.type === 'person').hidden}; });
+  ok('hiding another object leaves the scan untouched', gAfter.uuid === gBefore && gAfter.hidden === true, JSON.stringify({gBefore, gAfter}));
+  await t.page.click('#items .itemrow[data-kind="person"] .ico.eye'); await t.page.waitForTimeout(300);
+  await t.page.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'x', 0); s.setProp(it, 'lift', 0); s.setProp(it, 'rot', 0); });
   await t.page.click('#items .itemrow[data-kind="studio"] .ico.eye'); await t.page.waitForTimeout(500);
   ok('with the studio back the pyramid is clipped by the walls again', (await frus())?.free === false);
   await t.page.screenshot({ path: `${OUT}/scan.png` });
@@ -1869,11 +1888,23 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   });
   const withScan = await readMirror();
   await t.page.screenshot({ path: `${OUT}/splat-mirror.png` });
+  // 鏡があると Spark の「新しいフレーム」判定を映り込みが先に食い、本体の描画で自動更新が走らない。
+  // つまみを引いているあいだも Spark 側の変換（context.transform）が three の行列に追うこと
+  const sparkT = () => t.page.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'splat'); let mesh = null; s.group(it.id).traverse(o => { if (o.userData.splat) mesh = o; });
+    return {spark: +mesh.context.transform.translate.value.y.toFixed(3), world: +mesh.matrixWorld.elements[13].toFixed(3)}; });
+  await t.page.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'splat'); for (let i = 1; i <= 5; i++) s.setProp(it, 'lift', i * 0.2, true); s.render(); }); await t.page.waitForTimeout(1200);
+  const live = await sparkT();
+  ok('with a mirror in the scene, Spark still follows a live lift drag', Math.abs(live.spark - live.world) < 1e-6 && live.world > 0.5, JSON.stringify(live));
+  await t.page.evaluate(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 0); }); await t.page.waitForTimeout(2500);
+  const back = await sparkT();
+  ok('and lands where the scan really is when released', Math.abs(back.spark - back.world) < 1e-6, JSON.stringify(back));
   await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(2500);
   const without = await readMirror();
   let moved = 0;
   for (let i = 0; i < withScan.length; i += 4) if (Math.abs(withScan[i] - without[i]) > 10) moved++;
-  ok('the scan turns up in the mirror', moved > 400, `${moved} of ${withScan.length / 4} px changed`);
+  // 以前は 974 px だったが、それは Spark の変換が古いままでスキャンが原点に描かれていたときの数字。
+  // 本当の位置（人物の手前）だと鏡のまん中にはこのくらい映る
+  ok('the scan turns up in the mirror', moved > 250, `${moved} of ${withScan.length / 4} px changed`);
   ok('splat mirror run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }

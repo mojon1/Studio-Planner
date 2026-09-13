@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.34.0 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.34.1 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -2077,8 +2077,13 @@ const splatBusy = () => !!sparkRenderer && (sparkRenderer.sorting || sparkRender
 // **目のマークで消しただけでは絵が変わらない**（視点を回した瞬間に消える、という
 // 形で出る）。update() を自分で呼ぶと autoUpdate の判定を通らずに必ず作り直すので、
 // スキャンを組み直したらここを通す
+// **先に scene の行列を更新すること。** Spark の update() は同期で各メッシュの
+// `updateMatrixWorld()`（親を辿らない）を呼び、その時点の親の matrixWorld から世界座標を出す。
+// 組み直した直後の group は行列がまだ単位行列なので、スキャンが原点に飛んだ位置で 1 枚描かれ、
+// 次のフレームで戻る —「目のマークを押すと 3DGS が一瞬パッと動く」の正体（寺村さんの指摘）
 function splatRefresh(){
   if (!sparkRenderer) return;
+  scene.updateMatrixWorld(true);
   sparkRenderer.update({scene, camera: mainCam()}).then(() => { needRender = true; }, () => {});
 }
 // 並べ替えが落ち着くまで待つ。用紙や画像に古い並びを焼き付けないため
@@ -2586,7 +2591,11 @@ function buildMirror(it){
     const bg = scene.background; scene.background = REFLECT_BG;
     try { draw.apply(this, a); }
     finally {
-      if (sparkRenderer) sparkRenderer.autoUpdate = wasAuto;
+      // **Spark の「新しいフレーム」判定を返す。** Spark は renderer.info.render.frame が前回と
+      // 違うときだけ自動更新するが、映り込みの render() がその番号を先に消費するので、
+      // 続く本体の描画では「同じフレーム」扱いになり自動更新が一度も走らない。鏡を置くと
+      // つまみを引いてもスキャンの変換が Spark 側で古いままになっていた（並べ替えも位置も）
+      if (sparkRenderer){ sparkRenderer.autoUpdate = wasAuto; sparkRenderer.lastFrame = -1; }
       scene.background = bg;
       for (const n of ground) n.visible = true;
       for (const o of off) o.visible = true;
@@ -4216,7 +4225,10 @@ function renderList(){
     grip.addEventListener('pointerdown', e => startReorder(e, it));
     const lock = icon('ico' + (it.locked ? ' on' : ''), it.locked ? 'ロックを外す' : 'ロック', it.locked ? LOCK_ON : LOCK_OFF, () => toggleLock(it));
     const eye = icon('ico eye', it.hidden ? '表示する' : '隠す', it.hidden ? EYE_OFF : EYE_ON,
-      () => { it.hidden = !it.hidden; rebuildItems(); renderList(); renderSel(); needRender = true; saveHash(); });
+      // その 1 個だけ組み直す（やってはいけないこと 16）。全部組み直すと 3DGS まで作り直して
+      // 並べ直しが走る。カメラなら撮影範囲も出し入れする
+      () => { it.hidden = !it.hidden; rebuildItem(it); const ci = camItem(); buildFrustum(ci); frustumGroup.userData.hidden = !!ci?.hidden;
+        renderList(); renderSel(); needRender = true; saveHash(); });
     const del = icon('ico trash', '削除', TRASH, () => { if (it.locked){ toast('ロック中です'); return; } deleteItem(it); });
     row.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(it.id, e.clientX, e.clientY); });
     bindLongPress(b, (x, y) => openCtx(it.id, x, y));                 // 指だけの端末はこちら
