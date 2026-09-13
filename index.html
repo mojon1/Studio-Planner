@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.33.6 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.34.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -2311,32 +2311,48 @@ function setShotCam(ci, aspect){
   shotCam.updateMatrixWorld(true);
 }
 const fRay = new THREE.Raycaster();
+// スタジオを消しているとき（ロケの 3DGS）は切る面が無い。**見えない壁で切らない**（寺村さんの指摘 —
+// 消したスタジオの形に四角錐が切れていた。レイキャストは visible を見ない）。代わりに頂点に置いた
+// group の中に長さ 1 で組み、描く直前に fitFrustum() が「画面の短辺の FRUSTUM_SCREEN」の長さに
+// view ごとの倍率を掛ける（軸と同じ考え方。寄っても引いても画面の上では同じ大きさ）
+const FRUSTUM_SCREEN = 0.35;
 function buildFrustum(ci){
   frustumGroup.clear(); if (!ci) return;
   setShotCam(ci, aspectOf(ci));
-  const targets = studioGroup.children.filter(o => !o.userData.noHit);
+  const free = !!state.studio.hidden;
+  const targets = free ? [] : studioGroup.children.filter(o => !o.userData.noHit);
   const N = 10; const ring = []; const corners = [];
   const border = [];
   for (let i = 0; i < N; i++) border.push([-1 + 2*i/N, 1]);
   for (let i = 0; i < N; i++) border.push([1, 1 - 2*i/N]);
   for (let i = 0; i < N; i++) border.push([1 - 2*i/N, -1]);
   for (let i = 0; i < N; i++) border.push([-1, -1 + 2*i/N]);
-  const apex = shotCam.position.clone();
+  // 切らないときは頂点を原点にした group に長さ 1 で組む（fitFrustum が倍率を掛ける）
+  const host = free ? new THREE.Group() : frustumGroup;
+  const apex = free ? new THREE.Vector3() : shotCam.position.clone();
+  if (free){ host.position.copy(shotCam.position); host.userData.screenFrustum = true; frustumGroup.add(host); }
+  const fwd = shotCam.getWorldDirection(new THREE.Vector3());
   for (const [x,y] of border){
     fRay.setFromCamera(new THREE.Vector2(x,y), shotCam);
-    const hits = fRay.intersectObjects(targets, false);
-    const p = hits.length ? hits[0].point.clone() : fRay.ray.at(30, new THREE.Vector3());
+    const hits = free ? [] : fRay.intersectObjects(targets, false);
+    // 切らないときは視線方向の奥行き 1 の平面で止める（レイの長さ 1 だと先が球面に丸まる）
+    const p = free ? fRay.ray.direction.clone().multiplyScalar(1 / fRay.ray.direction.dot(fwd)) : hits.length ? hits[0].point.clone() : fRay.ray.at(30, new THREE.Vector3());
     ring.push(p); if (Math.abs(x) === 1 && Math.abs(y) === 1) corners.push(p);
   }
   const pos = [];
   for (let i = 0; i < ring.length; i++){ const a = ring[i], b = ring[(i+1)%ring.length]; pos.push(apex.x,apex.y,apex.z, a.x,a.y,a.z, b.x,b.y,b.z); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
   const vol = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color:0xe29a44, transparent:true, opacity:0.16, depthWrite:false, side:THREE.DoubleSide}));
-  vol.renderOrder = 3; frustumGroup.add(vol);
+  vol.renderOrder = 3; host.add(vol);
   const loopPts = ring.map(p => p.clone().addScaledVector(p.clone().sub(apex).normalize(), -0.01));
-  frustumGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(loopPts), new THREE.LineBasicMaterial({color:0xffb45c})));
+  host.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(loopPts), new THREE.LineBasicMaterial({color:0xffb45c})));
   const edgePts = []; for (const c of corners) edgePts.push(apex, c);
-  frustumGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(edgePts), new THREE.LineBasicMaterial({color:0xffb45c, transparent:true, opacity:0.7})));
+  host.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(edgePts), new THREE.LineBasicMaterial({color:0xffb45c, transparent:true, opacity:0.7})));
+}
+// スタジオを消しているときの四角錐は画面の大きさで伸ばす（頂点を中心に拡大。長さ 1 で組んである）
+function fitFrustum(cam, rect){
+  const h = frustumGroup.children[0];
+  if (h?.userData.screenFrustum) h.scale.setScalar(axisLenFor(cam, h.position, rect) * FRUSTUM_SCREEN / AXIS_SCREEN);
 }
 // ---------- ライト ----------
 // **ここは照明のシミュレータではない。** 明るさも配光も計算していないし、
@@ -3253,6 +3269,7 @@ function drawView(view, rect, isMain){
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
     renderer.setClearColor(capturing ? 0xdfe2e7 : view==='plan'?0x2a2d34:0x30343b); renderer.clear();  // paper wants a light surround, not the app's dark one
     if (showSel) fitAxes(cam, rect);               // 3DGS の軸は画面の大きさに合わせる
+    fitFrustum(cam, rect);                         // スタジオを消しているときの撮影範囲も
     renderer.render(scene, cam);
     if (isMain && !capturing) drawLabels(view, cam, rect);
   }
@@ -4175,7 +4192,7 @@ function renderList(){
     eye.className = 'ico eye'; eye.title = state.studio.hidden ? '表示する' : '隠す';
     eye.setAttribute('aria-label', eye.title); eye.innerHTML = state.studio.hidden ? EYE_OFF : EYE_ON;
     eye.addEventListener('click', e => { e.stopPropagation();
-      state.studio.hidden = !state.studio.hidden; buildDims(); renderList(); renderSel(); needRender = true; saveHash(); });
+      state.studio.hidden = !state.studio.hidden; buildDims(); buildFrustum(camItem()); renderList(); renderSel(); needRender = true; saveHash(); });
     row.append(b, eye); el.appendChild(row);
   }
   const counts = {};
@@ -6093,7 +6110,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

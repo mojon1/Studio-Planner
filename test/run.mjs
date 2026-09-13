@@ -1623,6 +1623,24 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // 部屋（10 x 8）が消えたので、スキャン（2 m 角）に合わせて引き直される
   ok('and it shrinks to the scan it is left with', !!grid && grid.x < roomGrid.x && grid.z < roomGrid.z,
      `${roomGrid.x}x${roomGrid.z} -> ${grid.x}x${grid.z}`);
+  // スタジオを消したら撮影範囲の四角錐は消した壁で切らず、画面の短辺の 35% の長さで描く（寺村さんの指摘）
+  const frus = () => t.page.evaluate(() => {
+    const s = window.__sp, f = s.frustum(), h = f.children[0]; if (!h) return null;
+    const free = !!h.userData.screenFrustum; if (!free) return {free};
+    h.updateMatrixWorld(true); const cam = s.camera(), r = document.getElementById('view').getBoundingClientRect();
+    const ln = h.children.find(c => c.isLineSegments); const a = ln.geometry.attributes.position;
+    const o = h.position.clone().project(cam), c = new s.THREE.Vector3(a.getX(1), a.getY(1), a.getZ(1)).applyMatrix4(h.matrixWorld).project(cam);
+    return {free, px: Math.hypot((c.x - o.x) / 2 * r.width, (c.y - o.y) / 2 * r.height) / Math.min(r.width, r.height)};
+  });
+  await t.page.evaluate(() => { const s = window.__sp; s.orbit.theta = 0.7; s.orbit.phi = 1.0; s.orbit.radius = 8; s.orbit.target.set(0, 0.8, 0); s.render(); }); await t.page.waitForTimeout(300);
+  const fr0 = await frus();
+  ok('the shot pyramid is no longer clipped by the hidden studio and is sized by the screen',
+     !!fr0 && fr0.free && fr0.px > 0.2 && fr0.px < 0.4, JSON.stringify(fr0));
+  await t.page.evaluate(() => { const s = window.__sp; s.orbit.radius *= 3; s.render(); }); await t.page.waitForTimeout(300);
+  const fr1 = await frus();
+  // 四角錐は視線に対して斜めに伸びるので、近くで見るとパースぶん少し違って映る（±0.05）。3 倍引いても同じ大きさ
+  ok('and keeps that size when the view pulls back', !!fr1 && Math.abs(fr1.px - fr0.px) < 0.05, `${fr0.px} -> ${fr1?.px}`);
+  await t.page.evaluate(() => { const s = window.__sp; s.orbit.radius /= 3; s.render(); });
 
   // 目のマークで消したら、視点を動かさなくてもその場で消える
   await t.page.click('#items .itemrow[data-kind="splat"] .ico.eye'); await t.page.waitForTimeout(1800);
@@ -1636,6 +1654,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('and bringing it back fills it again',
      (await t.page.evaluate(() => window.__sp.spark()?.activeSplats ?? 0)) > 0);
   await t.page.click('#items .itemrow[data-kind="studio"] .ico.eye'); await t.page.waitForTimeout(500);
+  ok('with the studio back the pyramid is clipped by the walls again', (await frus())?.free === false);
   await t.page.screenshot({ path: `${OUT}/scan.png` });
 
   // 共有リンクには置き方だけ。実体（10 MB 級）は原理的に載らない
