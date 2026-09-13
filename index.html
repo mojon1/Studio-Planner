@@ -385,7 +385,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.33.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.33.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -914,6 +914,7 @@ const persCam = new THREE.PerspectiveCamera(45, 1.5, 0.05, 500);
 const orbit = {theta:0.7, phi:1.0, radius:12, target:new THREE.Vector3()};
 // 視点をどこまで引けるか。街並みのスキャンは 80 m では全体が入らない
 const ORBIT_MAX = () => Math.max(80, worldSpan().reach * 4);
+const ORBIT_PHI_MAX = Math.PI / 2;   // 視点の見下ろし角の下限＝水平（地面には潜らない）
 function resetOrbit(){ const {w,d,h} = state.studio; orbit.theta = 0.7; orbit.phi = 1.0; orbit.radius = Math.max(w, d, worldSpan().reach*2)*1.5; orbit.target.set(0, h*0.3, 0); }
 function applyOrbit(){
   const {theta, phi, radius, target} = orbit;
@@ -3481,7 +3482,8 @@ canvas.addEventListener('pointermove', e => {
     if (it.type === 'splat') spinSplat(it, 'y', nr - (it.rot || 0)); it.rot = nr; updateItemTransform(it); needRender = true; return; }   // 3DGS の並べ直しは指を離したとき（endPointer）
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
     // パースは何もない場所のドラッグで回す。平行投影の 3 面は動かす
-    if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, 1.5); needRender = true; return; }
+    // 見下ろす角度は真上の手前（0.15 rad）から**地面ぎりぎり（水平 = π/2）**まで（寺村さんの指示。以前は 1.5 rad ≒ 水平の 4° 手前で止めていた）
+    if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, ORBIT_PHI_MAX); needRender = true; return; }
     panView(dx, dy); }
 });
 function lookDrag(dx, dy){ const ci = camItem(); if (!ci) return; ci.rot = norm(ci.rot - dx*0.15); ci.pitch = clamp(Math.round((ci.pitch - dy*0.15)*10)/10, -TILT_MAX, TILT_MAX); refreshCam(ci); needRender = true; }

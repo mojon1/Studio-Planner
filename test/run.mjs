@@ -3024,6 +3024,14 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 20); });
   ok('the height goes far beyond 6 m now', (await sp()).gy === 20);
   ok('and the ring follows the axis up', Math.abs(await S(() => window.__sp.gizmo.position.y) - 20.012) < 1e-6);
+  // 3D ビューの見下ろし角は地面ぎりぎり（水平）まで倒せる（寺村さんの指示）
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(200);
+  const ph0 = await S(() => window.__sp.orbit.phi);
+  const gv = await P.locator('#gl').boundingBox();
+  await P.mouse.move(gv.x + gv.width * 0.5, gv.y + gv.height * 0.5); await P.mouse.down();
+  await P.mouse.move(gv.x + gv.width * 0.5, gv.y + gv.height * 0.5 - 400, {steps: 10}); await P.mouse.up(); await P.waitForTimeout(200);
+  const ph1 = await S(() => ({phi: window.__sp.orbit.phi, camY: window.__sp.camera().position.y, tY: window.__sp.orbit.target.y}));
+  ok('the 3D view can be tilted all the way down to the horizon', ph1.phi > ph0 && Math.abs(ph1.phi - Math.PI / 2) < 1e-9 && Math.abs(ph1.camY - ph1.tY) < 1e-6, JSON.stringify({ph0, ph1}));
   await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'lift', 0); s.setProp(it, 'tiltZ', 20); s.setProp(it, 'cropOn', '1'); }); await P.waitForTimeout(400);
   ok('crop handles still come out on a tilted scan', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 6);
   const link2 = await S(() => location.hash);
