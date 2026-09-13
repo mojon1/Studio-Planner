@@ -1378,6 +1378,9 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      (await t.page.$$('[data-sec="share"] .btn.primary')).length === 0);
   // 見るだけは共有タブからも QR からも外した（新しく作る道はもう無い）
   ok('the view-only button is gone', !(await t.page.$('#copyview')));
+  // いちばん下は紹介動画（YouTube）へのリンク。ボタンではなくリンクなので出口の並びには数えない
+  const yt = await t.page.$eval('[data-sec="share"] > :last-child', e => ({cls: e.className, href: e.getAttribute('href'), target: e.target, svg: !!e.querySelector('svg'), text: e.textContent.trim()}));
+  ok('the intro video link sits at the very bottom of the share tab', yt.cls === 'ytlink' && yt.href === 'https://youtu.be/pjHt0Eg4Tx4' && yt.target === '_blank' && yt.svg && yt.text === '紹介動画を見る', JSON.stringify(yt));
   // URL の欄はクリップボードが塞がれているときだけ出る
   ok('the URL box stays out of the way', await t.page.evaluate(() => document.getElementById('linkbox').hidden));
   // リンクと QR のすぐ下で、実体が乗らないことを言う
@@ -3031,7 +3034,12 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await P.mouse.move(gv.x + gv.width * 0.5, gv.y + gv.height * 0.5); await P.mouse.down();
   await P.mouse.move(gv.x + gv.width * 0.5, gv.y + gv.height * 0.5 - 400, {steps: 10}); await P.mouse.up(); await P.waitForTimeout(200);
   const ph1 = await S(() => ({phi: window.__sp.orbit.phi, camY: window.__sp.camera().position.y, tY: window.__sp.orbit.target.y}));
-  ok('the 3D view can be tilted all the way down to the horizon', ph1.phi > ph0 && Math.abs(ph1.phi - Math.PI / 2) < 1e-9 && Math.abs(ph1.camY - ph1.tY) < 1e-6, JSON.stringify({ph0, ph1}));
+  // 止めるのは角度ではなく「視点が床に潜らない」こと。注視点が床より上なら水平を越えて、視点の高さが床（2 cm）に着く
+  ok('the 3D view can be tilted until the eye sits on the floor', ph1.phi > ph0 && ph1.phi > Math.PI / 2 && ph1.tY > 0 && Math.abs(ph1.camY - 0.02) < 1e-6, JSON.stringify({ph0, ph1}));
+  // 引いても（radius が変わっても）床には潜らない
+  const ph2 = await S(() => { const s = window.__sp; s.orbit.radius *= 3; s.render(); return new Promise(r => requestAnimationFrame(() => r({phi: s.orbit.phi, camY: s.camera().position.y}))); });
+  ok('and pulling back keeps the eye on the floor instead of under it', ph2.camY >= 0.02 - 1e-6 && ph2.camY < 0.03 && ph2.phi < ph1.phi, JSON.stringify(ph2));
+  await S(() => { const s = window.__sp; s.orbit.radius /= 3; s.orbit.phi = 1.0; s.render(); });
   await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'lift', 0); s.setProp(it, 'tiltZ', 20); s.setProp(it, 'cropOn', '1'); }); await P.waitForTimeout(400);
   ok('crop handles still come out on a tilted scan', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 6);
   const link2 = await S(() => location.hash);

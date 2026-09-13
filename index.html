@@ -108,9 +108,13 @@ body.folded:not(.viewer) #app{grid-template-columns:1fr}
 h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:700}
 h2:first-child{margin-top:0}
 .hint{font-size:.82rem;color:var(--ink2);margin:6px 0 10px}
-.colophon{margin:22px 0 0;font-size:.62rem;line-height:1.6;color:var(--muted);text-align:center}
+.colophon{margin:22px 0 0;font-size:.72rem;line-height:1.6;color:var(--muted);text-align:center}
 .colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .colophon a:hover{color:var(--ink2)}
+/* 紹介動画（YouTube）。共有タブのいちばん下。ボタン（.btn）ではなくリンクなので、出口の並びには数えない */
+.ytlink{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 0;font-size:.78rem;color:var(--muted);text-decoration:none}
+.ytlink svg{width:26px;height:18px;flex:none}
+.ytlink:hover{color:var(--ink2)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 .btn{min-height:44px;padding:8px 14px;border:1px solid var(--rule);background:var(--btn);color:var(--ink);border-radius:8px;font:inherit;font-weight:500;cursor:pointer;flex:1 1 auto;text-align:center}
 .btn.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:var(--btn-on)}
@@ -385,7 +389,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.33.2<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.33.3<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg><span>紹介動画を見る</span></a>
       </div>
     </div>
   </div>
@@ -549,7 +554,7 @@ const EN = {
   'PDF にする':'Make PDF','PDF に保存':'Save as PDF','PDF資料作成':'PDF sheet','このカットだけ':'This shot only',
   'ソフトボックス':'Softbox','ロックしました':'Locked','共有QRコード':'Share QR code','図の位置を戻す':'Reset views',
   '外部3Dデータ':'External 3D data','URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください':'Could not fetch the URL. The host must allow direct browser access (CORS). Download the file and import it with “External 3D data” instead','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
-  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','このカットを削除':'Delete this shot',
+  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','紹介動画を見る':'Watch the intro video','紹介動画（YouTube）':'Intro video (YouTube)','このカットを削除':'Delete this shot',
   '取り込んだモデル':'Imported model','名前をつけて保存':'Save as','表示を中心に戻す':'Recenter view','○○ CM 30秒':'Project name',
   'この配置を編集する':'Edit this layout','オブジェクトを追加':'Add object','ドラッグで並べ替え':'Drag to reorder',
   'ロックを外しました':'Unlocked','別ウィンドウで開く':'Open in a new window','マイクロフォーサーズ':'Micro Four Thirds',
@@ -914,9 +919,15 @@ const persCam = new THREE.PerspectiveCamera(45, 1.5, 0.05, 500);
 const orbit = {theta:0.7, phi:1.0, radius:12, target:new THREE.Vector3()};
 // 視点をどこまで引けるか。街並みのスキャンは 80 m では全体が入らない
 const ORBIT_MAX = () => Math.max(80, worldSpan().reach * 4);
-const ORBIT_PHI_MAX = Math.PI / 2;   // 視点の見下ろし角の下限＝水平（地面には潜らない）
+// 視点はどこまで倒せるか。「水平（phi = π/2）」で止めると、注視点が床より上に居るぶん
+// 視点も床より上に浮いたままで、床の奥の縁が数度ぶん下に残る（寺村さんの指摘「4 度くらいで止まる」）。
+// 止めるのは角度ではなく「視点が床（ORBIT_EYE_MIN）より下に潜らない」こと。注視点が床の上なら
+// 水平を少し越えて見上げるところまで倒れ、そこで視点の高さがちょうど床に着く
+const ORBIT_PHI_MAX = Math.PI / 2, ORBIT_EYE_MIN = 0.02;
+const orbitPhiMax = () => Math.max(ORBIT_PHI_MAX, Math.acos(clamp((ORBIT_EYE_MIN - orbit.target.y) / orbit.radius, -1, 1)));
 function resetOrbit(){ const {w,d,h} = state.studio; orbit.theta = 0.7; orbit.phi = 1.0; orbit.radius = Math.max(w, d, worldSpan().reach*2)*1.5; orbit.target.set(0, h*0.3, 0); }
 function applyOrbit(){
+  orbit.phi = Math.min(orbit.phi, orbitPhiMax());   // 引いたり動かしたりして床に潜りかけたら、そこで止める
   const {theta, phi, radius, target} = orbit;
   persCam.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
   persCam.up.set(0,1,0); persCam.lookAt(target);
@@ -3483,7 +3494,7 @@ canvas.addEventListener('pointermove', e => {
   if (drag.pan){ if (Math.hypot(x-pt.sx, y-pt.sy) > 4) drag.maybeDeselect = false;
     // パースは何もない場所のドラッグで回す。平行投影の 3 面は動かす
     // 見下ろす角度は真上の手前（0.15 rad）から**地面ぎりぎり（水平 = π/2）**まで（寺村さんの指示。以前は 1.5 rad ≒ 水平の 4° 手前で止めていた）
-    if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, ORBIT_PHI_MAX); needRender = true; return; }
+    if (mainView === 'pers'){ orbit.theta -= dx*0.008; orbit.phi = clamp(orbit.phi - dy*0.008, 0.15, orbitPhiMax()); needRender = true; return; }
     panView(dx, dy); }
 });
 function lookDrag(dx, dy){ const ci = camItem(); if (!ci) return; ci.rot = norm(ci.rot - dx*0.15); ci.pitch = clamp(Math.round((ci.pitch - dy*0.15)*10)/10, -TILT_MAX, TILT_MAX); refreshCam(ci); needRender = true; }
