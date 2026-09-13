@@ -1992,6 +1992,9 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the colophon is one line and the whole line links to the site',
      col.href === 'https://www.taichi-teramura.com/' && col.lines === 0 && col.linked && !/taichi-teramura\.com/.test(col.text), JSON.stringify(col));
   ok('and the copyright is still there', col.text.includes('© 2026 Taichi Teramura'), col.text);
+  // リンクだと分かるように青文字で常に下線（寺村さんの指示）
+  const st = await t.page.$eval('.colophon a', a => { const c = getComputedStyle(a); return {color: c.color, deco: c.textDecorationLine}; });
+  ok('and it reads as a link: blue and always underlined', st.color === 'rgb(42, 98, 201)' && /underline/.test(st.deco), JSON.stringify(st));
   ok('colophon run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
