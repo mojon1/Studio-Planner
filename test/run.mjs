@@ -15,6 +15,30 @@ const OUT = path.join(HERE, 'out');                 // screenshots land here
 fs.mkdirSync(OUT, { recursive: true });
 let failures = 0;
 const ok = (label, cond, detail = '') => { if (!cond) failures++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${detail ? '  ' + detail : ''}`); };
+// ---------- 部分実行 ----------
+//   node run.mjs                 全部（リリース前は必ずこれ）
+//   node run.mjs --only 25,28    番号のブロックだけ（28b のような枝番も可）
+//   node run.mjs --skip 27       そのブロックを飛ばす
+//   node run.mjs --quick         文字直し・パネルの並べ替え向けの短いセット（QUICK）
+//   node run.mjs --list          ブロックの一覧
+// 各ブロックは block(id, title, fn) で包んであり、飛ばすときは中を 1 行も走らせない。
+// ブロックが途中で例外を投げても止めずに FAIL として数え、次へ進む（終了コードは 1 になる）
+const ARGS = process.argv.slice(2);
+const argList = flag => { const i = ARGS.indexOf(flag); return i >= 0 && ARGS[i + 1] ? ARGS[i + 1].split(',').map(s => s.trim()).filter(Boolean) : null; };
+const QUICK = ['1', '21', '28d', '37'];       // 起動と基本操作・パネルと共有タブ・コロフォン・英語表示
+let ONLY = argList('--only'); const SKIP = argList('--skip') || [];
+if (ARGS.includes('--quick')) ONLY = QUICK;
+const LIST_ONLY = ARGS.includes('--list');
+const blockTimes = [];
+async function block(id, title, fn){
+  if (LIST_ONLY){ console.log(`${id.padEnd(4)} ${title}`); return; }
+  if ((ONLY && !ONLY.includes(id)) || SKIP.includes(id)) return;
+  console.log(`\n--- ${id}. ${title}`);
+  const t0 = Date.now();
+  try { await fn(); }
+  catch (e){ failures++; console.log(`FAIL block ${id} threw: ${e?.stack || e}`); }
+  blockTimes.push([id, (Date.now() - t0) / 1000]);
+}
 
 // a 2 x 1 x 3 m box, hand-built so the importer has something with known dimensions
 function makeGLB(){
@@ -147,7 +171,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 }
 
 // --- 1. desktop: place things, drive the manipulator, check the sensor panel ----------
-{
+await block('1', `desktop: place things, drive the manipulator, check the sensor panel`, async () => {
   const t = await open('desktop', { width: 1500, height: 950 });
   for (const m of ['asia-casual-man','asia-casual-woman','af-casual-man','us-casual-woman']) await t.addPerson(m);
   for (const k of ['car','chair','table','box','mirror','chroma']) await t.add(`[data-add="${k}"]`);
@@ -282,10 +306,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('desktop run clean', t.errors.length === 0, t.errors.join(' | '));
   global.__link = link;
   await t.ctx.close();
-}
+});
 
 // --- 2. mobile: the shared link restores, and touch selects ---------------------------
-{
+await block('2', `mobile: the shared link restores, and touch selects`, async () => {
   const hash = global.__link.slice(global.__link.indexOf('#'));
   const t = await open('mobile', { width: 390, height: 844 }, true, hash);
   const n = await t.page.$$eval('#items .itemrow', b => b.length);
@@ -296,10 +320,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/mobile.png` });
   ok('mobile run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 3. model import, and the box fallback for someone without the file ---------------
-{
+await block('3', `model import, and the box fallback for someone without the file`, async () => {
   const t = await open('import', { width: 1400, height: 900 });
   const glb = `${OUT}/test-box.glb`; fs.writeFileSync(glb, makeGLB());
   await t.page.click('#addfab');
@@ -323,10 +347,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('a model this device lacks shows as a box', note.includes('実寸の箱'), note.slice(0, 40));
   ok('shared run clean', g.errors.length === 0, g.errors.join(' | '));
   await g.ctx.close();
-}
+});
 
 // --- 4. links written before the format list and the meta block still open -----------
-{
+await block('4', `links written before the format list and the meta block still open`, async () => {
   const legacy = {studio:{w:8,d:6,h:4,cove:true}, items:[
     {id:'c1',type:'camera',x:0,z:2,y:1.4,rot:270,pitch:0,sensor:'apsc',focal:35,aspect:'3:2'}]};
   const t = await open('legacy', { width: 1280, height: 800 }, false, '#s=' + encodeState(legacy));
@@ -334,10 +358,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('APS-C link becomes a 23.5 mm manual width', info.includes('23.5mm'), info.split('\n')[1]);
   ok('legacy run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 5. the printed sheet -------------------------------------------------------------
-{
+await block('5', `the printed sheet`, async () => {
   const t = await open('pdf', { width: 1500, height: 950 });
   await t.add('[data-add="chroma"]');
   await t.tab('cut');                                  // カット名とメモはカットタブへ移した
@@ -425,22 +449,22 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/pdf-after.png` });
   ok('pdf run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 6. viewer mode -------------------------------------------------------------------
-{
+await block('6', `viewer mode`, async () => {
   const hash = global.__link.slice(global.__link.indexOf('#'));
   const t = await open('viewer', { width: 390, height: 844 }, true, hash + '&m=v');
   // 新しく作る道は無いが、配ってしまった古い m=v のリンクは今までどおり開く
   ok('an old m=v link still opens read-only', await t.page.$eval('#panel', e => getComputedStyle(e).display === 'none'));
   ok('viewer run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 7. 書き出したファイルの渡し方（3 経路）------------------------------------------
 // **配置だけのプロジェクトファイル（.json）は外した**（中身が共有リンクと同じだった）。
 // saveFile() の 3 段構えは画像でも同じ道を通るので、そちらで見る
-{
+await block('7', `書き出したファイルの渡し方（3 経路）`, async () => {
   const t = await open('savefile', { width: 1280, height: 800 });
   await t.add('[data-add="chroma"]');
   await t.tab('cut');
@@ -496,10 +520,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 
   ok('save dialog run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 8. the built-in person model -------------------------------------------------------
-{
+await block('8', `the built-in person model`, async () => {
   const t = await open('person', { width: 1280, height: 800 });
   await t.page.click('#items .itemrow > button.name >> nth=1');   // the default 男性
   await t.page.waitForTimeout(300);
@@ -686,10 +710,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('and the mannequin is still standing there', Math.abs(h - 1.7) < 0.05, `${h} m`);
   ok('missing-model run clean', g.errors.length === 0, g.errors.join(' | '));
   await g.ctx.close();
-}
+});
 
 // --- 10. hit ranges, the right-click menu, the list buttons, the edge handles ------
-{
+await block('10', `hit ranges, the right-click menu, the list buttons, the edge handles`, async () => {
   const t = await open('handles', { width: 1300, height: 900 });
   const P = t.page;
   const world = (x, z, y = 0) => P.evaluate(([x, y, z]) => {
@@ -764,10 +788,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the mirror has no water any more', kinds.join('/') === '床の鏡/立て鏡', kinds.join('/'));
   ok('handles run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 11. defaults, renaming, per-edge dimensions, the camera on a box ---------------
-{
+await block('11', `defaults, renaming, per-edge dimensions, the camera on a box`, async () => {
   const t = await open('defaults', { width: 1300, height: 900 });
   const P = t.page;
   const st = () => P.evaluate(() => window.__sp.state());
@@ -813,8 +837,8 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   }
   ok('defaults run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
-{
+});
+await block('11', `defaults, renaming, per-edge dimensions, the camera on a box (2)`, async () => {
   // 箱に乗せたカメラは、その高さから見る。布は箱に乗らない
   const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
     {id:'b1',type:'box',x:0,z:2,rot:0,w:1.2,d:1.2,h:0.8,color:'#a9b0bd'},
@@ -829,10 +853,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      await t.page.evaluate(() => window.__sp.group('k1').position.y) === 0);
   ok('on-a-box run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 12. the camera window: dragging inside it pans and tilts, and it redraws --------
-{
+await block('12', `the camera window: dragging inside it pans and tilts, and it redraws`, async () => {
   const t = await open('finder', { width: 1300, height: 900 });
   const P = t.page;
   const body = await P.locator('#pip .body').boundingBox();
@@ -858,10 +882,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the finder camera really carries that angle', a < 0.001, String(a));
   ok('finder run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 13. front view, grid switch, apple boxes, camera angles, shared poses --------
-{
+await block('13', `front view, grid switch, apple boxes, camera angles, shared poses`, async () => {
   const t = await open('batch', { width: 1400, height: 900 });
   const P = t.page;
   const st = () => P.evaluate(() => window.__sp.state());
@@ -940,8 +964,8 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      String(await P.evaluate(() => window.__sp.state().items.find(i => i.type === 'camera').pitch)));
   ok('batch run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
-{
+});
+await block('13', `front view, grid switch, apple boxes, camera angles, shared poses (2)`, async () => {
   // 共有リンクを開いた直後、誰もパネルを開かなくてもポーズが乗っている
   const posed = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:8,d:6,h:4,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
     {id:'p1',type:'person',x:0,z:0,rot:0,height:1.72,pose:'stand',kind:'man',model:'asia-casual-man',posture:'sit-chair'},
@@ -957,10 +981,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('a shared link brings the pose with it', h > 1.0 && h < 1.5, `${h} m`);
   ok('shared-pose run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 14. stacking: apple boxes on each other, things on tables ---------------------
-{
+await block('14', `stacking: apple boxes on each other, things on tables`, async () => {
   const K = (id, x, z, kind) => { const S = {flat:[0.45,0.30,0.15], side:[0.45,0.15,0.30], end:[0.30,0.15,0.45]}[kind];
     return {id, type:'koma', x, z, rot:0, kind, w:S[0], d:S[1], h:S[2], color:'#d8c4a0'}; };
   const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:6,d:5,h:3.2,cove:{back:true,left:true,right:true}}, activeCam:'c1', items:[
@@ -990,10 +1014,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      `k1=${await y('k1')} k2=${await y('k2')} k3=${await y('k3')}`);
   ok('stack run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 15. undo / redo, cuts, and the readout that gets out of the way ---------------
-{
+await block('15', `undo / redo, cuts, and the readout that gets out of the way`, async () => {
   const t = await open('cuts', { width: 1200, height: 800 });
   ok('three tabs, カット in the middle',
      (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/保存・共有',
@@ -1067,10 +1091,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the readout never sits on the view buttons', hidden);
   await m.ctx.close();
   await t.ctx.close();
-}
+});
 
 // --- 16. QR: the hand-written encoder, module for module, and the dialog -----------
-{
+await block('16', `QR: the hand-written encoder, module for module, and the dialog`, async () => {
   // 自前の実装なので、参照実装（qrcode）と 1 モジュールずつ突き合わせる。
   // マスクの選び方だけは実装ごとに差が出るので、参照実装が選んだマスクに固定して比べ、
   // そのうえで自動選択の出力を jsQR で実際に読ませる。
@@ -1121,10 +1145,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('and it closes', !(await t.page.$eval('#qrdlg', e => e.classList.contains('on'))));
   ok('qr run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
   await t2.ctx.close(); await t.ctx.close();
-}
+});
 
 // --- 17. offline: the service worker really serves the app with the network cut ----
-{
+await block('17', `offline: the service worker really serves the app with the network cut`, async () => {
   // Service Worker はページの route を通らないので、この確認だけは three も
   // 同じサーバーから配る。index.html と sw.js の CDN の宛先を差し替えて出す。
   const CDN = 'https://cdn.jsdelivr.net/npm/three@0.180.0/';
@@ -1178,10 +1202,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   fs.writeFileSync(path.join(OUT, 'offline.png'), await off.screenshot());
   ok('offline run clean', errors.length === 0, errors.join(' | '));
   await ctx.close(); swServer.close();
-}
+});
 
 // --- 18. the car is a real model now, not a stack of blocks ------------------------
-{
+await block('18', `the car is a real model now, not a stack of blocks`, async () => {
   const t = await open('car', { width: 1200, height: 800 });
   await t.add('[data-add="car"]');
   await t.page.waitForTimeout(2500);
@@ -1273,10 +1297,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t2.page.screenshot({ path: `${OUT}/car.png` });
   ok('car run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
   await t2.ctx.close(); await t.ctx.close();
-}
+});
 
 // --- 19. the finder: an eye, not a shutter, and a window of its own ----------------
-{
+await block('19', `the finder: an eye, not a shutter, and a window of its own`, async () => {
   const t = await open('popout', { width: 1300, height: 850 });
   const d = await t.page.$eval('#pipbtn svg path', e => e.getAttribute('d'));
   ok('the bottom-right button is an eye, not a camera', d.startsWith('M2 12s'), d.slice(0, 12));
@@ -1310,10 +1334,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('closing it brings the small window back', await t.page.$eval('#pip', e => getComputedStyle(e).display) === 'block');
   ok('popout run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 20. moving the view, and getting back to the middle --------------------------
-{
+await block('20', `moving the view, and getting back to the middle`, async () => {
   const t = await open('pan', { width: 1200, height: 800 });
   const box = await t.page.locator('#gl').boundingBox();
   const cx = box.x + box.width/2, cy = box.y + box.height/2;
@@ -1357,10 +1381,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('two fingers move the view as well', swiped[0] !== 0 && swiped[1] !== 0, swiped.join());
   ok('pan run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 21. the panel after the tidy-up --------------------------------------------
-{
+await block('21', `the panel after the tidy-up`, async () => {
   const t = await open('panel', { width: 1280, height: 860 });
   ok('the tab is called 保存・共有',
      (await t.page.$$eval('#tabs button', b => b.map(x => x.textContent.trim()).join('/'))) === 'オブジェクト/カット/保存・共有',
@@ -1424,10 +1448,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      await m.page.$eval('#pipout', e => getComputedStyle(e).display));
   ok('touch run clean', m.errors.length === 0, m.errors.join(' | '));
   await m.ctx.close();
-}
+});
 
 // --- 22. the tidy-up round: bins, pinch, angles, presets, the corner buttons -------
-{
+await block('22', `the tidy-up round: bins, pinch, angles, presets, the corner buttons`, async () => {
   const t = await open('polish', { width: 1300, height: 860 });
   // ゴミ箱: 消したあと、繰り上がってきた別の行が赤くならない
   for (const k of ['box','chair','table','koma']) await t.add(`[data-add="${k}"]`);
@@ -1495,10 +1519,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('and no long-press menu got in the way', await m.page.$eval('#ctx', e => e.hidden));
   ok('pinch run clean', m.errors.length === 0, m.errors.join(' | '));
   await m.ctx.close();
-}
+});
 
 // --- 23. home-screen app: keep clear of the notch and the home bar -----------------
-{
+await block('23', `home-screen app: keep clear of the notch and the home bar`, async () => {
   // iPhone にホーム画面から入れると viewport-fit=cover で画面いっぱいに広がり、
   // 上のボタンがノッチの下に潜る。ブラウザで開いたときは 0 のままであること。
   // Chromium に本物のノッチは無いので、変数を差し込んで配線だけ見る。
@@ -1533,10 +1557,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      JSON.stringify(panelOpen));
   ok('safe-area run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 24. the camera can be grabbed between the tripod legs ------------------------
-{
+await block('24', `the camera can be grabbed between the tripod legs`, async () => {
   const scene = {meta:{project:'',cut:'',memo:'',frames:{}}, studio:{w:10,d:8,h:4.5,cove:{back:true,left:true,right:true}},
     activeCam:'c1', items:[{id:'c1',type:'camera',x:0,z:2,y:1.3,rot:180,pitch:-6,roll:0,sensor:'ff',focal:35,aspect:'16:9'}]};
   const t = await open('camhit', { width: 1200, height: 820 }, false, '#s=' + encodeState(scene));
@@ -1573,10 +1597,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/camhit.png` });
   ok('camera hit run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 25. a location scan (3D gaussian splatting) -----------------------------------
-{
+await block('25', `a location scan (3D gaussian splatting)`, async () => {
   const t = await open('scan', { width: 1300, height: 860 });
   const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
   await t.page.click('#addfab');
@@ -1689,10 +1713,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      (await t2.page.textContent('#selbody')).slice(0, 60));
   ok('scan run clean', t.errors.length === 0 && t2.errors.length === 0, [...t.errors, ...t2.errors].join(' | '));
   await t2.ctx.close(); await t.ctx.close();
-}
+});
 
 // --- 26. cropping a location -------------------------------------------------------
-{
+await block('26', `cropping a location`, async () => {
   const t = await open('crop', { width: 1300, height: 860 });
   const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
   await t.page.click('#addfab');
@@ -1762,10 +1786,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the trim handles are sized by the screen (about 3% of the short side)', hpx != null && hpx > 0.018 && hpx < 0.04, String(hpx));
   ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 27. まとめて書き出す: one file that opens with no network at all ----------------
-{
+await block('27', `まとめて書き出す: one file that opens with no network at all`, async () => {
   const t = await open('bundle', { width: 1200, height: 820 });
   await t.addPerson('asia-casual-man');
   const ply = `${OUT}/scan.ply`; fs.writeFileSync(ply, makeSplatPLY());
@@ -1854,12 +1878,12 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   fs.writeFileSync(path.join(OUT, 'bundle-file.png'), await page.screenshot());
   ok('bundle run clean', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
 // --- 28. 3DGS が鏡に映る ------------------------------------------------------------
 // スキャンだけは「重いうえ、並べ替えが別視点で狂う」を理由に鏡から外していた。
 // 並べ替えは本体のカメラのぶんを使い回す（autoUpdate を切る）ことで入れてある
-{
+await block('28', `3DGS が鏡に映る`, async () => {
   const t = await open('splat-mirror', { width: 1200, height: 800 });
   const ply = `${OUT}/scan-colour.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
   await t.page.click('#addfab');
@@ -1907,7 +1931,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('the scan turns up in the mirror', moved > 250, `${moved} of ${withScan.length / 4} px changed`);
   ok('splat mirror run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 28b. 3DGS ＋ カメラ小窓：並べ替えが 2 つのカメラで取り合いにならない -------------
 // 小窓は本体と同じ 1 フレームの中でもう一度描かれる。Spark は「前に並べたカメラから
@@ -1915,7 +1939,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 // 「動いた」になり、並べ替えが終わらない**。終わるたびに onDirty で次のフレームが
 // 呼ばれるため描画も止まらず、絵は 2 つの並び順のあいだで揺れ続ける（寺村さんの
 // 「小窓を出すと 3DGS がちらつく」）。**手を離せば止まる**ことで見る。
-{
+await block('28b', `3DGS ＋ カメラ小窓：並べ替えが 2 つのカメラで取り合いにならない`, async () => {
   const t = await open('splat-pip', { width: 1200, height: 800 });
   const ply = `${OUT}/scan-pip.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
   await t.page.click('#addfab');
@@ -1961,13 +1985,13 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/splat-pip.png` });
   ok('splat pip run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 28c. 大きな 3DGS：動かせる範囲と、1/100〜100 倍の拡大縮小 ---------------------
 // 街並みのスキャンを持ち込むと、部屋の寸法で決めた範囲では何も置けない
 // （寺村さんの指摘）。**大きいものを入れるまでは今までどおり**で、入れたら
 // 移動範囲・画面・グリッド・カメラの far がそちらへ広がる、という形にしてある
-{
+await block('28c', `大きな 3DGS：動かせる範囲と、1/100〜100 倍の拡大縮小`, async () => {
   const t = await open('big-scan', { width: 1200, height: 800 });
   // --- まだ何も入れていないうち。ここが変わっていたら普段の仕事が壊れている ---
   const before = await t.page.evaluate(() => {
@@ -2031,10 +2055,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/big-scan.png` });
   ok('big scan run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 28d. コロフォン ----------------------------------------------------------------
-{
+await block('28d', `コロフォン`, async () => {
   const t = await open('colophon', { width: 1200, height: 800 });
   await t.tab('share');
   const col = await t.page.$eval('.colophon', n => ({ text: n.textContent, href: n.querySelector('a')?.href, lines: n.querySelectorAll('br').length, linked: n.querySelector('a')?.textContent === n.textContent }));
@@ -2045,12 +2069,16 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // リンクだと分かるように青文字で常に下線（寺村さんの指示）
   const st = await t.page.$eval('.colophon a', a => { const c = getComputedStyle(a); return {color: c.color, deco: c.textDecorationLine}; });
   ok('and it reads as a link: blue and always underlined', st.color === 'rgb(42, 98, 201)' && /underline/.test(st.deco), JSON.stringify(st));
+  // コロフォンの版と sw.js の VERSION は同じでなければならない（やってはいけないこと 25。tools/bump.mjs が両方を上げる）
+  const swv = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/const VERSION = 'v(\d+\.\d+\.\d+)'/)?.[1];
+  const colv = col.text.match(/v(\d+\.\d+\.\d+)/)?.[1];
+  ok('the colophon version matches the service worker VERSION', !!colv && colv === swv, `${colv} vs ${swv}`);
   ok('colophon run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 29. 書き出しボタンの名前、取り込みの上限、iPhone のファイル選び ------------------
-{
+await block('29', `書き出しボタンの名前、取り込みの上限、iPhone のファイル選び`, async () => {
   // 上限は「現場のスキャンが入らない」と言われて倍にしたもの。下げると元に戻るので、
   // 数字そのものと、画面に出す文言が一致していることを見る（片方だけ直すのが怖い）
   const appSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -2071,8 +2099,8 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      (await t.page.getAttribute('#file', 'accept') || '').includes('.spz'));
   ok('naming run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
-{
+});
+await block('29', `書き出しボタンの名前、取り込みの上限、iPhone のファイル選び (2)`, async () => {
   // iOS のファイル App は、accept に知らない拡張子が並ぶと中身をまとめてグレーアウトする。
   // .spz / .ply / .glb / .fbx はどれも UTI を持たないので、iPhone では accept ごと外す
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
@@ -2094,12 +2122,12 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
      String(await page.getAttribute('#file', 'accept')));
   ok('iphone picker run clean', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
 // --- 30. ＋ で置いても、パネルの開き／畳みは置く前のまま --------------------------
 // 携帯は畳んであるのが既定。＋ で置くたびに設定パネルがせり上がると図が半分になり、
 // 続けて置きたいだけの人には邪魔でしかない（寺村さんの指摘）
-{
+await block('30', `＋ で置いても、パネルの開き／畳みは置く前のまま`, async () => {
   const t = await open('addfold', { width: 390, height: 844 }, true);
   const folded = () => t.page.evaluate(() => document.body.classList.contains('folded'));
   ok('a phone starts with the panel folded away', await folded() === true);
@@ -2121,12 +2149,12 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   ok('placing another one leaves it open', await folded() === false);
   ok('add-fold run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 31. 指だけの端末：長押しでメニュー、画面は文字選択にならない -------------------
 // スマホで長押し／感圧タッチをすると画面じゅうが「文字選択」に化けていた。
 // 一覧の行も、iOS Safari は contextmenu を投げないのでメニューが出ず選択になっていた
-{
+await block('31', `指だけの端末：長押しでメニュー、画面は文字選択にならない`, async () => {
   const t = await open('touchmenu', { width: 390, height: 844 }, true);
   const css = await t.page.evaluate(() => [...document.querySelectorAll('style')].map(s => s.textContent).join(''));
   const how = await t.page.evaluate(() => {
@@ -2187,12 +2215,12 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.screenshot({ path: `${OUT}/touchmenu.png` });
   ok('touch menu run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 32. 3D データ書き出し（GLB） --------------------------------------------------
 // C4D などで続きをやるための出口。**FBX も書いていたが、C4D が中身を読めなかった**
 // ので外した（寺村さんが Blender と C4D の両方で確かめた）。GLB はどちらでも開く。
-{
+await block('32', `3D データ書き出し（GLB）`, async () => {
   const t = await open('glb', { width: 1100, height: 800 });
   await t.addPerson('asia-casual-woman');
   await t.add('[data-add="box"]');
@@ -2290,14 +2318,14 @@ window.__ready = true;
   ok('the button offers it as a .glb to save', /\.glb$/.test(await t.page.evaluate(() => window.__saved) || ''));
   ok('glb run clean', t.errors.length === 0 && gr.errors.length === 0, t.errors.concat(gr.errors).join(' | '));
   await gr.ctx.close(); await t.ctx.close();
-}
+});
 
 
 // --- 33. ライト -----------------------------------------------------------------
 const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
 // **照明のシミュレータではない。** 明るさは計算していないので、見るのは
 // 「幾何がそのとおりに three のライトへ写っているか」と「図面が図面のままか」
-{
+await block('33', `ライト`, async () => {
   const t = await open('lights', { width: 1240, height: 820 });
   // ＋ のボタンは 1 つだけ（型は設定パネルで変える。寺村さんの指示）
   await t.page.click('#addfab'); await t.page.waitForTimeout(400);
@@ -2562,13 +2590,13 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
 
   ok('lights run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 34. 写真ポーズ指定 --------------------------------------------------------
 // MediaPipe をブラウザの中で動かして、写真の人の姿勢を 23 関節に写す。
 // 写真はアプリ自身が描いた人物（座る・立つ）を使う。本物の写真を持ち込まなくても、
 // 「膝が曲がっているか」で検出とポーズ写しが通っているかを見られる
-{
+await block('34', `写真ポーズ指定`, async () => {
   const t = await open('photopose', { width: 900, height: 900 });
   const p = t.page;
   await p.click('#items .itemrow[data-kind="person"] > button.name'); await p.waitForTimeout(300);
@@ -2640,12 +2668,12 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('picking a preset pose drops the photo coordinates', after.posture === 'sit-chair' && after.photo === undefined, JSON.stringify(after));
   ok('photo pose runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 35. 環境光 --------------------------------------------------------------
 // 0〜100 の 1 本のつまみ。ライトを置くと自動で 25、無ければ 50。手で動かした値は
 // ライトの有無が切り替わるまで残る。0 で真っ暗（絵だけ。図面は平らなまま）
-{
+await block('35', `環境光`, async () => {
   const t = await open('ambient', { width: 1100, height: 800 });
   const p = t.page;
   await p.click('#items .itemrow[data-kind="studio"] > button.name'); await p.waitForTimeout(300);
@@ -2677,10 +2705,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t2.ctx.close();
   ok('ambient runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 36. 人物の足元の円は選んだときだけ ------------------------------------------
-{
+await block('36', `人物の足元の円は選んだときだけ`, async () => {
   const t = await open('footdisc', { width: 1100, height: 800 });
   const p = t.page;
   const disc = () => p.evaluate(() => { const sp = window.__sp; const it = sp.state().items.find(i => i.type === 'person');
@@ -2695,13 +2723,13 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('never in the finder', await disc() === false, String(await disc()));
   ok('foot disc runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 37. 英語表示 ---------------------------------------------------------------
 // 設定は無い。?eng（または ?lang=en）で英語、無ければブラウザの言語で決まる。
 // 画面に出た文字を辞書で差し替える方式なので、「日本語が 1 つも残っていない」を
 // パネル・一覧・追加の一覧・カット・共有・用紙のバーで見る
-{
+await block('37', `英語表示`, async () => {
   const JP = /[぀-ヿ一-鿿：、。（）「」・〜]/;
   const jpIn = (p, sel) => p.evaluate(({ sel, JP }) => {
     const re = new RegExp(JP), out = [];
@@ -2778,12 +2806,12 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await ja.page.goto('http://localhost:8765/?lang=en'); await ja.page.waitForTimeout(1200);
   ok('?lang=en forces English on a Japanese browser', await ja.page.$eval('[data-tab="list"]', e => e.textContent.trim()) === 'Objects');
   await ja.ctx.close();
-}
+});
 
 // --- 38. 小窓はカメラの比率そのもの ---------------------------------------------
 // 黒い余白で埋めずに箱のほうを縦横比に合わせる（寺村さんの指示）。9:16 なら縦長になる。
 // 別ウィンドウのファインダーだけは余白を付けてよい（そちらは触っていない）
-{
+await block('38', `小窓はカメラの比率そのもの`, async () => {
   const t = await open('pip-aspect', { width: 1300, height: 900 });
   const P = t.page;
   const bodyAr = async () => { const b = await P.locator('#pip .body').boundingBox(); return b.width / b.height; };
@@ -2805,10 +2833,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await setAspect('9:16'); await P.screenshot({ path: `${OUT}/pip-916.png` });
   ok('pip aspect runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 39. 角のつまみ（床鏡・箱・テーブル）、丸テーブル、小窓の canvas、背景布の R ------------
-{
+await block('39', `角のつまみ（床鏡・箱・テーブル）、丸テーブル、小窓の canvas、背景布の R`, async () => {
   const t = await open('corner-handles', { width: 1300, height: 900 });
   const P = t.page;
   const handles = () => P.evaluate(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray()));
@@ -2875,10 +2903,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('the cove faces inward', inward !== null && inward < 0, String(inward));
   ok('corner handles run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 40. 寸法表示は最下部、カメラの高さつまみ、椅子・箱に座る ----------------------------
-{
+await block('40', `寸法表示は最下部、カメラの高さつまみ、椅子・箱に座る`, async () => {
   const t = await open('sit', { width: 1300, height: 900 });
   const P = t.page;
   await P.waitForFunction(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'person'); let k = false; s.group(it.id)?.traverse(n => { if (n.isSkinnedMesh) k = true; }); return k; }, null, { timeout: 20000 });
@@ -2935,10 +2963,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('the height handle stays out of the top view', hs === 0);
   ok('sit run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 41. 画面比率の手動設定 -------------------------------------------------------
-{
+await block('41', `画面比率の手動設定`, async () => {
   const t = await open('aspect-custom', { width: 1300, height: 900 });
   const P = t.page;
   await P.evaluate(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'camera').id, true); }); await P.waitForTimeout(400);
@@ -2968,10 +2996,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('zero is refused', (await cam()).h === 1);
   ok('aspect custom runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 42. 定規と、3DGS の軸・傾き・高さ ------------------------------------------------
-{
+await block('42', `定規と、3DGS の軸・傾き・高さ`, async () => {
   const t = await open('ruler', { width: 1300, height: 900 });
   const P = t.page, S = (fn, arg) => P.evaluate(fn, arg);
   const ruler = () => S(() => { const its = window.__sp.state().items.filter(i => i.type === 'ruler'); const it = its[its.length - 1]; return {x:it.x, z:it.z, a:it.a, b:it.b, n:its.length}; });
@@ -3112,10 +3140,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await P.keyboard.press('Escape');
   ok('ruler run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 // --- 43. 切り取りの箱のマニピュレータ、軸の大きさ、.sog の取り込み -------------
-{
+await block('43', `切り取りの箱のマニピュレータ、軸の大きさ、.sog の取り込み`, async () => {
   const t = await open('crop', { width: 1300, height: 900 });
   const P = t.page, S = (fn, arg) => P.evaluate(fn, arg);
   const sog = path.join(HERE, 'fixtures', 'scan.sog'), ply43 = `${OUT}/scan-crop.ply`; fs.writeFileSync(ply43, makeColourSplatPLY());
@@ -3209,8 +3237,11 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('there is no URL field in the add panel any more', (await P.$$eval('#urlin, #urlpick', e => e.length)) === 0);
   ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
-}
+});
 
 await browser.close(); server.close();
+if (LIST_ONLY) process.exit(0);
+if (ONLY || SKIP.length) console.log(`\n(partial run: ${blockTimes.length} block(s) — run the whole suite before a release)`);
+console.log('block times: ' + blockTimes.map(([id, t]) => `${id}=${t.toFixed(0)}s`).join(' '));
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
