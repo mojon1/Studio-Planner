@@ -3029,13 +3029,23 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const screenOf = v3 => S(v3 => { const s = window.__sp; const v = new s.THREE.Vector3(...v3).project(s.camera()); const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; }, v3);
   const splats = () => S(() => window.__sp.state().items.filter(i => i.type === 'splat').map(i => ({name:i.name, w:i.w, d:i.d, h:i.h})));
   const sp = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat');
-    const a = s.handles().children.find(k => k.userData.axes), bar = a?.children.find(c => c.geometry.type === 'CylinderGeometry');
-    return {crop:it.crop || null, on:s.cropGizOn(), gpos:s.cropGiz().position.toArray().map(v => +v.toFixed(3)), handles:s.handles().children.filter(k => k.isMesh).length, axisLen: bar ? bar.geometry.parameters.height : null}; });
+    // 軸の長さは画面の上で測る（原点と X の先端を投影した px の距離）。ビューの短辺の何割か
+    const a = s.handles().children.find(k => k.userData.axes); let axisPx = null;
+    if (a){ a.updateMatrixWorld(true); const cam = s.camera(), r = document.getElementById('view').getBoundingClientRect();
+      const o = a.position.clone().project(cam), t = new s.THREE.Vector3(1, 0, 0).applyMatrix4(a.matrixWorld).project(cam);
+      axisPx = Math.hypot((t.x - o.x) / 2 * r.width, (t.y - o.y) / 2 * r.height) / Math.min(r.width, r.height); }
+    return {crop:it.crop || null, on:s.cropGizOn(), gpos:s.cropGiz().position.toArray().map(v => +v.toFixed(3)), handles:s.handles().children.filter(k => k.isMesh).length, axisPx}; });
   await P.setInputFiles('#file', ply43);
   await P.waitForFunction(() => window.__sp.state().items.some(i => i.type === 'splat'), null, { timeout: 120000 }); await P.waitForTimeout(2500);
   await S(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'splat').id, true); }); await P.waitForTimeout(400);
   let q = await sp();
-  ok('the axis is 15% of the scan (half of before)', Math.abs(q.axisLen - 0.45) < 1e-6, String(q.axisLen));
+  // 画面の短辺の 12%。斜めから見ているので X 軸は少し縮んで映る（0.7〜1.0 倍）
+  ok('the axis is sized by the screen (about 12% of the short side)', q.axisPx > 0.07 && q.axisPx < 0.13, String(q.axisPx));
+  const far0 = q.axisPx;
+  await S(() => { const s = window.__sp; s.orbit.radius *= 3; s.render(); }); await P.waitForTimeout(300);
+  const far1 = (await sp()).axisPx;
+  ok('and stays the same size on screen when the view pulls back', Math.abs(far1 - far0) < 0.01, `${far0} -> ${far1}`);
+  await S(() => { const s = window.__sp; s.orbit.radius /= 3; s.render(); }); await P.waitForTimeout(300);
   ok('no crop, no blue ring', q.on === false);
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'cropOn', '1'); }); await P.waitForTimeout(400);
   q = await sp();

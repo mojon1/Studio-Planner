@@ -378,7 +378,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.30.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.30.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -2876,11 +2876,15 @@ function updateHandles(){
     const g = itemObjs.get(it.id)?.group; if (g) handleGroup.add(splatAxes(it, g));
   }
 }
-// 線（1 px）では指の端末で見えないので、細い棒と矢じりで描く。太さは長さに比例
+// 線（1 px）では指の端末で見えないので、細い棒と矢じりで描く。太さは長さに比例。
+// **長さは画面の大きさで決める**（寺村さんの指示 — 外形の何割かでは、大きなスキャンや
+// 寄ったときに使いものにならない）。ここでは長さ 1 で組み、描く直前に `fitAxes()` が
+// 「ビューの短辺の AXIS_SCREEN」になるよう view ごとの倍率を掛ける。C4D の軸と同じで、
+// どれだけ寄っても引いても画面の上では同じ大きさに見える
+const AXIS_SCREEN = 0.12, AXIS_R = 0.018;
 const AXIS_MATS = [0xe5484d, 0x3fb950, 0x4c8dff].map(c => gizMat(c));
 function splatAxes(it, g){
-  const bb = splatBox.get(it.key), sc = it.scale || 1;
-  const len = clamp(Math.max(bb?.w || 0, bb?.d || 0, bb?.h || 0) * sc * 0.15, 0.25, 10), r = len * 0.018;   // 外形の 15%（以前は 30% で大きすぎた。寺村さんの指摘）
+  const len = 1, r = AXIS_R;
   const a = new THREE.Group(); a.position.copy(g.position); a.quaternion.copy(g.quaternion); a.userData.axes = true;
   [[1,0,0],[0,1,0],[0,0,1]].forEach((d, i) => {
     const dir = new V3(...d), q = new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), dir);
@@ -2892,6 +2896,20 @@ function splatAxes(it, g){
   const o = new THREE.Mesh(new THREE.SphereGeometry(r * 3, 12, 8), handleMat); o.renderOrder = 12; a.add(o);
   a.traverse(n => { n.userData.noHit = true; });
   return a;
+}
+// 軸の原点の位置で「画面の 1 px が世界の何 m か」を出し、短辺の AXIS_SCREEN ぶんの長さにする。
+// パースは距離で変わり、平行投影はズームで変わる
+function axisLenFor(cam, at, rect){
+  const px = Math.min(rect.w, rect.h) * AXIS_SCREEN;
+  let mPerPx;
+  if (cam.isPerspectiveCamera){
+    const d = new V3().subVectors(at, cam.position).dot(cam.getWorldDirection(new V3()));   // 視線方向の距離
+    mPerPx = 2 * Math.max(d, 0.05) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) / rect.h;
+  } else mPerPx = (cam.top - cam.bottom) / cam.zoom / rect.h;
+  return px * mPerPx;
+}
+function fitAxes(cam, rect){
+  for (const a of handleGroup.children) if (a.userData.axes) a.scale.setScalar(axisLenFor(cam, a.position, rect));
 }
 // 箱を出すのは、選んでいて切り取っているとき。見るだけリンクと用紙には出さない
 // （現場に無いものなので、寸法リボンやマニピュレータと同じ扱い）
@@ -3201,6 +3219,7 @@ function drawView(view, rect, isMain){
     const cam = viewCam(view);
     renderer.setViewport(rect.x, H-rect.y-rect.h, rect.w, rect.h); renderer.setScissor(rect.x, H-rect.y-rect.h, rect.w, rect.h);
     renderer.setClearColor(capturing ? 0xdfe2e7 : view==='plan'?0x2a2d34:0x30343b); renderer.clear();  // paper wants a light surround, not the app's dark one
+    if (showSel) fitAxes(cam, rect);               // 3DGS の軸は画面の大きさに合わせる
     renderer.render(scene, cam);
     if (isMain && !capturing) drawLabels(view, cam, rect);
   }
