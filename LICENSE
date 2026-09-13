@@ -33,3 +33,14 @@ models/ 以下の 3D モデルは上記 MIT ライセンスの対象外です。
 著作権は寺村太一に帰属し、すべての権利を留保します。本アプリを通じて
 利用することはできますが、取り出して再配布したり、他の作品に流用することは
 できません。
+
+---
+
+THIRD-PARTY — models/pose_landmarker_full.task
+
+models/pose_landmarker_full.task is Google's MediaPipe Pose Landmarker model,
+redistributed unmodified under the Apache License, Version 2.0.
+See models/LICENSE-mediapipe.txt for the license text and attribution.
+
+models/pose_landmarker_full.task は Google の MediaPipe のモデルで、Apache License 2.0 の下で
+そのまま再配布しています。本文と帰属表示は models/LICENSE-mediapipe.txt。

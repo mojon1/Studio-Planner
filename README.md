@@ -188,5 +188,6 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
 ## ライセンス
 
 コードは MIT。`models/` の 3D モデルは対象外で、著作権は Taichi Teramura に帰属する。
-`models/pose_landmarker_full.task` は Google の MediaPipe のモデルで、Apache 2.0。
-詳細は [LICENSE](LICENSE)。
+`models/pose_landmarker_full.task` は Google の MediaPipe のモデルで、Apache 2.0
+（本文は [models/LICENSE-mediapipe.txt](models/LICENSE-mediapipe.txt)）。
+詳細は [LICENSE](LICENSE) と [models/README.md](models/README.md)。

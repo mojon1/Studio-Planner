@@ -160,7 +160,8 @@ Artifact への publish は、公開版より古いものを出そうとする�
 
 ```
 index.html            アプリ本体
-models/*.glb          人物と車のモデル。使うときだけ取りに行く（car-*.glb が車）
+models/*.glb          人物と車のモデル。使うときだけ取りに行く（car-*.glb が車）。MIT の対象外（models/README.md）
+models/LICENSE-mediapipe.txt  pose_landmarker_full.task の Apache 2.0 本文と帰属表示。消さないこと
 ogp.png               リンクを貼ったときのサムネイル。アプリ自身を撮ったもの
 .nojekyll             GitHub Pages に Jekyll を通させない
 .github/workflows/pages.yml   main への push で Pages に出る
