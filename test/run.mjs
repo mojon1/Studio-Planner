@@ -3008,9 +3008,19 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('while the axis, position and lift stay put', q2.gpos.join() === q1.gpos.join() && q2.x === q1.x && q2.z === q1.z && q2.lift === q1.lift, JSON.stringify({g0:q1.gpos, g1:q2.gpos, x:q2.x, lift:q2.lift}));
   ok('and the offset is in the state', q2.off && q2.off[0] === 1 && q2.off[1] === 0.5, JSON.stringify(q2.off));
   ok('ten live slider steps re-sort the splats only twice (once per release)', await S(() => window.__upd) === 2, String(await S(() => window.__upd)));
-  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'tiltReset', '1'); }); await P.waitForTimeout(300);
+  // 「傾きを戻す」ボタンは無い。つまみの右クリックの「リセット」で両方 0 に戻すと、向き（yaw）だけになる
+  ok('there is no 傾きを戻す button any more', !(await P.textContent('#selbody')).includes('傾きを戻す'));
+  ok('and no hint under the offset sliders', !/軸はそのままで/.test(await P.textContent('#selbody')));
+  await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.resetProp(it, 'tiltX'); s.resetProp(it, 'tiltZ'); }); await P.waitForTimeout(300);
   const q3 = await sp();
-  ok('reset keeps only the turn', q3.q === null && q3.tiltX === 0 && q3.tiltZ === 0 && q3.rot === 90, JSON.stringify(q3));
+  ok('resetting both tilts keeps only the turn', q3.q === null && q3.tiltX === 0 && q3.tiltZ === 0 && q3.rot === 90, JSON.stringify(q3));
+  // 右クリックのメニューで戻す（どのつまみでも）
+  await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 3); }); await P.waitForTimeout(200);
+  await P.click('#selbody [data-range="lift"]', {button:'right'}); await P.waitForTimeout(200);
+  const menu = await P.$eval('#ctx', e => ({hidden: e.hidden, text: e.textContent}));
+  ok('right-clicking a slider opens a reset menu', !menu.hidden && /リセット/.test(menu.text), JSON.stringify(menu));
+  await P.click('#ctx button'); await P.waitForTimeout(300);
+  ok('and it puts the slider back to its default', (await sp()).lift === 0);
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 20); });
   ok('the height goes far beyond 6 m now', (await sp()).gy === 20);
   await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'lift', 0); s.setProp(it, 'tiltZ', 20); s.setProp(it, 'cropOn', '1'); }); await P.waitForTimeout(400);
@@ -3091,6 +3101,28 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('the box rotation survives the share link', (await S(() => window.__sp.state().items.find(i => i.type === 'splat').crop?.ry)) === 90);
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'cropOn', ''); }); await P.waitForTimeout(300);
   ok('turning the crop off removes the ring', (await sp()).on === false);
+  // 「軸を操作」: 3DGS を選んでいるあいだだけ出る。オンなら十字のドラッグで軸だけ動き、スキャンは残る
+  ok('the 軸を操作 button shows for a selected 3DGS', await P.$eval('#axisbtn', b => b.classList.contains('show')));
+  const centreOf = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; });
+    m.updateMatrixWorld(true); const c = m.getBoundingBox(true).getCenter(new s.THREE.Vector3()).applyMatrix4(m.matrixWorld); return {c: c.toArray().map(v => +v.toFixed(2)), x: it.x, z: it.z, off: it.off || [0,0,0], lift: it.lift || 0}; });
+  await S(() => { const s = window.__sp; s.orbit.theta = 0.7; s.orbit.phi = 1.0; s.orbit.radius = 8; s.orbit.target.set(0, 1, 0); s.render(); }); await P.waitForTimeout(300);
+  const a0 = await centreOf();
+  await P.click('#axisbtn'); await P.waitForTimeout(200);
+  ok('clicking it turns the mode on', await S(() => window.__sp.axisMode()) === true && await P.$eval('#axisbtn', b => b.classList.contains('active')));
+  const gz = await screenOf([a0.x, 0.012, a0.z]);
+  await P.mouse.move(gz.x, gz.y); await P.mouse.down(); await P.mouse.move(gz.x + 80, gz.y, {steps: 5}); await P.mouse.up(); await P.waitForTimeout(300);
+  const a1 = await centreOf();
+  ok('in axis mode the cross moves the axis and the scan stays put', Math.abs(a1.x - a0.x) > 0.3 && a1.c.every((v, i) => Math.abs(v - a0.c[i]) < 0.03) && a1.off.join() !== a0.off.join(), JSON.stringify({a0, a1}));
+  await P.click('#axisbtn'); await P.waitForTimeout(200);
+  ok('clicking again turns it off', await S(() => window.__sp.axisMode()) === false);
+  // 軸の棒をドラッグすると、その軸に沿って動く（オフでオブジェクト）
+  const ax = await S(() => { const s = window.__sp; const a = s.handles().children.find(k => k.userData.axes); a.updateMatrixWorld(true); return new s.THREE.Vector3(0.6, 0, 0).applyMatrix4(a.matrixWorld).toArray(); });
+  const ap = await screenOf(ax);
+  ok('the X axis bar picks as an axis drag', (await S(([x, y]) => { const r = document.getElementById('view').getBoundingClientRect(); return !!window.__sp.pick(x - r.left, y - r.top)?.axisDrag; }, [ap.x, ap.y])));
+  const b0 = await centreOf();
+  await P.mouse.move(ap.x, ap.y); await P.mouse.down(); await P.mouse.move(ap.x + 60, ap.y + 10, {steps: 5}); await P.mouse.up(); await P.waitForTimeout(300);
+  const b1 = await centreOf();
+  ok('dragging the bar moves the scan along that axis (z stays)', Math.abs(b1.x - b0.x) > 0.1 && Math.abs(b1.z - b0.z) < 0.01 && Math.abs(b1.c[0] - b0.c[0]) > 0.1 && Math.abs(b1.c[2] - b0.c[2]) < 0.03, JSON.stringify({b0, b1}));
   // .sog（SuperSplat の書き出し）をファイルで
   await P.setInputFiles('#file', sog); await P.waitForTimeout(4000);
   let L = await splats();
