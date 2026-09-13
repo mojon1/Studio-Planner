@@ -179,17 +179,17 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 #viewbtns button.on{background:var(--accent)}
 #viewbtns button.icon{padding:0;width:40px;display:flex;align-items:center;justify-content:center}
 #viewbtns button.icon:not(.on){color:#b9bec9}
-#recenter{position:absolute;top:calc(58px + var(--sat));left:calc(10px + var(--vsal));z-index:3;display:none;align-items:center;gap:6px;height:34px;padding:0 12px 0 9px;
+/* ビューボタンの下の 1 列。「中心に戻す」と、その右に「軸を操作」（3DGS のとき） */
+#viewtools{position:absolute;top:calc(58px + var(--sat));left:calc(10px + var(--vsal));z-index:3;display:flex;gap:6px;pointer-events:none}
+#viewtools > button{pointer-events:auto}
+#recenter,#axisbtn{display:none;align-items:center;gap:6px;height:34px;padding:0 12px 0 9px;
   border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.8rem;
   white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
+#axisbtn{padding:0 12px}
 #recenter.on{display:flex}
-#axisbtn{position:absolute;top:calc(58px + var(--sat));left:calc(10px + var(--vsal));z-index:3;display:none;align-items:center;height:34px;padding:0 12px;
-  border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.8rem;white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
 #axisbtn.show{display:flex}
 #axisbtn.active{background:#4c8dff;color:#fff}
-#axisbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
-#axisbtn.show ~ #recenter.on{top:calc(98px + var(--sat))}
-#recenter:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#recenter:focus-visible,#axisbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
 #info{position:absolute;top:calc(10px + var(--sat));right:calc(10px + var(--sar));z-index:3;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:#fff;background:rgba(20,22,26,.75);padding:6px 10px;border-radius:8px;white-space:pre;line-height:1.5;backdrop-filter:blur(6px)}
 #info.hide{display:none}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
@@ -343,9 +343,9 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #viewbtns{gap:4px}
   #viewbtns button{height:34px;padding:0 6px;font-size:.72rem}
   #viewbtns button.icon{width:32px}
-  #recenter{top:calc(52px + var(--sat));height:30px;font-size:.72rem;padding:0 10px 0 7px}
-  #axisbtn{top:calc(52px + var(--sat));height:30px;font-size:.72rem;padding:0 10px}
-  #axisbtn.show ~ #recenter.on{top:calc(88px + var(--sat))}
+  #viewtools{top:calc(52px + var(--sat))}
+  #recenter,#axisbtn{height:30px;font-size:.72rem;padding:0 10px 0 7px}
+  #axisbtn{padding:0 10px}
   #info{font-size:.68rem;padding:4px 8px}
   #labels span{font-size:.52rem;padding:1px 4px}   /* 7 割。小さな画面では邪魔になる */
   label.f{grid-template-columns:5em 1fr auto}
@@ -385,7 +385,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.33.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.33.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -403,13 +403,15 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
       </button>
     </div>
-    <!-- 3DGS を選んでいるあいだだけ。オンにするとマニピュレータと軸のドラッグが
-         スキャンではなく軸（中心）を動かす（寺村さんの指示） -->
-    <button id="axisbtn" title="軸を操作" aria-pressed="false">軸を操作</button>
+    <div id="viewtools">
     <button id="recenter" title="表示を中心に戻す" aria-label="表示を中心に戻す">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
       中心に戻す
     </button>
+    <!-- 3DGS を選んでいるあいだだけ、「中心に戻す」の右に。オンにするとマニピュレータと軸のドラッグが
+         スキャンではなく軸（中心）を動かす（寺村さんの指示） -->
+    <button id="axisbtn" title="軸を操作" aria-pressed="false">軸を操作</button>
+    </div>
     <div id="labels"></div>
     <div id="info"></div>
     <div id="pip"><div class="bar"><span id="pipname">カメラ</span><small id="pipinfo"></small><button id="pipout" title="別ウィンドウで開く" aria-label="別ウィンドウで開く"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h7v7"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="pipclose" title="閉じる" aria-label="小窓を閉じる">✕</button></div><div class="body"><canvas id="pipcv"></canvas></div><div class="grip"></div></div>
@@ -2769,7 +2771,8 @@ function updateSelectionVisuals(){
   gizmo.visible = !!it && !it.hidden && !it.locked && !viewerMode && !noGizmo(it);
   buildMeasures(); updateHandles(); syncAxisBtn();
   if (!it) return;
-  gizmo.position.set(it.x, standHeight(it) + 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
+  // 3DGS のリングは軸（group）の高さに付いていく。床に置いたままだと高さ調整で軸と離れる（寺村さんの指摘）
+  gizmo.position.set(it.x, (it.type === 'splat' ? restY(it) : standHeight(it)) + 0.012, it.z); gizmo.rotation.y = THREE.MathUtils.degToRad(it.rot); gizmo.scale.setScalar(GIZMO_R);
   if (hasTilt(it)) placeTilt(it);
 }
 // 弧はカメラの頭を中心に、視線の入っている垂直面へ。ローカル +X が視線の水平成分
@@ -3404,7 +3407,7 @@ canvas.addEventListener('pointerdown', e => {
   if (hit?.handle){ drag = startHandle(hit.handle); return; }
   if (hit?.tilt){ drag = {tilt:true}; return; }
   if (hit?.cropMove || hit?.cropRot){ drag = startCropDrag(hit, x, y); return; }
-  if (hit?.axisDrag){ const a = hit.axisDrag, t = axisParam(x, y, a.origin, a.dir); drag = t == null ? {pan:true} : {axisDrag:true, it:sel(), dir:a.dir, origin:a.origin, t0:t}; return; }
+  if (hit?.axisDrag){ const a = hit.axisDrag, t = axisParam(x, y, a.origin, a.dir); drag = t == null ? {pan:true} : {axisDrag:true, it:sel(), dir:a.dir, origin:a.origin, t0:t, applied:0}; return; }
   if (hit?.rotate){ drag = {rotate:true}; return; }
   const grab = it => {
     if (mainView === 'side' || it.locked || noGizmo(it)){ drag = {pan:true}; return; }   // 定規は本体を掴んで動かさない（端のつまみで）
@@ -3461,8 +3464,10 @@ canvas.addEventListener('pointermove', e => {
   if (drag.look){ lookDrag(dx, dy); return; }
   if (drag.handle){ dragHandle(drag, x, y); return; }
   if (drag.cropMove || drag.cropRot){ dragCropGiz(drag, x, y); return; }
+  // 軸の直線は**押した瞬間の原点で固定**して、そこからの総量で動かす。動かした先の原点で測り直すと、
+  // 同じ指の位置が毎回「戻れ」と読めて往復し、プルプル震える（寺村さんの指摘）
   if (drag.axisDrag){ const t = axisParam(x, y, drag.origin, drag.dir); if (t == null) return;
-    const d = drag.dir.clone().multiplyScalar(t - drag.t0); drag.t0 = t; drag.origin.add(d);
+    const total = t - drag.t0, d = drag.dir.clone().multiplyScalar(total - drag.applied); drag.applied = total;
     shiftSplat(drag.it, d, axisMode); return; }
   if (drag.tilt){ const it = sel(); const a = tiltAngle(x, y, false); if (a === null) return;
     it.pitch = a1(a);

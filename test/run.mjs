@@ -3023,6 +3023,7 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   ok('and it puts the slider back to its default', (await sp()).lift === 0);
   await S(() => { const s = window.__sp; s.setProp(s.state().items.find(i => i.type === 'splat'), 'lift', 20); });
   ok('the height goes far beyond 6 m now', (await sp()).gy === 20);
+  ok('and the ring follows the axis up', Math.abs(await S(() => window.__sp.gizmo.position.y) - 20.012) < 1e-6);
   await S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'lift', 0); s.setProp(it, 'tiltZ', 20); s.setProp(it, 'cropOn', '1'); }); await P.waitForTimeout(400);
   ok('crop handles still come out on a tilted scan', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 6);
   const link2 = await S(() => location.hash);
@@ -3120,9 +3121,15 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   const ap = await screenOf(ax);
   ok('the X axis bar picks as an axis drag', (await S(([x, y]) => { const r = document.getElementById('view').getBoundingClientRect(); return !!window.__sp.pick(x - r.left, y - r.top)?.axisDrag; }, [ap.x, ap.y])));
   const b0 = await centreOf();
-  await P.mouse.move(ap.x, ap.y); await P.mouse.down(); await P.mouse.move(ap.x + 60, ap.y + 10, {steps: 5}); await P.mouse.up(); await P.waitForTimeout(300);
+  // 1 歩ずつ動かして、途中で戻らないこと（戻るとプルプル震える。寺村さんの指摘）
+  const xs = [];
+  await P.mouse.move(ap.x, ap.y); await P.mouse.down();
+  for (let i = 1; i <= 8; i++){ await P.mouse.move(ap.x + i * 8, ap.y + i * 1.2); await P.waitForTimeout(30); xs.push((await centreOf()).x); }
+  await P.mouse.up(); await P.waitForTimeout(300);
   const b1 = await centreOf();
   ok('dragging the bar moves the scan along that axis (z stays)', Math.abs(b1.x - b0.x) > 0.1 && Math.abs(b1.z - b0.z) < 0.01 && Math.abs(b1.c[0] - b0.c[0]) > 0.1 && Math.abs(b1.c[2] - b0.c[2]) < 0.03, JSON.stringify({b0, b1}));
+  ok('and it never steps backwards while dragging', xs.every((v, i) => i === 0 || (v - xs[i-1]) * (b1.x - b0.x) >= -1e-9), xs.join(','));
+  ok('軸を操作 sits to the right of 中心に戻す in one row', await P.evaluate(() => { const a = document.getElementById('axisbtn').getBoundingClientRect(), r = document.getElementById('recenter'); return a.width > 0 && (!r.classList.contains('on') || (a.left > r.getBoundingClientRect().right - 1 && Math.abs(a.top - r.getBoundingClientRect().top) < 2)); }));
   // .sog（SuperSplat の書き出し）をファイルで
   await P.setInputFiles('#file', sog); await P.waitForTimeout(4000);
   let L = await splats();
