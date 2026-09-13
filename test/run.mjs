@@ -1379,8 +1379,8 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // 見るだけは共有タブからも QR からも外した（新しく作る道はもう無い）
   ok('the view-only button is gone', !(await t.page.$('#copyview')));
   // いちばん下は紹介動画（YouTube）へのリンク。ボタンではなくリンクなので出口の並びには数えない
-  const yt = await t.page.$eval('[data-sec="share"] > :last-child', e => ({cls: e.className, href: e.getAttribute('href'), target: e.target, svg: !!e.querySelector('svg'), text: e.textContent.trim()}));
-  ok('the intro video link sits at the very bottom of the share tab', yt.cls === 'ytlink' && yt.href === 'https://youtu.be/pjHt0Eg4Tx4' && yt.target === '_blank' && yt.svg && yt.text === '紹介動画を見る', JSON.stringify(yt));
+  const yt = await t.page.$eval('[data-sec="share"] > :last-child', e => ({cls: e.className, href: e.getAttribute('href'), target: e.target, svg: !!e.querySelector('svg'), text: e.textContent.trim(), label: e.getAttribute('aria-label')}));
+  ok('the intro video link sits at the very bottom of the share tab', yt.cls === 'ytlink' && yt.href === 'https://youtu.be/pjHt0Eg4Tx4' && yt.target === '_blank' && yt.svg && yt.text === '' && yt.label === '紹介動画（YouTube）', JSON.stringify(yt));
   // URL の欄はクリップボードが塞がれているときだけ出る
   ok('the URL box stays out of the way', await t.page.evaluate(() => document.getElementById('linkbox').hidden));
   // リンクと QR のすぐ下で、実体が乗らないことを言う

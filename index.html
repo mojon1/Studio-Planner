@@ -112,9 +112,9 @@ h2:first-child{margin-top:0}
 .colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .colophon a:hover{color:var(--ink2)}
 /* 紹介動画（YouTube）。共有タブのいちばん下。ボタン（.btn）ではなくリンクなので、出口の並びには数えない */
-.ytlink{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 0;font-size:.78rem;color:var(--muted);text-decoration:none}
-.ytlink svg{width:26px;height:18px;flex:none}
-.ytlink:hover{color:var(--ink2)}
+.ytlink{display:flex;justify-content:center;margin:14px 0 0;opacity:.8}
+.ytlink svg{width:32px;height:22px;flex:none}
+.ytlink:hover{opacity:1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 .btn{min-height:44px;padding:8px 14px;border:1px solid var(--rule);background:var(--btn);color:var(--ink);border-radius:8px;font:inherit;font-weight:500;cursor:pointer;flex:1 1 auto;text-align:center}
 .btn.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:var(--btn-on)}
@@ -389,8 +389,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.33.3<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
-        <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg><span>紹介動画を見る</span></a>
+        <p class="colophon">Studio Planner v1.33.4<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
   </div>
@@ -554,7 +554,7 @@ const EN = {
   'PDF にする':'Make PDF','PDF に保存':'Save as PDF','PDF資料作成':'PDF sheet','このカットだけ':'This shot only',
   'ソフトボックス':'Softbox','ロックしました':'Locked','共有QRコード':'Share QR code','図の位置を戻す':'Reset views',
   '外部3Dデータ':'External 3D data','URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください':'Could not fetch the URL. The host must allow direct browser access (CORS). Download the file and import it with “External 3D data” instead','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
-  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','紹介動画を見る':'Watch the intro video','紹介動画（YouTube）':'Intro video (YouTube)','このカットを削除':'Delete this shot',
+  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','紹介動画（YouTube）':'Intro video (YouTube)','このカットを削除':'Delete this shot',
   '取り込んだモデル':'Imported model','名前をつけて保存':'Save as','表示を中心に戻す':'Recenter view','○○ CM 30秒':'Project name',
   'この配置を編集する':'Edit this layout','オブジェクトを追加':'Add object','ドラッグで並べ替え':'Drag to reorder',
   'ロックを外しました':'Unlocked','別ウィンドウで開く':'Open in a new window','マイクロフォーサーズ':'Micro Four Thirds',
