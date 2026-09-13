@@ -377,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.31.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.32.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -516,7 +516,7 @@ const EN = {
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
   '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
-  '載せ方':'Mount','切り取り':'Crop','切り取る':'Crop','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
+  '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
   'パース':'3D','ピンク':'Pink','ブルー':'Blue','ブーム':'Boom','ミラー':'Mirror','モデル':'Model','ライト':'Light','ロック':'Lock',
   'ロール':'Roll','壁まで':'To wall','女の子':'Girl','小道具':'Props','広がり':'Spread','床の鏡':'Floor mirror','座面高':'Seat height',
@@ -2829,7 +2829,7 @@ function edgeHandles(it){
   // 面の真ん中に置くので、6 個が互いに重ならない
   // 箱が回してあれば、つまみも箱と一緒に回る。上下のつまみは上面図では出さない
   //（真上からは高さが取れないし、箱の真ん中のマニピュレータと重なる）
-  if (it.type === 'splat' && it.crop){
+  if (it.type === 'splat' && it.crop && cropEdit === it.id){
     const {mid, half, q} = cropFrame(it);
     const at = (dx, dy, dz) => new V3(dx*half.x, dy*half.y, dz*half.z).applyQuaternion(q).add(mid).toArray();
     const hs = [{crop:'x1', ax:'x', p:at(1,0,0)}, {crop:'x0', ax:'x', p:at(-1,0,0)},
@@ -2863,7 +2863,7 @@ function updateHandles(){
   placeCropGiz(it);
   for (const h of edgeHandles(it)){
     const m = new THREE.Mesh(handleGeo, handleMat); m.renderOrder = 11;
-    m.position.copy(handleWorld(it, h)); handleGroup.add(m);
+    m.position.copy(handleWorld(it, h)); m.userData.screenSized = !!h.crop; handleGroup.add(m);   // トリミングのつまみは画面の大きさで
   }
   // 3DGS を選んでいるあいだは軸そのものを出す（寺村さんの指示）。X 赤・Y 緑・Z 青。
   // 中心のオフセットで軸とスキャンがずれるので、軸がどこかが見えないと直しようがない
@@ -2903,12 +2903,21 @@ function axisLenFor(cam, at, rect){
   } else mPerPx = (cam.top - cam.bottom) / cam.zoom / rect.h;
   return px * mPerPx;
 }
+// トリミングのつまみも同じ考え方で、画面の短辺の HANDLE_SCREEN（≈ 指で掴める大きさ）にする。
+// 世界の大きさ（13 cm）のままだと、街並みのスキャンでは豆粒になる（寺村さんの指摘）
+const HANDLE_SCREEN = 0.03;
 function fitAxes(cam, rect){
-  for (const a of handleGroup.children) if (a.userData.axes) a.scale.setScalar(axisLenFor(cam, a.position, rect));
+  for (const a of handleGroup.children){
+    if (a.userData.axes) a.scale.setScalar(axisLenFor(cam, a.position, rect));
+    else if (a.userData.screenSized) a.scale.setScalar(Math.max(1, axisLenFor(cam, a.position, rect) * HANDLE_SCREEN / AXIS_SCREEN / 0.13));
+  }
 }
 // 箱を出すのは、選んでいて切り取っているとき。見るだけリンクと用紙には出さない
 // （現場に無いものなので、寸法リボンやマニピュレータと同じ扱い）
-const cropVisible = it => it.type === 'splat' && !!it.crop && !it.hidden && !viewerMode;
+// トリミングは**モード**（寺村さんの指示）。「トリミング」を押しているあいだだけ箱・つまみ・青いリング・
+// スライダーが出て、「確定」で消える。切り取り自体（it.crop）は確定しても残る。cropEdit は編集中の id
+let cropEdit = null;
+const cropVisible = it => it.type === 'splat' && !!it.crop && cropEdit === it.id && !it.hidden && !viewerMode;
 function placeCropGiz(it){
   const g = it && cropVisible(it) ? itemObjs.get(it.id)?.group : null;
   cropGiz.visible = cropGiz.userData.on = !!g && !it.locked && mainView !== 'side';   // on は状態（描画は view ごとに visible を触る）
@@ -4172,6 +4181,7 @@ function moveItem(it, toId, before){
 function select(id, open=false){
   const it = state.items.find(i => i.id === id);
   if (it?.type === 'camera') setActiveCam(id);
+  if (id !== selectedId) cropEdit = null;       // 別の物を選んだらトリミングのモードは抜ける
   selectedId = id; updateSelectionVisuals(); renderSel(); renderList();
   if (id && !viewerMode) showTab('list', open);
   needRender = true;
@@ -4258,11 +4268,12 @@ function renderSel(){
       h += `<p class="hint">軸はそのままで、スキャンのほうを軸からずらします。回転と拡大縮小は軸を中心に掛かります。</p>`; }
     h += `<p class="hint">Scaniverse の書き出しは実寸（1 = 1 m）です。合わないときだけ動かしてください。1/100〜100 倍まで対数で刻みます。</p>`;
     // 現場のスキャンには要らないものが必ず入る。箱で囲んで外を消す
-    h += `<h2>切り取り</h2>`;
-    h += `<div class="row"><button class="btn ${it.crop?'on':''}" data-set="cropOn" data-val="${it.crop?'':'1'}">${it.crop?'切り取り':'切り取る'}</button>`;
-    if (it.crop) h += `<button class="btn" data-set="cropOn" data-val="">全体表示</button>`;
+    h += `<h2>トリミング</h2>`;
+    const editing = cropEdit === it.id;
+    h += `<div class="row"><button class="btn ${editing?'on':''}" data-set="cropOn" data-val="${editing?'':'1'}">${editing?'確定':'トリミング'}</button>`;
+    if (editing) h += `<button class="btn" data-set="cropReset" data-val="1">トリミングのリセット</button>`;
     h += `</div>`;
-    if (it.crop){
+    if (editing){
       const c = cropBox(it), f = cropLimits(it);
       // 6 面ぶん。図のつまみでも動くが、数字でも合わせられるようにしておく。回転は箱の中心まわり
       h += range('crop.x0','左端',f.x0,f.x1,0.01,c.x0,'m') + range('crop.x1','右端',f.x0,f.x1,0.01,c.x1,'m');
@@ -4504,7 +4515,10 @@ function setProp(it, k, v, live=false){
   if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH','tiltX','tiltZ'].includes(k) || k.startsWith('off.')) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH' || k === 'aspectW' || k === 'aspectH') && !(v > 0)) return;
-  if (k === 'cropOn'){ it.crop = v ? cropFull(it) : null; }
+  // 「トリミング」でモードに入る（箱が無ければ外形いっぱいから）。「確定」で抜ける（箱は残る）。
+  // 「トリミングのリセット」は外形いっぱいに戻す（モードのまま）
+  if (k === 'cropOn'){ if (v){ if (!it.crop) it.crop = cropFull(it); cropEdit = it.id; } else cropEdit = null; }
+  else if (k === 'cropReset'){ it.crop = cropFull(it); }
   else if (k === 'crop.ry'){ setCropYaw(it, parseFloat(v) || 0); }
   else if (k.startsWith('crop.')){
     const c = {...cropBox(it)}, f = cropLimits(it), n = k.slice(5);
@@ -4548,7 +4562,7 @@ function setProp(it, k, v, live=false){
   else it[k] = v;
   if (it.type === 'chair') it.h = Math.max(it.h, it.seatH);
   if (isRound(it)) it.d = it.w;                         // 丸テーブルは直径ひとつ
-  if (it.type === 'splat' && (k === 'cropOn' || k.startsWith('crop.'))) refreshCrop(it);
+  if (it.type === 'splat' && (k === 'cropOn' || k === 'cropReset' || k.startsWith('crop.'))) refreshCrop(it);
   // 3DGS の置き方は、つまみを引いているあいだは作り直さず、その場で動かすだけ。
   // 1 目盛りごとに作り直して並べ直させると、並べ替えが終わるたびに絵が飛んでガタガタになる
   //（寺村さんの指摘）。並べ直すのは指を離したときの 1 回
@@ -5952,7 +5966,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

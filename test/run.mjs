@@ -1660,7 +1660,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   await t.page.waitForTimeout(2500);
   await t.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t.page.waitForTimeout(400);
   const panel0 = await t.page.textContent('#selbody');
-  ok('a 3DGS offers 切り取り', panel0.includes('切り取り'));
+  ok('a 3DGS offers トリミング', panel0.includes('トリミング') && !panel0.includes('切り取り'));
   // 3DGS は現場そのもの。寸法を書いても図面にならないので、表示も設定も出さない
   ok('and carries no dimension switches', !panel0.includes('寸法表示'), panel0.slice(0, 80));
   // 向きは高さ調整の上。置き方を決める順に並べる
@@ -1701,9 +1701,24 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
   // 消したのは見た目だけ。データには触っていない
   const link = await t.page.evaluate(() => location.hash);
   ok('the crop rides along in the link, and it stays small', link.length < 700, `${link.length} chars`);
+  // 「確定」でモードを抜ける。箱は残り、スライダーとつまみは消える。「トリミング」でまた出る
+  ok('while trimming the button reads 確定 and there is no 全体表示', (await t.page.textContent('#selbody')).includes('確定') && !(await t.page.textContent('#selbody')).includes('全体表示'));
   await t.page.click('#selbody [data-set="cropOn"][data-val=""]'); await t.page.waitForTimeout(700);
-  ok('全体表示 puts it back',
-     (await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop)) == null);
+  const after = await t.page.evaluate(() => ({crop: window.__sp.state().items.find(i => i.type === 'splat').crop, edit: window.__sp.cropEdit(), handles: window.__sp.handles().children.filter(k => k.isMesh).length,
+    sliders: [...document.querySelectorAll('#selbody [data-range^="crop."]')].length, btn: document.querySelector('#selbody [data-set="cropOn"]').textContent}));
+  ok('確定 keeps the trim but hides the sliders and handles', after.crop != null && after.edit === null && after.handles === 0 && after.sliders === 0 && after.btn === 'トリミング', JSON.stringify(after));
+  await t.page.click('#selbody [data-set="cropOn"][data-val="1"]'); await t.page.waitForTimeout(500);
+  ok('pressing トリミング again brings the sliders back with the same box', (await t.page.$$eval('#selbody [data-range^="crop."]', n => n.length)) === 7
+     && JSON.stringify(await t.page.evaluate(() => window.__sp.state().items.find(i => i.type === 'splat').crop)) === JSON.stringify(after.crop));
+  await t.page.click('#selbody [data-set="cropReset"]'); await t.page.waitForTimeout(500);
+  const reset = await t.page.evaluate(() => { const s = window.__sp.state().items.find(i => i.type === 'splat'); return {crop: s.crop, full: window.__sp.cropBox({...s, crop: null}), edit: window.__sp.cropEdit()}; });
+  ok('トリミングのリセット goes back to the whole scan and stays in the mode', reset.edit != null && ['x0','x1','y0','y1','z0','z1'].every(k => Math.abs(reset.crop[k] - reset.full[k]) < 1e-9), JSON.stringify(reset));
+  // つまみは画面の大きさに合わせる（世界の 13 cm のままだと大きなスキャンで豆粒）
+  const hpx = await t.page.evaluate(() => { const s = window.__sp, cam = s.camera(), r = document.getElementById('view').getBoundingClientRect();
+    const m = s.handles().children.find(k => k.isMesh && k.userData.screenSized); if (!m) return null; m.updateMatrixWorld(true);
+    const a = m.position.clone().project(cam), b = m.position.clone().add(new s.THREE.Vector3(0.065 * m.scale.x, 0, 0)).project(cam);
+    return Math.hypot((b.x - a.x) / 2 * r.width, (b.y - a.y) / 2 * r.height) * 2 / Math.min(r.width, r.height); });
+  ok('the trim handles are sized by the screen (about 3% of the short side)', hpx != null && hpx > 0.018 && hpx < 0.04, String(hpx));
   ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 }
