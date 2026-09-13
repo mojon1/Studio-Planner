@@ -109,8 +109,8 @@ h2{font-size:.8rem;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;fon
 h2:first-child{margin-top:0}
 .hint{font-size:.82rem;color:var(--ink2);margin:6px 0 10px}
 .colophon{margin:22px 0 0;font-size:.72rem;line-height:1.6;color:var(--muted);text-align:center}
-.colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
-.colophon a:hover{color:var(--ink2)}
+.colophon a{color:inherit;text-decoration:none}
+.colophon a:hover{color:var(--ink2);text-decoration:underline;text-underline-offset:2px}
 /* 紹介動画（YouTube）。共有タブのいちばん下。ボタン（.btn）ではなくリンクなので、出口の並びには数えない */
 .ytlink{display:flex;justify-content:center;margin:14px 0 0;opacity:.8}
 .ytlink svg{width:32px;height:22px;flex:none}
@@ -389,7 +389,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.33.4<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.33.5 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>

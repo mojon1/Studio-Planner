@@ -1987,9 +1987,10 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
 {
   const t = await open('colophon', { width: 1200, height: 800 });
   await t.tab('share');
-  const col = await t.page.$eval('.colophon', n => ({ text: n.textContent, href: n.querySelector('a')?.href }));
-  ok('the colophon carries the site under the copyright',
-     col.href === 'https://www.taichi-teramura.com/', col.href);
+  const col = await t.page.$eval('.colophon', n => ({ text: n.textContent, href: n.querySelector('a')?.href, lines: n.querySelectorAll('br').length, linked: n.querySelector('a')?.textContent === n.textContent }));
+  // 1 行にまとめ、行ごとサイトへのリンク。URL だけの行は無い（寺村さんの指示）
+  ok('the colophon is one line and the whole line links to the site',
+     col.href === 'https://www.taichi-teramura.com/' && col.lines === 0 && col.linked && !/taichi-teramura\.com/.test(col.text), JSON.stringify(col));
   ok('and the copyright is still there', col.text.includes('© 2026 Taichi Teramura'), col.text);
   ok('colophon run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
