@@ -919,49 +919,23 @@ Scaniverse などで撮った現場（`.spz` / `.ply`）をそのまま持ち込
 URL共有時には外部3Dデータは含まれません。
 ```
 
-その下に **URL の欄と「URLから読み込む」**（`importUrl()`、寺村さんの指示 — Scaniverse や
-SuperSplat の置き場から直接）と、一言「Scaniverse は共有ページの「Direct link」の URL、SuperSplat は
-シーンの URL を貼ります。」。
+**URL からの取り込みは作って、外した（寺村さんの判断）。作り直さないこと。** 経緯を残す。
 
-**superspl.at のシーンの URL（`/scene/<id>` か `/s?id=<id>`。埋め込み用の iframe の src も後者）**は
-特別扱い（`SUPERSPLAT_ID()`）。superspl.at には .sog を直接指す URL が無い。共有ページの HTML に
-`const contentUrl = 'https://….cloudfront.net/…/meta.json'` が埋めてあり、公式ビューアも
-download-splat（pnooyen）もそこから取っている（download-splat のソースで確認）。本体は
-**分割していない SOG** — `meta.json` と webp 数枚（`means_l/means_u/quats/scales/sh0`、SH があれば `shN`）。
-
-- `importUrl()` は `https://superspl.at/s?id=<id>` を fetch して `contentUrl` を正規表現で抜き、
-  `fetchSogDir()` が meta.json と、その `files` に並ぶ webp を全部取って、**無圧縮の zip（`zipStore()`、
-  自前の 60 行）に組んで 1 つの `.sog`** にする。あとはファイルで取り込んだのと同じ道（`importFiles()`）。
-  Spark は zip の `.sog` を読む。**meta.json の URL を直接貼っても同じ道**を通る。
-- **`lod-meta.json`（100 万個超のシーンが変換される Streamed SOG）は読まない**。Spark の
-  `PCSOGS` は分割していない形だけ。その旨をトーストで言い、SuperSplat から `.sog` / `.ply` で
-  保存する道を案内する。
-- **superspl.at の共有ページを別オリジンから fetch できるかは、superspl.at 側の CORS 次第で未確認。**
-  この環境からは superspl.at に到達できない。**寺村さんの実機で `https://superspl.at/scene/68057496` を
-  貼って試してもらう段階。** 取れなければ「superspl.at の共有ページをブラウザから直接読めませんでした
-  （CORS）」と言い、SuperSplat で .sog を保存して取り込む道を案内する。CloudFront 側の CORS も
-  同じく未確認（公式ビューアは superspl.at から cloudfront.net へ別オリジンで取っているので、
-  少なくとも superspl.at には許しているはず。`*` かどうかは分からない）。
-- テストは `page.route()` で superspl.at を丸ごと差し替え、公式ビューアと同じ形の
-  `const contentUrl = '…/meta.json'` を返している。本体は `test/fixtures/sog/`（テストの 64 個の PLY を
-  `splat-transform` で分割していない SOG にしたもの）。
-
-
-- **取れるのはファイルそのものの URL だけ**（`.spz` / `.ply` / `.sog` / `.glb`）で、しかもその置き場が
-  ブラウザからの直接取得（**CORS**）を許しているときだけ。共有ページ（HTML）は別オリジンなので
-  中を読めない。拡張子が無ければ「Direct link を貼ってください」と言って終わる。
-- **Scaniverse** の共有ページは Info →「Direct link」が `.spz` の URL（Web の情報。**この環境からは
-  scaniverse.com に到達できず、CORS が許されているかは未確認**）。**SuperSplat（superspl.at）**は
-  公開したものを SOG に変換して置く。こちらも到達できず未確認。**どちらも実機で貼ってみるまで
-  「読める」とは言わないこと。** 取れなければ CORS の話をトーストで言い、ダウンロードして
-  ファイルで取り込む道を案内する。
-- 取れたあとは `File` に包んで `importFiles()` へ。ファイルで取り込んだのと同じで、この端末の
-  IndexedDB に残り、共有リンクには乗らない。
-- **`.sog`（SuperSplat の書き出し、zip 1 ファイル）は Spark が読む**（`PCSOGSZIP`）。
-  `SPLAT_EXT` に足し、`test/fixtures/scan.sog`（テストの 64 個の PLY を
-  `@playcanvas/splat-transform` で変換したもの）で読めることを見ている。**本物の SuperSplat の
-  書き出し（SH 付き・大きいもの）は未確認。** 複数ファイルに分かれた Streamed SOG は読まない。
-- ヘッドレスでは CORS を許した別ポートの置き場と、許していない置き場の両方で見ている。
+- v1.30.0 で URL の欄を足し、ファイルそのものの URL（CORS を許した置き場）と、superspl.at のシーン URL
+  （共有ページの HTML に埋まった `contentUrl` → CloudFront の `meta.json` ＋ webp を取って zip の `.sog` に組む。
+  公式ビューアと download-splat が読んでいる場所）まで通した。ヘッドレスでは差し替えたページで通った。
+- **寺村さんの実機では superspl.at のシーンが開けなかった。** この環境からは superspl.at にも
+  scaniverse.com にも到達できず、CORS の有無を確かめる手段が無い。ブラウザから別サイトのファイルを
+  直接取る仕組みである以上、置き場側が許していなければどうにもならず、こちらで直せない。
+- **中途半端に残すと混乱の元**なので、欄も関数も文言もテストも全部外した（v1.31.1）。
+  3DGS の取り込みは**ファイルで**（Scaniverse は共有ページの「Direct link」で .spz を落とす、
+  SuperSplat はシーンを .sog / .ply で保存する）。
+- 残したもの: **`.sog`（SuperSplat の書き出し、zip 1 ファイル）の取り込み**。Spark が読む（`PCSOGSZIP`）。
+  `SPLAT_EXT` に入っていて、`test/fixtures/scan.sog`（テストの 64 個の PLY を `@playcanvas/splat-transform` で
+  変換したもの）で読めることを見ている。**本物の SuperSplat の書き出し（SH 付き・大きいもの）は未確認。**
+  複数ファイルに分かれた Streamed SOG（`lod-meta.json`）は読まない。
+- もし将来またやるなら、**ブラウザから直接ではなく中継サーバーを置く**話になる。このアプリは
+  サーバーを持たない方針（アカウントもログインも作らない）なので、その判断から先に要る。
 
 **取り込んだモデルと 3DGS をまとめて呼ぶときは「外部3Dデータ」**（寺村さんの言葉）。
 画面に出す言葉はここに揃える。
@@ -1773,10 +1747,8 @@ iOS 向けの `-webkit-touch-callout:none` が入っていること）、
 向きとオフセットがリンクに乗ること）、
 **切り取りの箱のマニピュレータ**（切り取ると箱の中心に青いリングが出て、十字で箱ごと動き（大きさは
 変わらない）、リングで箱の中心まわりに回り、「箱の回転」スライダーでも中心が動かず、上面図では上下の
-つまみが消え、`ry` がリンクに乗り、やめれば消えること。`.sog` がファイルでも URL でも読めて、CORS の
-無い置き場は断り、共有ページの URL は「Direct link」を案内すること。superspl.at のシーン URL（`/scene/` と
-`/s?id=` の両方）が差し替えたページの `contentUrl` から meta.json ＋ webp を取って `.sog` に組んで読め、
-meta.json の URL を直接貼っても読め、`lod-meta.json` は断り、`contentUrl` の無いページはそう言うこと）、
+つまみが消え、`ry` がリンクに乗り、やめれば消えること。`.sog` がファイルで読めて、**URL の欄が
+もう無いこと**）、
 **画面比率の手動**（ボタンの最後が「手動」で、押すと 16 と 9 から始まり、2.39:1 を打つと読み値・小窓・
 ファインダーが追い、リンクに乗り、0 は弾かれること）、
 **角のつまみ**（床鏡が 4 角、箱は天面の 4 角＋真ん中で上面図では 4 つ、角を引くと幅と奥行が変わって
@@ -1839,7 +1811,7 @@ A4 実寸であることを Chromium の PDF 生成で確認済み）、用紙�
 椅子・箱に座る（脚の骨の角度で判定、お尻の底を座面に吸着）、カメラの高さのつまみ、
 定規（2 点タップ・端のドラッグ・3DGS の上にも乗る・起点をカメラに・壁の裏に吸い付かない）、
 3DGS の中心のオフセット（スキャンを軸からずらす）と 3 軸のワールド回転と ±50 m の高さと、選択中の軸の表示、
-切り取りの箱のマニピュレータ（移動・回転）、`.sog` の取り込み、URL からの取り込み（CORS のある置き場。superspl.at のシーン URL は差し替えたページで）。
+切り取りの箱のマニピュレータ（移動・回転）、`.sog` の取り込み。
 
 **実装済み・実機確認待ち**: スマホとタブレットでの操作感全般、
 **英語のブラウザ（実機）で本当に英語で開くか**（ヘッドレスの `locale` で見ただけ）、
@@ -1857,9 +1829,6 @@ FBXLoader のモジュール解決までは確認済み）、
 つまみやすさは未確認）、
 **定規のタップが実素材の 3DGS に当たるか**（ヘッドレスの手組みスキャンでは当たった。薄い場所は
 すり抜けて床に落ちるはず。430k 個で 1 回のタップにかかる時間も未測定）、
-**URL からの取り込みが Scaniverse の「Direct link」と superspl.at で本当に通るか**（この環境からは
-どちらにも到達できず、CORS の有無が分からない。superspl.at はページの `contentUrl` → meta.json ＋ webp
-→ .sog に組む道まで作ってあるが、ヘッドレスは差し替えたページと自前の置き場で見ただけ）、
 **本物の SuperSplat の `.sog` が読めるか**（手元の 64 個の変換品だけ）、
 **iPhone で `.spz` / `.ply` が本当に選べるか**（`accept` を外すところまでは
 ヘッドレスの iPhone UA で確認済み。実機のファイル App では未確認）、

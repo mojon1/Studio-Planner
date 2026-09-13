@@ -3018,23 +3018,11 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   await t.ctx.close();
 }
 
-// --- 43. 切り取りの箱のマニピュレータ、軸の大きさ、.sog と URL からの取り込み -------------
+// --- 43. 切り取りの箱のマニピュレータ、軸の大きさ、.sog の取り込み -------------
 {
   const t = await open('crop', { width: 1300, height: 900 });
   const P = t.page, S = (fn, arg) => P.evaluate(fn, arg);
-  // 別オリジンの置き場。/cors/ は CORS 許可、/nocors/ は無し
   const sog = path.join(HERE, 'fixtures', 'scan.sog'), ply43 = `${OUT}/scan-crop.ply`; fs.writeFileSync(ply43, makeColourSplatPLY());
-  const sogDir = path.join(HERE, 'fixtures', 'sog');   // 分割していない SOG（meta.json ＋ webp）
-  const srv2 = http.createServer((req, res) => { const u = req.url.split('?')[0], leaf = u.split('/').pop();
-    const f = u.includes('/sog/') ? path.join(sogDir, leaf) : u.endsWith('.sog') ? sog : ply43;
-    const h = {'content-type':'application/octet-stream'}; if (u.startsWith('/cors/')) h['access-control-allow-origin'] = '*';
-    if (!fs.existsSync(f)){ res.writeHead(404, h); res.end(); return; } res.writeHead(200, h); res.end(fs.readFileSync(f)); }).listen(8766);
-  // superspl.at の共有ページの代わり。本物には到達できないので、公式ビューアと同じ形で contentUrl を埋めた HTML を返す
-  await P.route('https://superspl.at/**', r => { const u = new URL(r.request().url()); const id = u.searchParams.get('id');
-    const body = id === 'lodtest' ? `<script>const contentUrl = 'http://localhost:8766/cors/sog/lod-meta.json';</script>`
-               : id === 'noscene' ? `<html><body>nothing here</body></html>`
-               : `<html><script>\n  const contentUrl = 'http://localhost:8766/cors/sog/meta.json';\n</script></html>`;
-    r.fulfill({status:200, contentType:'text/html', headers:{'access-control-allow-origin':'*'}, body}); });
   const screenOf = v3 => S(v3 => { const s = window.__sp; const v = new s.THREE.Vector3(...v3).project(s.camera()); const r = document.getElementById('view').getBoundingClientRect(); return {x: r.left + (v.x+1)/2*r.width, y: r.top + (1-v.y)/2*r.height}; }, v3);
   const splats = () => S(() => window.__sp.state().items.filter(i => i.type === 'splat').map(i => ({name:i.name, w:i.w, d:i.d, h:i.h})));
   const sp = () => S(() => { const s = window.__sp; const it = s.state().items.find(i => i.type === 'splat');
@@ -3093,42 +3081,10 @@ const LIGHT_TILT_MAX = 90;                     // index.html と同じ値
   let L = await splats();
   ok('a .sog file loads as a scan', L.length === 2 && L[1].name === 'scan.sog' && L[1].w === 3, JSON.stringify(L));
   ok('and the import hint says so', /\.sog/.test(await P.$eval('#addpop .hint', e => e.textContent)));
-  // URL から
-  ok('the add panel has a URL field and button', (await P.$$eval('#urlin, #urlpick', e => e.length)) === 2);
-  await S(() => window.__sp.importUrl('http://localhost:8766/cors/scan.ply')); await P.waitForTimeout(4000);
-  L = await splats();
-  ok('a file URL with CORS loads', L.length === 3 && L[2].name === 'scan.ply', JSON.stringify(L));
-  await S(() => window.__sp.importUrl('http://localhost:8766/nocors/scan.ply')); await P.waitForTimeout(1500);
-  ok('without CORS it says so instead of failing silently', /URL から取れませんでした/.test(await P.$eval('#toast', e => e.textContent)) && (await splats()).length === 3);
-  await S(() => window.__sp.importUrl('https://scaniverse.com/scan/abcdef')); await P.waitForTimeout(300);
-  ok('a share-page URL is turned down with a pointer to "Direct link"', /Direct link/.test(await P.$eval('#toast', e => e.textContent)));
-  // 1 カットの上限（SPLAT_MAX）に当たるので 1 つ消してから
-  await S(() => { const s = window.__sp; const st = s.state(); st.items.splice(st.items.indexOf(st.items.filter(i => i.type === 'splat').pop()), 1); s.rebuild(); });
-  await P.click('#addfab'); await P.fill('#urlin', 'http://localhost:8766/cors/scan.sog'); await P.keyboard.press('Enter'); await P.waitForTimeout(4000);
-  L = await splats();
-  ok('Enter in the URL field loads a .sog too', L.length === 3 && L[2].name === 'scan.sog', JSON.stringify(L));
-  // superspl.at のシーン URL → ページの contentUrl → meta.json ＋ webp を取って 1 つの .sog に組む
-  const dropLast = () => S(() => { const s = window.__sp; const st = s.state(); st.items.splice(st.items.indexOf(st.items.filter(i => i.type === 'splat').pop()), 1); s.rebuild(); });
-  await dropLast();
-  await S(() => window.__sp.importUrl('https://superspl.at/scene/68057496')); await P.waitForTimeout(4000);
-  L = await splats();
-  ok('a superspl.at scene URL loads through the page\'s contentUrl', L.length === 3 && L[2].name === 'superspl.at-68057496.sog' && L[2].w === 3, JSON.stringify(L));
-  await dropLast();
-  await S(() => window.__sp.importUrl('https://superspl.at/s?id=68057496')); await P.waitForTimeout(4000);
-  ok('and so does the /s?id= form (the embed URL)', (await splats()).length === 3);
-  await dropLast();
-  await S(() => window.__sp.importUrl('http://localhost:8766/cors/sog/meta.json')); await P.waitForTimeout(4000);
-  L = await splats();
-  ok('a bare meta.json URL (unbundled SOG) loads too', L.length === 3 && L[2].name === 'scene.sog', JSON.stringify(L));
-  await S(() => window.__sp.importUrl('https://superspl.at/s?id=lodtest')); await P.waitForTimeout(600);
-  ok('a streamed (lod-meta.json) scene is declined with a hint', /Streamed SOG/.test(await P.$eval('#toast', e => e.textContent)));
-  await S(() => window.__sp.importUrl('https://superspl.at/s?id=noscene')); await P.waitForTimeout(600);
-  ok('a page without a contentUrl says so', /見つかりませんでした/.test(await P.$eval('#toast', e => e.textContent)));
-  ok('the zip we build round-trips through a zip reader', await S(async () => { const z = window.__sp.zipStore({'a.txt': new TextEncoder().encode('hi'), 'meta.json': new TextEncoder().encode('{}')}); return z.length === 30 + 5 + 2 + 30 + 9 + 2 + 46 + 5 + 46 + 9 + 22 && z[0] === 0x50 && z[1] === 0x4b; }));
-  // CORS で弾かれたときのブラウザ自身のコンソールエラーは、こちらが期待した結果
-  const errs = t.errors.filter(e => !/CORS policy/.test(e));
-  ok('crop run clean', errs.length === 0, errs.join(' | '));
-  srv2.close(); await t.ctx.close();
+  // URL からの取り込みは外した（寺村さんの実機で SuperSplat が通らず、中途半端に残すと混乱の元）
+  ok('there is no URL field in the add panel any more', (await P.$$eval('#urlin, #urlpick', e => e.length)) === 0);
+  ok('crop run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
 }
 
 await browser.close(); server.close();

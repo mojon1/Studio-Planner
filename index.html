@@ -141,7 +141,6 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
 .row.saved .btn.on small{color:inherit;opacity:.7}
 .row.saved .btn.del{flex:0 0 40px;min-height:40px;padding:0;color:var(--danger);font-size:1.1rem}
 .row.nm input[type=text]{flex:1 1 7em;width:auto;min-width:0}
-.row.urlrow input[type=url]{flex:1 1 8em;width:auto;min-width:0;height:40px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;padding:0 10px}
 .row.nm .btn{flex:0 0 auto}
 .dims{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .dims label{font-size:.8rem;color:var(--ink2)}
@@ -378,7 +377,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon">Studio Planner v1.31.0<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
+        <p class="colophon">Studio Planner v1.31.1<br>© 2026 Taichi Teramura<br><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">www.taichi-teramura.com</a></p>
       </div>
     </div>
   </div>
@@ -440,9 +439,6 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <p class="hint">対応3Dデータ（GLB / glTF / FBX）120MB以下<br>
       対応3DGS（.spz / .ply / .sog）240MB以下<br>
       URL共有時には外部3Dデータは含まれません。</p>
-    <!-- URL から直接。Scaniverse の共有ページの「Direct link」（.spz）や、CORS を許した置き場の .glb / .ply / .sog -->
-    <div class="row urlrow"><input type="url" id="urlin" placeholder="https://…/scan.spz" spellcheck="false" autocomplete="off"><button class="btn" id="urlpick">URLから読み込む</button></div>
-    <p class="hint">Scaniverse は共有ページの「Direct link」の URL、SuperSplat はシーンの URL を貼ります。</p>
   </div>
 </div></div>
 <div id="papermodal">
@@ -539,7 +535,7 @@ const EN = {
   '小窓を閉じる':'Close window','申し送り事項':'Notes for the crew','画像書き出し':'Export image','背もたれ上端':'Backrest top',
   'PDF にする':'Make PDF','PDF に保存':'Save as PDF','PDF資料作成':'PDF sheet','このカットだけ':'This shot only',
   'ソフトボックス':'Softbox','ロックしました':'Locked','共有QRコード':'Share QR code','図の位置を戻す':'Reset views',
-  '外部3Dデータ':'External 3D data','URLから読み込む':'Load from URL','Scaniverse は共有ページの「Direct link」の URL、SuperSplat はシーンの URL を貼ります。':'For Scaniverse paste the “Direct link” URL from the share page; for SuperSplat paste the scene URL.','URL の形になっていません':'That is not a URL','http(s) の URL だけ読めます':'Only http(s) URLs can be loaded','ファイルそのものの URL（.spz / .ply / .sog / .glb）か superspl.at のシーンの URL を貼ってください。Scaniverse は共有ページの「Direct link」です':'Paste the URL of the file itself (.spz / .ply / .sog / .glb) or a superspl.at scene URL. For Scaniverse that is the “Direct link” on the share page','superspl.at のシーンを調べています':'Looking up the superspl.at scene','superspl.at の共有ページをブラウザから直接読めませんでした（CORS）。SuperSplat でシーンを .sog で保存して「外部3Dデータ」から取り込んでください':'The superspl.at page could not be read directly from the browser (CORS). Save the scene as .sog in SuperSplat and import it with “External 3D data”','superspl.at のページの中に 3DGS の場所が見つかりませんでした（ページの形が変わったかもしれません）':'Could not find the splat location in the superspl.at page (the page layout may have changed)','分割配信（Streamed SOG）の大きなシーンはまだ読めません。SuperSplat から .sog か .ply で保存して取り込んでください':'Large streamed scenes (Streamed SOG) cannot be loaded yet. Save the scene as .sog or .ply in SuperSplat and import that','URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください':'Could not fetch the URL. The host must allow direct browser access (CORS). Download the file and import it with “External 3D data” instead','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
+  '外部3Dデータ':'External 3D data','URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください':'Could not fetch the URL. The host must allow direct browser access (CORS). Download the file and import it with “External 3D data” instead','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
   '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','このカットを削除':'Delete this shot',
   '取り込んだモデル':'Imported model','名前をつけて保存':'Save as','表示を中心に戻す':'Recenter view','○○ CM 30秒':'Project name',
   'この配置を編集する':'Edit this layout','オブジェクトを追加':'Add object','ドラッグで並べ替え':'Drag to reorder',
@@ -622,7 +618,6 @@ const EN_RULES = [
   [/^取り込んだデータを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing imported data… ${a} / ${b}`],
   [/^([\d.-]+)°（0° で奥）$/, n => `${n}° (0° = back)`],
   [/^(.+) を読み込み中$/, f => `Loading ${f}`],
-  [/^(.+) を取りに行っています$/, f => `Fetching ${f}`],
   [/^(.+) を読めませんでした。\.bin とテクスチャも一緒に選んでください$/, f => `Could not read ${f}. Select the .bin and textures too`],
   [/^(.+) を読めませんでした$/, f => `Could not read ${f}`],
   [/^(.+) は大きすぎます（(\d+)MB まで）$/, (f, n) => `${f} is too large (max ${n} MB)`],
@@ -4923,92 +4918,6 @@ const IOS_PICKER = /iP(hone|od|ad)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS は Mac を名乗る
 if (IOS_PICKER) document.getElementById('file').removeAttribute('accept');
 document.getElementById('pick').addEventListener('click', () => document.getElementById('file').click());
-// URL から直接取り込む（寺村さんの指示 — Scaniverse / SuperSplat の置き場から）。
-// 取れるのは**ファイルそのものの URL** で、しかもその置き場がブラウザからの直接取得（CORS）を
-// 許しているときだけ。共有ページの URL（HTML）は別オリジンなので中を読めない。
-// Scaniverse は共有ページの Info →「Direct link」が .spz の URL。取れたあとはファイルで
-// 取り込んだのと同じ道（importFiles）なので、この端末の IndexedDB に残り、共有リンクには乗らない
-// superspl.at の共有ページ（/scene/<id> か /s?id=<id>）。ページの HTML に
-// `const contentUrl = 'https://….cloudfront.net/…/meta.json'` が埋めてあり（公式ビューアがそこから
-// 取る。download-splat も同じ場所を読んでいる）、その meta.json ＋ webp 数枚が本体（分割していない
-// SOG）。**ページの HTML を別オリジンから fetch できるかは superspl.at 側の CORS 次第**で、
-// この環境からは到達できず未確認。取れなければその旨を言う
-const SUPERSPLAT_ID = url => {
-  if (!/(^|\.)superspl\.at$/.test(url.hostname)) return null;
-  const m = url.pathname.match(/^\/scene\/([A-Za-z0-9_-]+)/);
-  if (m) return m[1];
-  if (url.pathname === '/s' && url.searchParams.get('id')) return url.searchParams.get('id');
-  return null;
-};
-const fetchOk = async (u, as = 'arrayBuffer') => { const r = await fetch(u, {mode:'cors'}); if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + u); return r[as](); };
-// 分割していない SOG（meta.json ＋ webp）を取ってきて、1 ファイルの .sog（zip・無圧縮）に組む。
-// Spark は .sog（zip）を読めるので、取り込みの道はファイルで来たときと 1 本にできる
-async function fetchSogDir(metaUrl){
-  const meta = JSON.parse(await fetchOk(metaUrl, 'text'));
-  const names = [];
-  for (const k of ['means', 'scales', 'quats', 'sh0', 'shN']) for (const f of meta[k]?.files || []) names.push(f);
-  const files = {'meta.json': new TextEncoder().encode(JSON.stringify(meta))};
-  for (const n of names) files[n] = new Uint8Array(await fetchOk(new URL(n, metaUrl).href));
-  return zipStore(files);
-}
-async function importUrl(raw){
-  const u = (raw || '').trim(); if (!u) return;
-  let url; try { url = new URL(u); } catch { toast('URL の形になっていません'); return; }
-  if (!/^https?:$/.test(url.protocol)){ toast('http(s) の URL だけ読めます'); return; }
-  let name = url.pathname.split('/').pop() || '';
-  try { name = decodeURIComponent(name); } catch {}
-  let ext = extOf(name), src = url.href;
-  const ssId = SUPERSPLAT_ID(url);
-  if (ssId){
-    // 共有ページから本体の場所を引く
-    closeAdd(); toast('superspl.at のシーンを調べています');
-    let html;
-    try { html = await fetchOk(`https://superspl.at/s?id=${ssId}`, 'text'); }
-    catch(e){ console.warn('superspl.at page', e); toast('superspl.at の共有ページをブラウザから直接読めませんでした（CORS）。SuperSplat でシーンを .sog で保存して「外部3Dデータ」から取り込んでください'); return; }
-    const m = html.match(/const\s+contentUrl\s*=\s*['"]([^'"]+)['"]/) || html.match(/contentUrl["']?\s*[:=]\s*["']([^"']+)["']/);
-    if (!m){ toast('superspl.at のページの中に 3DGS の場所が見つかりませんでした（ページの形が変わったかもしれません）'); return; }
-    src = new URL(m[1], `https://superspl.at/s?id=${ssId}`).href; name = `superspl.at-${ssId}.sog`; ext = 'sog';
-  }
-  const leaf = src.split(/[?#]/)[0].split('/').pop() || '';
-  if (/lod-meta\.json$/i.test(leaf)){ toast('分割配信（Streamed SOG）の大きなシーンはまだ読めません。SuperSplat から .sog か .ply で保存して取り込んでください'); return; }
-  const isDir = /meta\.json$/i.test(leaf);
-  if (!isDir && !SPLAT_EXT.includes(ext) && ext !== 'glb'){ toast('ファイルそのものの URL（.spz / .ply / .sog / .glb）か superspl.at のシーンの URL を貼ってください。Scaniverse は共有ページの「Direct link」です'); return; }
-  if (isDir && !ssId) name = (leaf === name ? 'scene' : name) + '.sog';
-  closeAdd(); toast(`${name} を取りに行っています`);
-  let buf;
-  try {
-    buf = isDir ? await fetchSogDir(src) : await fetchOk(src);
-  } catch(e){
-    console.warn('url import failed', e);
-    toast('URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください');
-    return;
-  }
-  await importFiles([new File([buf], name)]);
-}
-// zip（無圧縮・STORE）を手で組む。取ってきた meta.json と webp を 1 つの .sog にするためだけ
-const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
-function zipStore(files){
-  const enc = new TextEncoder(), locals = [], centrals = []; let off = 0;
-  for (const [name, data] of Object.entries(files)){
-    const n = enc.encode(name), crc = crc32(data), h = new DataView(new ArrayBuffer(30));
-    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 0, true); h.setUint32(14, crc, true);
-    h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, n.length, true);
-    const c = new DataView(new ArrayBuffer(46));
-    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint32(16, crc, true);
-    c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, n.length, true); c.setUint32(42, off, true);
-    locals.push(new Uint8Array(h.buffer), n, data); centrals.push(new Uint8Array(c.buffer), n);
-    off += 30 + n.length + data.length;
-  }
-  const cdSize = centrals.reduce((a, b) => a + b.length, 0), e = new DataView(new ArrayBuffer(22));
-  e.setUint32(0, 0x06054b50, true); e.setUint16(8, centrals.length / 2, true); e.setUint16(10, centrals.length / 2, true);
-  e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
-  const parts = [...locals, ...centrals, new Uint8Array(e.buffer)], out = new Uint8Array(parts.reduce((a, b) => a + b.length, 0));
-  let p = 0; for (const x of parts){ out.set(x, p); p += x.length; }
-  return out;
-}
-document.getElementById('urlpick').addEventListener('click', () => importUrl(document.getElementById('urlin').value));
-document.getElementById('urlin').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); importUrl(e.target.value); } });
 document.getElementById('file').addEventListener('change', e => { closeAdd(); if (e.target.files.length) importFiles([...e.target.files]); e.target.value = ''; });
 // カメラ小窓をリサイズしたあとドラッグすると、ブラウザが選択範囲のドラッグを始めて
 // ここに来ていた。ファイルを掴んでいるときだけ取り込み枠を出す
@@ -6043,7 +5952,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, importUrl, cropFrame, zipStore};
+window.__sp = {THREE, renderer, scene, gizmo, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
