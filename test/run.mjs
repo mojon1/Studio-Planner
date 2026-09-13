@@ -3239,6 +3239,62 @@ await block('43', `切り取りの箱のマニピュレータ、軸の大きさ�
   await t.ctx.close();
 });
 
+// --- 44. スタジオの角のつまみ --------------------------------------------------------
+await block('44', `スタジオの角のつまみ`, async () => {
+  const t = await open('studio-handles', { width: 1200, height: 800 }); const P = t.page;
+  const S = (fn, arg) => P.evaluate(fn, arg);
+  const hs = () => S(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray().map(v => +v.toFixed(2))));
+  const st = () => S(() => ({...window.__sp.state().studio}));
+  // 画面の上の位置（つまみは画面の距離 22 px で拾う）
+  const px = async ([x, y, z]) => S(([x, y, z]) => { const s = window.__sp, r = document.getElementById('gl').getBoundingClientRect();
+    const v = new s.THREE.Vector3(x, y, z).project(s.camera()); return {x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height}; }, [x, y, z]);
+  const dragTo = async (from, to) => { const a = await px(from), b = await px(to);
+    await P.mouse.move(a.x, a.y); await P.mouse.down(); await P.mouse.move(b.x, b.y, {steps: 8}); await P.mouse.up(); await P.waitForTimeout(300); };
+  await P.click('#pipbtn'); await P.waitForTimeout(200);          // 小窓が右下の角のつまみに被るので閉じておく
+  await P.click('#items .itemrow[data-kind="studio"] > button.name'); await P.waitForTimeout(300);
+  let h = await hs(), s0 = await st();
+  // 3D: 床の 4 角と、奥壁の上辺の真ん中（高さ）
+  ok('selecting the studio shows four floor corners and a height handle in 3D',
+     h.length === 5 && h.filter(([x, y, z]) => Math.abs(Math.abs(x) - s0.w/2) < 0.01 && Math.abs(Math.abs(z) - s0.d/2) < 0.01 && y < 0.1).length === 4
+       && h.some(([x, y, z]) => x === 0 && Math.abs(y - s0.h) < 0.01 && Math.abs(z + s0.d/2) < 0.01), JSON.stringify(h));
+  ok('and no ring, since the room has no position to move', !(await S(() => window.__sp.gizmo.visible)));
+  // 上面: 角だけ（高さは真上からは取れない）。角を引くと幅と奥行が両側に伸びる（中心は原点のまま）
+  await P.click('#viewbtns [data-view="plan"]'); await P.waitForTimeout(300);
+  h = await hs();
+  ok('in the plan view only the four corners remain', h.length === 4, JSON.stringify(h));
+  await dragTo([s0.w/2, 0.02, s0.d/2], [6, 0.02, 5]);
+  let s1 = await st();
+  ok('dragging a corner resizes the room about its centre', s1.w === 12 && s1.d === 10, `${s1.w} x ${s1.d}`);
+  ok('the corners follow', (await hs()).some(([x, , z]) => Math.abs(x - 6) < 0.01 && Math.abs(z - 5) < 0.01));
+  ok('the readout and the panel follow too', /12 × 10/.test(await P.textContent('#info')) && (await P.inputValue('#sw')) === '12' && (await P.$eval('#preset', e => e.value)) === 'custom',
+     await P.textContent('#info'));
+  // 縮めたら、はみ出した物は部屋の中へ戻る（clampAll）
+  await S(() => { const s = window.__sp, p = s.state().items.find(i => i.type === 'person'); s.setPos(p, 5.5, 0); s.render(); });
+  await dragTo([6, 0.02, 5], [3, 0.02, 2.5]);
+  s1 = await st();
+  const personX = await S(() => window.__sp.state().items.find(i => i.type === 'person').x);
+  ok('shrinking the room pulls things back inside it', s1.w === 6 && s1.d === 5 && personX <= 3 - 0.2 + 1e-9, `${s1.w} x ${s1.d}, person x ${personX}`);
+  // 3D: 高さのつまみを上へ
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
+  await S(() => { const s = window.__sp; s.orbit.theta = 0.3; s.orbit.phi = 1.1; s.orbit.radius = 14; s.orbit.target.set(0, 1.5, 0); s.render(); }); await P.waitForTimeout(300);
+  const top = await px([0, s1.h, -s1.d/2]);
+  await P.mouse.move(top.x, top.y); await P.mouse.down(); await P.mouse.move(top.x, top.y - 120, {steps: 8}); await P.mouse.up(); await P.waitForTimeout(300);
+  const s2 = await st();
+  ok('the height handle raises the ceiling', s2.h > s1.h && s2.h <= 15, `${s1.h} -> ${s2.h}`);
+  // 範囲は数値入力と同じ（2〜40 / 2〜15）。40 m を超えるところまで引いても止まる
+  await P.click('#viewbtns [data-view="plan"]'); await P.waitForTimeout(300);
+  { const r = await P.locator('#gl').boundingBox(); await P.mouse.move(r.x + r.width/2, r.y + r.height/2);
+    for (let i = 0; i < 14; i++){ await P.mouse.wheel(0, 120); await P.waitForTimeout(30); } await P.waitForTimeout(300); }   // 引いて 40 m が画面に入るように
+  await dragTo([s2.w/2, 0.02, s2.d/2], [24, 0.02, 24]);
+  const s3 = await st();
+  ok('and the drag stops at the same limits as the number fields', s3.w === 40 && s3.d === 40, `${s3.w} x ${s3.d}`);
+  // スタジオを消しているあいだは出ない
+  await P.click('#items .itemrow[data-kind="studio"] .ico.eye'); await P.waitForTimeout(300);
+  ok('no handles while the studio is switched off', (await hs()).length === 0);
+  ok('studio handles run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+});
+
 await browser.close(); server.close();
 if (LIST_ONLY) process.exit(0);
 if (ONLY || SKIP.length) console.log(`\n(partial run: ${blockTimes.length} block(s) — run the whole suite before a release)`);
