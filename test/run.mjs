@@ -3328,6 +3328,25 @@ await block('45', `イントレ`, async () => {
   const ys = await S(() => { const s = window.__sp, st = s.state();
     return [s.restY(st.items.find(o => o.type === 'person')), s.standHeight(st.items.find(o => o.type === 'camera'))]; });
   ok('a person and a camera on the deck stand at the deck height', ys.every(y => Math.abs(y - 3.535) < 1e-6), ys.join('/'));
+  // 段数を変えたらカメラの四角錐も一緒に上下する（作り置きの四角錐が下に残っていた。寺村さんの指摘）
+  const apexY = () => S(() => { const s = window.__sp, h = s.frustum().children[0]; if (!h) return null;
+    if (h.userData.screenFrustum) return h.position.y;
+    return h.geometry.getAttribute('position').getY(0); });
+  const camEye = () => S(() => { const s = window.__sp, c = s.state().items.find(o => o.type === 'camera'); return s.standHeight(c) + c.y; });
+  await S(id => window.__sp.select(id), i.id); await P.waitForTimeout(200);
+  await P.click('#selbody [data-set="stages"][data-val="3"]'); await P.waitForTimeout(400);
+  let [ay, ey] = [await apexY(), await camEye()];
+  ok('after changing the stage count the frustum apex follows the camera up', Math.abs(ay - ey) < 1e-3 && ey > 5, `${ay} vs ${ey}`);
+  await P.click('#selbody [data-set="stages"][data-val="1"]'); await P.waitForTimeout(400);
+  [ay, ey] = [await apexY(), await camEye()];
+  ok('and back down', Math.abs(ay - ey) < 1e-3 && ey < 3.5, `${ay} vs ${ey}`);
+  // 台そのものを引き抜いても（カメラの下から動かしても）同じ
+  await S(id => { const s = window.__sp, o = s.state().items.find(x => x.id === id); s.setPos(o, o.x + 4, o.z); }, i.id);
+  await S(id => { const s = window.__sp, o = s.state().items.find(x => x.id === id); s.rebuild(); }, i.id); await P.waitForTimeout(300);
+  [ay, ey] = [await apexY(), await camEye()];
+  ok('with the scaffold pulled away the frustum sits back on the floor camera', Math.abs(ay - ey) < 1e-3 && ey < 2, `${ay} vs ${ey}`);
+  await S(id => { const s = window.__sp, o = s.state().items.find(x => x.id === id); s.setPos(o, o.x - 4, o.z); s.rebuild(); }, i.id); await P.waitForTimeout(300);
+  await P.click('#selbody [data-set="stages"][data-val="2"]'); await P.waitForTimeout(400);
   // 段数はリンクに乗り、規格外の値は引き直される
   await P.reload(); await P.waitForTimeout(1500);
   i = await it();
