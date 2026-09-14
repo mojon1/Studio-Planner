@@ -2765,7 +2765,7 @@ await block('37', `英語表示`, async () => {
   await p.click('[data-add="light"]'); await p.waitForTimeout(400);
   const hint = await p.$$eval('#selbody .hint', h => h.map(x => x.textContent).join(' '));
   ok('the light panel keeps the set.a.light note, in English', /Lights are schematic.*set\.a\.light 3D/.test(hint), hint.slice(0, 120));
-  for (const k of ['chroma', 'mirror', 'koma', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
+  for (const k of ['chroma', 'mirror', 'koma', 'intre', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
     await t.add(`[data-add="${k}"]`); await p.keyboard.press('Escape');   // 定規のタップ待ちは抜ける
     left = await jpIn(p, '#panel');
     ok(`no Japanese left with ${k} selected`, left.length === 0, left.slice(0, 5).join(' | '));
@@ -3292,6 +3292,62 @@ await block('44', `スタジオの角のつまみ`, async () => {
   await P.click('#items .itemrow[data-kind="studio"] .ico.eye'); await P.waitForTimeout(300);
   ok('no handles while the studio is switched off', (await hs()).length === 0);
   ok('studio handles run clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+});
+
+// --- 45. イントレ（枠組足場の櫓。規格寸法で段数だけ） ---------------------------------
+await block('45', `イントレ`, async () => {
+  const t = await open('intre', { width: 1200, height: 800 }); const P = t.page;
+  const S = (fn, arg) => P.evaluate(fn, arg);
+  const it = () => S(() => { const i = window.__sp.state().items.find(x => x.type === 'intre');
+    return i && {stages:i.stages, w:i.w, d:i.d, h:i.h, x:i.x, z:i.z, id:i.id}; });
+  await t.add('[data-add="intre"]'); await P.waitForTimeout(500);
+  let i = await it();
+  ok('a scaffold is listed among the props and lands as one stage', !!i && i.stages === 1, JSON.stringify(i));
+  ok('its footprint is the standard frame: 1.83 x 1.22 m', i.w === 1.83 && i.d === 1.22, `${i.w} x ${i.d}`);
+  ok('one stage stands 1.7 m on a 10 cm jack base, plus the deck', Math.abs(i.h - 1.835) < 1e-6, `${i.h}`);
+  ok('the panel offers the stage count only', (await P.$$eval('#selbody [data-set="stages"]', b => b.map(x => x.dataset.val).join(''))) === '1234'
+     && (await P.$$eval('#selbody [data-range="w"], #selbody [data-range="h"]', b => b.length)) === 0);
+  // 丸パイプの組み合わせ: 支柱 4 本・横桟・筋交い・ジャッキベース・連結ピン・布板
+  const parts = await S(id => { const g = window.__sp.group(id); let cyl = 0, box = 0;
+    g.traverse(n => { if (!n.isMesh) return; if (n.geometry.type === 'CylinderGeometry') cyl++; else if (n.geometry.type === 'BoxGeometry') box++; });
+    return {cyl, box}; }, i.id);
+  ok('it is built from round pipes with plates and planks', parts.cyl === 24 && parts.box === 7, JSON.stringify(parts));   // 支柱 4・ねじ棒 4・ピン 4・横桟 6・筋交い 4・根がらみ 2、台皿 4・布板 3
+  await P.click('#selbody [data-set="stages"][data-val="4"]'); await P.waitForTimeout(400);
+  i = await it();
+  ok('four stages stand 6.9 m plus the deck', i.stages === 4 && Math.abs(i.h - 6.935) < 1e-6 && i.w === 1.83, `${i.stages} / ${i.h}`);
+  ok('the frame grew with it', (await S(id => { const g = window.__sp.group(id); g.updateMatrixWorld(true);
+    return new window.__sp.THREE.Box3().setFromObject(g).max.y; }, i.id)) > 6.9);
+  await P.click('#selbody [data-set="stages"][data-val="2"]'); await P.waitForTimeout(400);
+  i = await it();
+  ok('two stages stand 3.5 m plus the deck', i.stages === 2 && Math.abs(i.h - 3.535) < 1e-6, `${i.h}`);
+  // 人もカメラも布板の上に乗る
+  await S(({x, z}) => { const s = window.__sp, st = s.state();
+    s.setPos(st.items.find(o => o.type === 'person'), x, z); s.setPos(st.items.find(o => o.type === 'camera'), x + 0.3, z); s.rebuild(); }, i);
+  await P.waitForTimeout(400);
+  const ys = await S(() => { const s = window.__sp, st = s.state();
+    return [s.restY(st.items.find(o => o.type === 'person')), s.standHeight(st.items.find(o => o.type === 'camera'))]; });
+  ok('a person and a camera on the deck stand at the deck height', ys.every(y => Math.abs(y - 3.535) < 1e-6), ys.join('/'));
+  // 段数はリンクに乗り、規格外の値は引き直される
+  await P.reload(); await P.waitForTimeout(1500);
+  i = await it();
+  ok('after a reload the stage count and the height come back from the link', i && i.stages === 2 && Math.abs(i.h - 3.535) < 1e-6, JSON.stringify(i));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'intre'); s.setProp(o, 'stages', 9); });
+  i = await it();
+  ok('an out-of-range stage count is clamped to four', i.stages === 4 && Math.abs(i.h - 6.935) < 1e-6, JSON.stringify(i));
+  // 寸法ラベルは幅 × 奥行（上面）と高さ（側面）。選んでいるあいだは出る
+  await S(id => window.__sp.select(id), i.id); await P.waitForTimeout(300);
+  await P.click('#viewbtns [data-view="plan"]'); await P.waitForTimeout(300);
+  let labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  ok('the plan label reads the footprint', labels.some(l => /イントレ.*1\.83 × 1\.22 m/.test(l)), labels.join('|'));
+  // 4 段は 4.5 m の天井を突き抜けて枠の外に出るので、側面の読みは 2 段で
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'intre'); s.setProp(o, 'stages', 2); });
+  await P.click('#viewbtns [data-view="side"]'); await P.waitForTimeout(300);
+  labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  ok('the side label reads the height', labels.some(l => /イントレ.*高さ 3\.54 m/.test(l)), labels.join('|'));
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
+  await P.screenshot({ path: path.join(OUT, 'intre.png') });
+  ok('the scaffold runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 });
 

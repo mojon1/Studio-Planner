@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.35.0 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.36.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -533,7 +533,7 @@ const EN = {
   '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
   '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
-  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
   '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
@@ -716,9 +716,9 @@ if (LANG === 'en'){
 }
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, splat:0x7f9bd4, ruler:0xe29a44,
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, intre:0x7d8590, splat:0x7f9bd4, ruler:0xe29a44,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', splat:'3DGS', ruler:'定規',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', intre:'イントレ', splat:'3DGS', ruler:'定規',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -859,6 +859,7 @@ function migrateItems(st, studio){
       Object.assign(it, komaDims(it.kind));                     // 標準寸法は常に引き直す
       if (it.color === '#3d4148') it.color = '#d8c4a0';         // 最初に出した濃い既定色から合板の色へ
     }
+    if (it.type === 'intre'){ it.stages = intreStages(it.stages); Object.assign(it, intreDims(it.stages)); }   // 規格寸法は常に引き直す
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -1378,7 +1379,7 @@ const modelCache = new Map();   // key -> parsed Object3D for models this device
 const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma, ruler:buildRuler,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox,
-                  koma:buildKoma, model:buildModel, splat:buildSplat};
+                  koma:buildKoma, intre:buildIntre, model:buildModel, splat:buildSplat};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
 function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
 function footDisc(r, color){
@@ -1448,7 +1449,7 @@ const PEOPLE_MODELS = [
   {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子'},
 ];
 // `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
-const PROPS = ['car','chair','table','box','koma'];
+const PROPS = ['car','chair','table','box','koma','intre'];
 const GEAR = ['camera','light','mirror','chroma','ruler'];
 const REGIONS = {asia:'アジア系', af:'アフリカ系', us:'欧米系'};
 const KIND_LABEL = {man:'男性', woman:'女性', boy:'男の子', girl:'女の子'};
@@ -2027,6 +2028,58 @@ function buildKoma(it){
   g.add(box);
   const [bw, bd] = komaSize(it);
   g.add(planeMarker(bw, bd, COLORS.koma));
+  return g;
+}
+// イントレ（枠組足場の櫓。寺村さんの指示）。建枠 1.22 m × 布板 1.83 m × 1 段 1.70 m は
+// 枠組足場の規格寸法なので大きさは持たせず、**段数（1〜4）だけ**を切り替える。
+// 形は本物どおり、丸パイプの組み合わせ：長手の両端に梯子形の建枠（支柱 2 本と横桟）、
+// 長手の 2 面に X の筋交い、いちばん下に根がらみの横パイプ、脚はジャッキベース
+// （台皿とねじ棒）、いちばん上の支柱には連結ピン、天面には布板。人もカメラも布板の上に乗れる。
+const INTRE = {L:1.83, W:1.22, S:1.70, J:0.10, DECK:0.035, R:0.0215, r:0.012};
+const INTRE_STAGES = [1, 2, 3, 4];
+const intreStages = n => clamp(Math.round(+n) || 1, 1, 4);
+const intreDims = n => ({w:INTRE.L, d:INTRE.W, h:+(INTRE.J + INTRE.S*intreStages(n) + INTRE.DECK).toFixed(3)});
+function buildIntre(it){
+  const g = new THREE.Group(), {L, W, S, J, DECK, R, r} = INTRE, n = intreStages(it.stages);
+  const steel = mat(it.color || '#a9b0bd', {roughness:0.45});
+  const dark = mat(0x50555e, {roughness:0.6});
+  const wood = mat('#c8a882', {roughness:0.85});
+  const top = J + S*n;
+  for (const sx of [-1, 1]){
+    for (const sz of [-1, 1]){
+      const x = sx*L/2, z = sz*W/2;
+      // ジャッキベース：台皿とねじ棒。支柱はその上から
+      const plate = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.008, 0.14), dark)); plate.position.set(x, 0.004, z); g.add(plate);
+      addStrut(g, vec(x, 0.008, z), vec(x, J, z), 0.016, dark);
+      addStrut(g, vec(x, J, z), vec(x, top, z), R, steel);          // 支柱（段の継ぎ目は連結ピンで見せる）
+      addStrut(g, vec(x, top, z), vec(x, top + 0.12, z), 0.014, dark); // いちばん上の連結ピン
+      for (let k = 1; k < n; k++){                                    // 段の継ぎ目の連結金具
+        const c = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(R*1.35, R*1.35, 0.08, 10), dark));
+        c.position.set(x, J + S*k, z); g.add(c);
+      }
+    }
+    // 建枠の横桟。上端の横架材と、梯子の段になる 2 本
+    for (let k = 0; k < n; k++){
+      const y0 = J + S*k;
+      for (const dy of [0.45, 1.10, S]) addStrut(g, vec(sx*L/2, y0 + dy, -W/2), vec(sx*L/2, y0 + dy, W/2), dy === S ? R : r*1.3, steel);
+    }
+  }
+  for (const sz of [-1, 1]){
+    const z = sz*W/2 + sz*0.03;                                        // 筋交いは支柱の外側に付く
+    for (let k = 0; k < n; k++){
+      const y0 = J + S*k;
+      addStrut(g, vec(-L/2, y0 + 0.10, z), vec(L/2, y0 + S - 0.10, z), r, steel);   // X の筋交い
+      addStrut(g, vec(-L/2, y0 + S - 0.10, z), vec(L/2, y0 + 0.10, z), r, steel);
+    }
+    addStrut(g, vec(-L/2, J + 0.16, z), vec(L/2, J + 0.16, z), r*1.3, steel);   // 根がらみ
+  }
+  // 布板。上端の横架材に掛ける 3 枚
+  const pw = (W - 0.10)/3;
+  for (let i = 0; i < 3; i++){
+    const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(L - 0.06, DECK, pw - 0.02), wood));
+    b.position.set(0, top + DECK/2, -W/2 + 0.05 + pw*(i + 0.5)); g.add(b);
+  }
+  g.add(planeMarker(it.w, it.d, COLORS.intre));
   return g;
 }
 // A metal material with nothing to reflect renders black, and glTF's default
@@ -2634,11 +2687,11 @@ function buildChroma(it){
   return g;
 }
 // 台の上には乗れる。上から見てその天面の中に入っていれば、天面の高さに載る。
-// 台に乗せられるのは箱・箱馬・テーブル。布は掛けるものなので何にも乗らない。
+// 台に乗せられるのは箱・箱馬・テーブル・イントレ。布は掛けるものなので何にも乗らない。
 // **台どうしを積むときだけ、上下をリストの並び順で決める**（後から置いたものが上）。
 // これが無いと、重なった 2 つが互いに相手の上に乗ろうとして高さが決まらない。
 // 人やカメラは台ではないので、その制約は要らない（どの台にでも乗る）。
-const SUPPORTS = new Set(['box', 'koma', 'table', 'chair']);
+const SUPPORTS = new Set(['box', 'koma', 'table', 'chair', 'intre']);
 const topOf = u => u.type === 'chair' ? u.seatH : u.h;   // 椅子の天面は座面（背もたれではない）
 function overTop(o, u){
   const r = THREE.MathUtils.degToRad(u.rot || 0), c = Math.cos(r), sn = Math.sin(r);
@@ -4046,6 +4099,7 @@ function protoItem(type, opt, id){
   else if (type === 'table') it = {id, type, x:0, z:0, rot:0, w:1.80, d:0.90, h:0.70, color:'#c8a882'};
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
   else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
+  else if (type === 'intre') it = {id, type, x:0, z:0, rot:0, stages:1, ...intreDims(1), color:'#a9b0bd'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
@@ -4418,6 +4472,11 @@ function renderSel(){
     h += `<h2>置き方</h2>` + btns('kind', KOMA_LAY.map(([k, label]) => [k, label]), it.kind);
     h += `<p class="hint">300 × 450 × 150 mm。標準寸法なので大きさは変わりません。</p>`;
     h += colors(PROP_SWATCHES, it.color || '#d8c4a0');
+  } else if (it.type === 'intre'){
+    // 枠組足場の規格寸法。段数だけ選ぶ（寺村さんの指示）
+    h += `<h2>段数</h2>` + btns('stages', INTRE_STAGES.map(k => [k, `${k} 段`]), intreStages(it.stages));
+    h += `<p class="hint">1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。</p>`;
+    h += colors(PROP_SWATCHES, it.color || '#a9b0bd');
   } else if (it.type === 'splat'){
     const here = splatMeshes.get(it.id)?.key === it.key;
     const bb = splatBox.get(it.key);
@@ -4739,6 +4798,7 @@ function setProp(it, k, v, live=false){
   else if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
   else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
   else if (k === 'kind' && it.type === 'koma'){ it.kind = v; Object.assign(it, komaDims(v)); }
+  else if (k === 'stages' && it.type === 'intre'){ it.stages = intreStages(v); Object.assign(it, intreDims(it.stages)); }
   else if (k === 'kind' && it.type === 'car'){ it.kind = v; [it.w, it.d, it.h] = carSize(v); }
   // 型を変えたら広がりとボケはその器材の既定へ。スポットのまま提灯の数字が
   // 残っていると、選び直しても絵が変わらず「効いていない」に見える
