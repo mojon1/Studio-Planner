@@ -1355,6 +1355,17 @@ await block('20', `moving the view, and getting back to the middle`, async () =>
   const shown = () => t.page.$eval('#recenter', e => e.classList.contains('on'));
   const cam = () => t.page.evaluate(() => { const c = window.__sp.camera();
     return [+c.position.x.toFixed(2), +c.position.z.toFixed(2)]; });
+  // 3D → ファインダー → 3D で視点が戻っていた（寺村さんの指摘）。ファインダーとの行き来では視点を保つ
+  await t.page.click('#viewbtns [data-view="pers"]'); await t.page.waitForTimeout(200);
+  await t.page.evaluate(() => { const o = window.__sp.orbit; o.theta = 1.9; o.phi = 0.6; o.radius = 7.5; o.target.set(1.2, 0.8, -0.5); window.__sp.render(); });
+  const orb = () => t.page.evaluate(() => { const o = window.__sp.orbit; return [o.theta, o.phi, o.radius, ...o.target.toArray()].map(v => +v.toFixed(3)).join('/'); });
+  const o0 = await orb();
+  await t.page.click('#viewbtns [data-view="cam"]'); await t.page.waitForTimeout(200);
+  await t.page.click('#viewbtns [data-view="pers"]'); await t.page.waitForTimeout(200);
+  ok('going to the finder and back keeps the 3D viewpoint', (await orb()) === o0, `${o0} -> ${await orb()}`);
+  await t.page.click('#viewbtns [data-view="plan"]'); await t.page.waitForTimeout(200);
+  await t.page.click('#viewbtns [data-view="pers"]'); await t.page.waitForTimeout(200);
+  ok('switching through a drawing still resets it, as before', (await orb()) !== o0, await orb());
   ok('nothing to recentre at the start', !(await shown()));
   const home = await cam();
   await t.page.mouse.move(cx, cy); await t.page.mouse.down({ button: 'middle' });
@@ -2383,7 +2394,7 @@ await block('33', `ライト`, async () => {
   ok('it says plainly that this is not a simulation',
      panel.includes('ライトは簡易表示です') && panel.includes('set.a.light 3D'),
      panel.slice(panel.indexOf('ライトは簡易'), panel.indexOf('ライトは簡易') + 90));
-  ok('and that the strength has no unit', panel.includes('強さは相対の目盛りです'));
+  ok('and the power hint is gone (寺村さんの指示)', !panel.includes('強さは相対の目盛りです'));
 
   const lamp = () => t.page.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.type === 'light');
