@@ -104,7 +104,8 @@ GITHUB_TOKEN には Pages サイトを新規作成する権限が無いため、
 
 ### OGP 画像
 
-リンクを貼ったときのサムネイルは `ogp.png`。アプリ自身をヘッドレスで撮っている。
+リンクを貼ったときのサムネイルは `ogp.png`（1200 × 630）。今の絵は寺村さんが用意したもので、
+下の道具はヘッドレスで撮り直す古いやり方（走らせると上書きする）。
 
 ```
 cd test && npm install
@@ -116,11 +117,11 @@ UI を変えたら撮り直す。`index.html` の `og:image` は絶対 URL な�
 
 ### アイコン
 
-ホーム画面のアイコンは favicon と同じ絵柄を焼いたもの。
+タブとホーム画面のアイコンは、寺村さんが用意した元絵 `tools/icon-src.png` から焼いたもの（カメラと三角定規）。
 
 ```
 cd test && npm install
-PW_CHROME=<chromium> node ../tools/make-icons.mjs
+node ../tools/make-icons.mjs        # tools/icon-src.png（元絵）から favicon-32 / icon-180 / 192 / 512 / maskable を焼く
 ```
 
 ## テスト

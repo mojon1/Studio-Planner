@@ -2105,6 +2105,16 @@ await block('28d', `コロフォン`, async () => {
   const swv = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/const VERSION = 'v(\d+\.\d+\.\d+)'/)?.[1];
   const colv = col.text.match(/v(\d+\.\d+\.\d+)/)?.[1];
   ok('the colophon version matches the service worker VERSION', !!colv && colv === swv, `${colv} vs ${swv}`);
+  // タブとホーム画面のアイコン、OGP の絵は寺村さんの元絵から。head と manifest が指すファイルが本当にあって、大きさが合うこと
+  const pngSize = f => { const b = fs.readFileSync(path.join(ROOT, f)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+  const iconLinks = await t.page.$$eval('link[rel="icon"], link[rel="apple-touch-icon"]', l => l.map(x => [x.getAttribute('href'), x.getAttribute('sizes') || '']));
+  ok('the tab icon is a 32 px PNG and iOS gets a 180 px one', iconLinks.some(([h, s]) => h === 'favicon-32.png' && s === '32x32') && iconLinks.some(([h]) => h === 'icon-180.png')
+     && pngSize('favicon-32.png').join('x') === '32x32' && pngSize('icon-180.png').join('x') === '180x180', JSON.stringify(iconLinks));
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
+  ok('every manifest icon exists at its declared size', manifest.icons.every(i => fs.existsSync(path.join(ROOT, i.src)) && pngSize(i.src).join('x') === i.sizes), JSON.stringify(manifest.icons.map(i => i.src)));
+  ok('the OGP image is 1200 x 630 and the page points at it', pngSize('ogp.png').join('x') === '1200x630' && /sp\.taichi-teramura\.com\/ogp\.png/.test(await t.page.$eval('meta[property="og:image"]', m => m.content)));
+  const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  ok('the service worker caches the icons', ['favicon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable.png'].every(f => swSrc.includes(`'./${f}'`)));
   ok('colophon run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 });

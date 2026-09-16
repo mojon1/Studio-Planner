@@ -7,13 +7,13 @@
 //     勝手に取りに行かない。実際に使ったものだけを runtime に溜める
 //     （「オフラインに保存」ボタンは外した）。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.39.3';
+const VERSION = 'v1.39.4';
 const SHELL = 'sp-shell-' + VERSION;   // 起動に要るもの。版ごとに作り直す
 const RUNTIME = 'sp-runtime';          // 使ったものを溜める場所。版をまたいで残す
 
 const SHELL_FILES = [
   './', './index.html', './manifest.webmanifest',
-  './icon-192.png', './icon-512.png', './icon-maskable.png',
+  './favicon-32.png', './icon-180.png', './icon-192.png', './icon-512.png', './icon-maskable.png',
   './models/poses.json'
 ];
 // three 本体と、起動時に必ず読む addon。CDN が落ちていても install は止めない。

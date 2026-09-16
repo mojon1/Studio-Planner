@@ -168,14 +168,17 @@ Artifact への publish は、公開版より古いものを出そうとする�
 index.html            アプリ本体
 models/*.glb          人物と車のモデル。使うときだけ取りに行く（car-*.glb が車）。MIT の対象外（models/README.md）
 models/LICENSE-mediapipe.txt  pose_landmarker_full.task の Apache 2.0 本文と帰属表示。消さないこと
-ogp.png               リンクを貼ったときのサムネイル。アプリ自身を撮ったもの
+ogp.png               リンクを貼ったときのサムネイル（1200 × 630）。寺村さんが用意した絵（v1.39.4〜）。
+                      tools/make-ogp.mjs はヘッドレスで撮り直す古い道具で、走らせると上書きするので使わない
 .nojekyll             GitHub Pages に Jekyll を通させない
 .github/workflows/pages.yml   main への push で Pages に出る
 models/thumbs/*.webp  + ボタンの一覧に出す立ち姿。透過。1 枚 4 KB ほど
 manifest.webmanifest  ホーム画面に置いたときの名前とアイコン
 sw.js                 オフライン用の Service Worker
-icon-192.png / icon-512.png / icon-maskable.png   ホーム画面のアイコン
-tools/make-icons.mjs  favicon と同じ絵柄からアイコンを焼く
+tools/icon-src.png    アイコンの元絵（寺村さんが用意した 1036 × 1036）。ここから下の 5 枚を焼く
+favicon-32.png        タブのアイコン。icon-180.png は iOS のホーム画面、icon-192 / 512 は Android と PWA、
+icon-maskable.png     Android が丸く切り抜く版（元絵を 76% に縮め、元絵の地色で埋める）
+tools/make-icons.mjs  tools/icon-src.png から上の 5 枚を焼く（cd test && node ../tools/make-icons.mjs）
 tools/shrink-glb.mjs  GLB のテクスチャを縮めて GLB を組み直す
 tools/fbx-to-glb.mjs  FBX を GLB にする。GLB で落とせないときの回り道
 tools/make-thumbs.mjs models/*.glb から models/thumbs/*.webp を焼く（人は上半身のアップ）
