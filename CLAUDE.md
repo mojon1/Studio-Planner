@@ -144,7 +144,13 @@ CG スタッフではなく、**PC に不慣れなプロダクションマネー
 
 ## 置き場所とバージョンの注意
 
-公開先は **https://mojon1.github.io/Studio-Planner/**。`main` に push すれば出る。
+公開先は **https://sp.taichi-teramura.com/**（寺村さんのドメインのサブドメイン。v1.37.1 から）。
+`main` に push すれば出る。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →
+Custom domain** にある（DNS 側は `sp` の CNAME → `mojon1.github.io`）。GitHub Actions で出しているので
+**`CNAME` ファイルは要らない**（Actions のデプロイでは無視される）。旧 `mojon1.github.io/Studio-Planner/` は
+GitHub が新ドメインへ転送し、`#` 以降の共有データも引き継がれるので、**配った古いリンクと QR は生きている**。
+コードは全部相対パスなので、ドメインが変わっても `asset()`・Service Worker・manifest は触らない。
+絶対 URL は `index.html` の `WEB_HOME`（`file://` の HTML書き出しから共有リンクを作る戻り先）と `og:image` の 2 か所だけ。
 人物モデルが本当に出るかはここでしか確認できない（Artifact のプレビュー枠は
 外部ファイルを取りに行けない）。
 

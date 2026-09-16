@@ -3,7 +3,7 @@
 スタジオ撮影の準備と打合せのための 3D Web アプリ。ブラウザだけで動き、
 スマホとタブレットでも操作できる。インストールもログインも不要。無料。
 
-**→ https://mojon1.github.io/Studio-Planner/**
+**→ https://sp.taichi-teramura.com/**
 
 CG スタッフではなく、プロダクションマネージャー・カメラマン・照明チーム・
 ディレクターが、現場で 30 秒で答えを得るための道具として作っている。
@@ -81,11 +81,17 @@ python -m http.server 8000
 `main` に push すると GitHub Actions が GitHub Pages へ出す。ビルドは無い。
 
 ```
-https://mojon1.github.io/Studio-Planner/
+https://sp.taichi-teramura.com/
 ```
+
+`mojon1.github.io/Studio-Planner/` は GitHub Pages のカスタムドメイン設定で上へ転送される。
+古いリンクと QR もそのまま開ける。
 
 **最初の 1 回だけ手作業がいる。** リポジトリの Settings → Pages →
 Build and deployment → Source を「**GitHub Actions**」にする。
+カスタムドメインも同じ画面の Custom domain に `sp.taichi-teramura.com` を入れて Save し、
+DNS が通ったら Enforce HTTPS にチェック（DNS 側は `sp` の CNAME レコード → `mojon1.github.io`）。
+Actions で出しているので `CNAME` ファイルは要らない。
 GITHUB_TOKEN には Pages サイトを新規作成する権限が無いため、ここは自動化できない。
 入れたら Actions タブの「Deploy to GitHub Pages」を Re-run。以降は push で出る。
 
