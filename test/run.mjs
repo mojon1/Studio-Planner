@@ -3511,6 +3511,24 @@ await block('47', `ディスプレイ`, async () => {
   const f0 = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(500);
   const f1 = await S(() => window.__sp.renderer.info.render.frame);
   ok('and the view keeps redrawing while the video plays', f1 - f0 >= 5, `${f0} -> ${f1}`);
+  // 音はミュートが既定。「ミュート」ボタン（押された状態＝ミュート）で出したり止めたり
+  const vstate = () => S(() => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); const m = s.mediaFor(i); return {muted: m.video.muted, paused: m.video.paused, sound: !!i.sound}; });
+  let vs = await vstate();
+  ok('a video starts muted, with the mute button pressed', vs.muted && !vs.sound && (await P.$eval('#selbody [data-set="sound"]', b => b.classList.contains('on'))), JSON.stringify(vs));
+  await P.click('#selbody [data-set="sound"]'); await P.waitForTimeout(300);
+  vs = await vstate();
+  ok('pressing it lets the sound out', !vs.muted && vs.sound && !vs.paused && !(await P.$eval('#selbody [data-set="sound"]', b => b.classList.contains('on'))), JSON.stringify(vs));
+  await P.click('#selbody [data-set="sound"]'); await P.waitForTimeout(300);
+  vs = await vstate();
+  ok('and pressing again mutes it', vs.muted && !vs.sound, JSON.stringify(vs));
+  // 隠したら止まる（音も）。戻せば回る
+  await P.click('#items .itemrow[data-kind="display"] .ico.eye'); await P.waitForTimeout(300);
+  ok('hiding the display pauses the video', (await vstate()).paused);
+  await P.click('#items .itemrow[data-kind="display"] .ico.eye'); await P.waitForTimeout(500);
+  ok('showing it again plays it', !(await vstate()).paused);
+  // YouTube のページは貼れない。そう言って、貼ってあるものは変えない
+  await P.fill('#selbody [data-media-url]', 'https://www.youtube.com/watch?v=pjHt0Eg4Tx4'); await P.click('#selbody [data-media-load]'); await P.waitForTimeout(400);
+  ok('a YouTube page URL is refused with a plain message', /YouTube のページは貼れません/.test(await P.textContent('#toast')) && (await it()).name === 'clip.webm', await P.textContent('#toast'));
   // 外すと黒い画面に戻り、置き方はカポックと同じ（浮かせる・傾ける）
   await P.click('#selbody [data-media-clear]'); await P.waitForTimeout(400);
   i = await it(); sc = await screen();
