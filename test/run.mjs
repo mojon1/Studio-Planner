@@ -3472,7 +3472,8 @@ await block('47', `ディスプレイ`, async () => {
   ok('it lands as a 3.2 x 1.8 m (16:9) screen with nothing on it', !!i && i.w === 3.2 && i.h === 1.8 && !i.key && !i.url, JSON.stringify(i));
   let sc = await screen();
   ok('an empty screen is a dark, self-lit face', sc && !sc.hasMap && sc.lit === 'MeshBasicMaterial', JSON.stringify(sc));
-  ok('the panel offers a file button and a URL field', !!(await P.$('#selbody [data-media-file]')) && !!(await P.$('#selbody [data-media-url]')) && !!(await P.$('#selbody [data-media-load]')));
+  ok('the panel offers a file button, and no URL field or remove button (寺村さんの判断)', !!(await P.$('#selbody [data-media-file]')) && !(await P.$('#selbody [data-media-url]')) && !(await P.$('#selbody [data-media-clear]')));
+  ok('and a flat / curved switch, flat by default', (await P.$$eval('#selbody [data-set="curve"]', b => b.map(x => x.dataset.val + (x.classList.contains('on') ? '*' : '')).join(' '))) === 'flat* curve');
   // 画像ファイル（4:3 の 320 x 240）。幅を保って高さが比率に合う
   const png = `${OUT}/display-test.png`;
   fs.writeFileSync(png, Buffer.from((await S(() => { const c = document.createElement('canvas'); c.width = 320; c.height = 240; const g = c.getContext('2d');
@@ -3480,18 +3481,29 @@ await block('47', `ディスプレイ`, async () => {
   await P.setInputFiles('#mediafile', png); await P.waitForTimeout(800);
   i = await it(); sc = await screen();
   ok('a picked image lands on the screen and the height follows its aspect (3.2 x 2.4)', sc?.hasMap && sc.iw === 320 && i.h === 2.4 && !!i.key && i.name === 'display-test.png', JSON.stringify({i, sc}));
-  ok('the panel names the image and offers fit and remove', /display-test\.png（320 × 240）/.test(await P.textContent('#selbody')) && !!(await P.$('#selbody [data-media-clear]')));
+  ok('the panel names the image and offers fit', /display-test\.png（320 × 240）/.test(await P.textContent('#selbody')) && !!(await P.$('#selbody [data-media-fit]')));
   // 開き直しても IndexedDB から戻る
   await P.reload(); await P.waitForTimeout(2000);
   i = await it(); sc = await screen();
   ok('after a reload the image comes back from this device', sc?.hasMap && sc.iw === 320 && !!i.key, JSON.stringify({i, sc}));
   await S(id => window.__sp.select(id), i.id); await P.waitForTimeout(300);
-  // URL（同じ origin の画像）。URL だけがリンクに乗る
-  const url = await S(() => location.origin + '/models/thumbs/prop-box.webp');
-  await P.fill('#selbody [data-media-url]', url); await P.click('#selbody [data-media-load]'); await P.waitForTimeout(1000);
-  i = await it(); sc = await screen();
-  ok('an image URL is loaded and replaces the file', sc?.hasMap && sc.iw === 200 && i.url === url && !i.key, JSON.stringify({i, sc}));
-  ok('the URL rides the share link', (await S(() => location.hash.length)) > 20 && /prop-box\.webp/.test(await S(() => JSON.stringify(window.__sp.state()))));
+  // 曲面（寺村さんの指示）。内側に曲がる円弧。幅は弧に沿った長さで、半径だけ足す
+  const faceZ = () => S(() => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); let f = null;
+    s.group(i.id).traverse(n => { if (n.userData.screen) f = n; }); f.geometry.computeBoundingBox(); const b = f.geometry.boundingBox;
+    return {zmin:+b.min.z.toFixed(2), zmax:+b.max.z.toFixed(2), xmax:+b.max.x.toFixed(2)}; });
+  await P.click('#selbody [data-set="curve"][data-val="curve"]'); await P.waitForTimeout(400);
+  let fz = await faceZ();
+  ok('curved: the ends come forward by the sagitta (r 5 m, w 3.2 m -> 0.25 m) and the chord is shorter than the width', fz.zmax - fz.zmin > 0.24 && fz.zmax - fz.zmin < 0.27 && fz.xmax < 1.6 && fz.xmax > 1.5, JSON.stringify(fz));
+  ok('the panel reads chord, depth and angle', /弦 3\.15 m・奥行 0\.25 m・37°/.test(await P.textContent('#selbody')), (await P.textContent('#selbody')).match(/弦[^\n]*/)?.[0]);
+  ok('no corner handles on a curved screen', (await S(() => window.__sp.handles().children.filter(k => k.isMesh).length)) === 0);
+  ok('the image is still on the curved screen', (await screen())?.hasMap === true);
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'radius', 2); }); await P.waitForTimeout(300);
+  fz = await faceZ();
+  ok('a 2 m radius bends it deeper (0.61 m)', fz.zmax - fz.zmin > 0.59 && fz.zmax - fz.zmin < 0.63, JSON.stringify(fz));
+  ok('the curve rides the share link', /"curve":"curve"/.test(await S(() => JSON.stringify(window.__sp.state()))) && /"radius":2/.test(await S(() => JSON.stringify(window.__sp.state()))));
+  await P.click('#selbody [data-set="curve"][data-val="flat"]'); await P.waitForTimeout(400);
+  fz = await faceZ();
+  ok('back to flat, the handles return', fz.zmax - fz.zmin < 0.01 && (await S(() => window.__sp.handles().children.filter(k => k.isMesh).length)) === 4, JSON.stringify(fz));
   // 動画（ページの中で canvas から録った webm）。動いているあいだは毎フレーム描く
   const vid = await S(async id => {
     const c = document.createElement('canvas'); c.width = 160; c.height = 90; const g = c.getContext('2d');
@@ -3515,26 +3527,25 @@ await block('47', `ディスプレイ`, async () => {
   const vstate = () => S(() => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); const m = s.mediaFor(i); return {muted: m.video.muted, paused: m.video.paused, sound: !!i.sound}; });
   let vs = await vstate();
   ok('a video starts muted, with the mute button pressed', vs.muted && !vs.sound && (await P.$eval('#selbody [data-set="sound"]', b => b.classList.contains('on'))), JSON.stringify(vs));
+  // ミュートは読み込みボタンの行のすぐ下、スピーカーの絵つき（寺村さんの指示）
+  ok('the mute button sits right below the load button and carries a muted-speaker icon', await S(() => {
+    const load = document.querySelector('#selbody [data-media-file]').closest('.row'), snd = document.querySelector('#selbody [data-set="sound"]');
+    return load.nextElementSibling === snd.closest('.row') && !!snd.querySelector('svg path[d^="M16 9l5 6"]'); }));
   await P.click('#selbody [data-set="sound"]'); await P.waitForTimeout(300);
   vs = await vstate();
   ok('pressing it lets the sound out', !vs.muted && vs.sound && !vs.paused && !(await P.$eval('#selbody [data-set="sound"]', b => b.classList.contains('on'))), JSON.stringify(vs));
+  ok('and the icon turns into a sounding speaker', await S(() => !!document.querySelector('#selbody [data-set="sound"] svg path[d^="M15.5 8.5a4.5"]')));
   await P.click('#selbody [data-set="sound"]'); await P.waitForTimeout(300);
   vs = await vstate();
   ok('and pressing again mutes it', vs.muted && !vs.sound, JSON.stringify(vs));
   // 隠したら止まる（音も）。戻せば回る
   await P.click('#items .itemrow[data-kind="display"] .ico.eye'); await P.waitForTimeout(300);
   ok('hiding the display pauses the video', (await vstate()).paused);
+  ok('and the redraw stops while it is hidden', await (async () => { const a = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(400);
+    return (await S(() => window.__sp.renderer.info.render.frame)) - a <= 2; })());
   await P.click('#items .itemrow[data-kind="display"] .ico.eye'); await P.waitForTimeout(500);
   ok('showing it again plays it', !(await vstate()).paused);
-  // YouTube のページは貼れない。そう言って、貼ってあるものは変えない
-  await P.fill('#selbody [data-media-url]', 'https://www.youtube.com/watch?v=pjHt0Eg4Tx4'); await P.click('#selbody [data-media-load]'); await P.waitForTimeout(400);
-  ok('a YouTube page URL is refused with a plain message', /YouTube のページは貼れません/.test(await P.textContent('#toast')) && (await it()).name === 'clip.webm', await P.textContent('#toast'));
-  // 外すと黒い画面に戻り、置き方はカポックと同じ（浮かせる・傾ける）
-  await P.click('#selbody [data-media-clear]'); await P.waitForTimeout(400);
-  i = await it(); sc = await screen();
-  ok('removing the media leaves an empty screen', sc && !sc.hasMap && !i.key && !i.url, JSON.stringify({i, sc}));
-  ok('the redraw stops once no video is playing', await (async () => { const a = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(400);
-    return (await S(() => window.__sp.renderer.info.render.frame)) - a <= 2; })());
+  // 置き方はカポックと同じ（浮かせる・傾ける）
   await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'y', 1); s.setProp(o, 'pitch', -10); }); await P.waitForTimeout(300);
   const bb = await S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true); const b = new s.THREE.Box3();
     g.traverse(n => { if (n.isMesh && !n.userData.plan) b.expandByObject(n); }); return {min:+b.min.y.toFixed(2), max:+b.max.y.toFixed(2)}; }, i.id);   // 床の記号（上面図の帯）は外す

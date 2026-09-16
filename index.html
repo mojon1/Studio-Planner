@@ -117,6 +117,7 @@ h2:first-child{margin-top:0}
 .ytlink svg{width:32px;height:22px;flex:none}
 .ytlink:hover{opacity:1}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.btn.snd{display:inline-flex;align-items:center;justify-content:center;gap:8px}.btn.snd svg{width:20px;height:20px;flex:0 0 auto}
 .btn{min-height:44px;padding:8px 14px;border:1px solid var(--rule);background:var(--btn);color:var(--ink);border-radius:8px;font:inherit;font-weight:500;cursor:pointer;flex:1 1 auto;text-align:center}
 .btn.on{background:var(--btn-on);color:var(--btn-on-ink);border-color:var(--btn-on)}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
@@ -390,7 +391,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.2 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -534,7 +535,7 @@ const EN = {
   '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
   '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
-  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','ディスプレイ':'Display','画面幅':'Screen W','画面高':'Screen H','画面':'Screen','画像・動画を読み込む':'Load image / video','画面の比率に合わせる':'Fit to media aspect','外す':'Remove','画像・動画の URL':'Image / video URL','URL から読む':'Load from URL','ファイルはこの端末に残り、共有リンクには入りません。URL は相手も読みます（画像・動画ファイルの直リンクだけ。YouTube などは貼れません）。':'A file stays on this device and is not included in share links. A URL is loaded by the other side too (direct links to image / video files only; YouTube and the like cannot be used).','画面は自発光なので、ライトの影響を受けません。':'The screen is self-lit, so lights do not affect it.','URL から読めませんでした。画像・動画ファイルの直リンクで、置き場が外部からの読み込みを許している必要があります':'Could not load from the URL. It must be a direct link to an image / video file on a host that allows cross-origin loading','画像か動画のファイルを選んでください':'Choose an image or video file','ミュート':'Mute','YouTube のページは貼れません。動画ファイルの直リンク（.mp4 など）を貼ってください':'YouTube pages cannot be used. Paste a direct link to a video file (.mp4 etc.)','音はブラウザに止められました。もう一度押してください':'The browser blocked the sound. Press again','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','床から':'Off floor','「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。':'"Off floor" is the height of the board\'s lowest point. 90° forward/back lays it flat.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','ディスプレイ':'Display','画面幅':'Screen W','画面高':'Screen H','画面':'Screen','画像・動画を読み込む':'Load image / video','画面の比率に合わせる':'Fit to media aspect','ファイルはこの端末に残り、共有リンクには入りません。別の素材にするときは、もう一度読み込みます。':'The file stays on this device and is not included in share links. To use another file, load it again.','画面は自発光なので、ライトの影響を受けません。':'The screen is self-lit, so lights do not affect it.','平面':'Flat','曲面':'Curved','半径':'Radius','内側に曲がります。幅は曲面に沿った長さです。':'Curves inward. The width is measured along the curve.','画像か動画のファイルを選んでください':'Choose an image or video file','ミュート':'Mute','音はブラウザに止められました。もう一度押してください':'The browser blocked the sound. Press again','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','床から':'Off floor','「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。':'"Off floor" is the height of the board\'s lowest point. 90° forward/back lays it flat.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
   '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
@@ -636,6 +637,7 @@ const EN_RULES = [
   [/^3DGSは 1 カットに (\d+) 個までです$/, n => `Up to ${n} 3DGS per shot`],
   [/^部品を集めています… (\d+)$/, n => `Collecting parts… ${n}`],
   [/^モデルを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing models… ${a} / ${b}`],
+  [/^弦 ([\d.]+) m・奥行 ([\d.]+) m・([\d.]+)°$/, (a, b, c) => `Chord ${a} m · depth ${b} m · ${c}°`],
   [/^([\d.]+) MB のファイルにまとめました。外部3Dデータ（合計 (\d+) MB）は 1 枚には入らないので外しました。共有リンクと実体を別便で渡してください。$/, (a, b) => `Bundled into a ${a} MB file. External 3D data (${b} MB in total) does not fit in one file and was left out. Send the share link and the files separately.`],
   [/^取り込んだデータを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing imported data… ${a} / ${b}`],
   [/^([\d.-]+)°（0° で奥）$/, n => `${n}° (0° = back)`],
@@ -1306,7 +1308,7 @@ function panelDims(it){
   if (isBoard(it)){                                           // 傾けても浮かせても板に付いていく
     out.push({p:boardWorld(it, 0, it.h/2, 0),  text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['pers','front']});
     out.push({p:boardWorld(it, 0, -it.h/2, 0), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
-    out.push({p:boardWorld(it, it.w/2, 0, 0),  text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side','front']});
+    out.push({p:boardWorld(it, ...boardEdge(it, 1)), text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side','front']});
     if (it.y > 0) out.push({p:boardWorld(it, 0, -it.h/2, 0), text:`床から ${num(it.y)} m`, cls:'dim', views:['pers','side','front']});
     return out;
   }
@@ -2142,10 +2144,15 @@ function buildKapok(it){
 // 画像か動画を画面に貼って、バーチャルプロダクションの LED ウォールやモニターの見え方を確かめる。
 // 画面は**自発光**（MeshBasicMaterial）なのでライトの影響を受けず、鏡にも映る。
 // 実体（画像・動画のファイル）は取り込んだモデルと同じく **IndexedDB に置き、共有リンクには乗らない**
-//（it.key）。URL で貼ったもの（it.url）は URL だけがリンクに乗り、相手の端末が自分で読む。
+//（it.key）。**URL からの読み込みは作って、外した（寺村さんの判断。v1.39.2）。** YouTube が貼れず
+//（プレーヤーのページで、中の絵を取り出す手段がブラウザに無い）、直リンクも CORS 次第で、制約が多すぎた。
+// 3D ビューだけに iframe を重ねる CSS3DRenderer の道もファインダー・用紙・鏡に出ないので採らない。作り直さないこと。
 // 動画は VideoTexture。音は出さず、繰り返し再生。動画が動いているあいだは毎フレーム描く（frame()）
-const mediaTex = new Map();   // it.key か it.url -> {tex, video?, w, h}
-const mediaFor = it => (it.key && mediaTex.get(it.key)) || (it.url && mediaTex.get(it.url)) || null;
+const mediaTex = new Map();   // it.key -> {tex, video?, w, h}
+// スピーカーの絵（音が出ている／ミュート）
+const SND_ON  = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/><path d="M15.5 8.5a4.5 4.5 0 0 1 0 7M18.5 5.5a8.5 8.5 0 0 1 0 13" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+const SND_OFF = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3z" fill="currentColor"/><path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+const mediaFor = it => (it.key && mediaTex.get(it.key)) || null;
 const isVideoMedia = (name, mime) => /^video\//.test(mime || '') || /\.(mp4|m4v|webm|mov|ogv)(\?|#|$)/i.test(name || '');
 // Blob か URL から画像／動画のテクスチャを組む。読めなければ投げる
 async function mediaFromSource(src, name, mime){
@@ -2193,56 +2200,75 @@ async function setDisplayFile(it, f){
     mediaTex.set(key, m);
     await idbPut(key, {buf: await f.arrayBuffer(), ext: extOf(f.name), name: f.name, mime: f.type, media: true})
       .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
-    it.key = key; it.name = f.name; delete it.url;
+    it.key = key; it.name = f.name;
     fitDisplay(it); rebuildItem(it); applySound(it, true); renderSel(); renderList(); needRender = true; saveHash();
   } catch(e){ console.warn('media failed', e); toast(`${f.name} を読めませんでした`); }
 }
-async function setDisplayURL(it, url){
-  url = (url || '').trim(); if (!url) return;
-  // YouTube は動画ファイルではなく「プレーヤーのページ」。中の絵を取り出す手段がブラウザに無い
-  if (/(^|\/\/|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)(\/|$)/i.test(url)){ toast('YouTube のページは貼れません。動画ファイルの直リンク（.mp4 など）を貼ってください'); return; }
-  toast(`${url} を読み込み中`);
-  try {
-    const m = mediaTex.get(url) || await mediaFromSource(url, url, '');
-    if (it.key && !state.items.some(o => o !== it && o.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
-    mediaTex.set(url, m);
-    it.url = url; delete it.key; delete it.name;
-    fitDisplay(it); rebuildItem(it); applySound(it, true); renderSel(); renderList(); needRender = true; saveHash();
-  } catch(e){ console.warn('media url failed', e); toast('URL から読めませんでした。画像・動画ファイルの直リンクで、置き場が外部からの読み込みを許している必要があります'); renderSel(); }
-}
-function clearDisplay(it){
-  if (it.key && !state.items.some(o => o !== it && o.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
-  delete it.key; delete it.url; delete it.name;
-  rebuildItem(it); renderSel(); renderList(); needRender = true; saveHash();
-}
-// 開き直したとき。ファイルは IndexedDB（まとめた 1 枚ならその中）から、URL は取りに行く
+// 開き直したとき。ファイルは IndexedDB（まとめた 1 枚ならその中）から
 const mediaPending = new Set();
 async function restoreMedia(){
   for (const it of state.items){
     if (it.type !== 'display' || mediaFor(it)) continue;
-    const k = it.key || it.url; if (!k || mediaPending.has(k)) continue;
+    const k = it.key; if (!k || mediaPending.has(k)) continue;
     mediaPending.add(k);
     try {
-      let m;
-      if (it.key){ const rec = await idbGet(it.key); if (!rec) continue; m = await mediaFromSource(new Blob([rec.buf], {type: rec.mime || ''}), rec.name, rec.mime); }
-      else m = await mediaFromSource(it.url, it.url, '');
+      const rec = await idbGet(k); if (!rec) continue;
+      const m = await mediaFromSource(new Blob([rec.buf], {type: rec.mime || ''}), rec.name, rec.mime);
       mediaTex.set(k, m);
-      for (const o of state.items) if (o.type === 'display' && (o.key === k || o.url === k)){ rebuildItem(o); applySound(o, true); }
+      for (const o of state.items) if (o.type === 'display' && o.key === k){ rebuildItem(o); applySound(o, true); }
       renderSel(); needRender = true;
     } catch(e){ console.warn('media restore failed', e); }
     finally { mediaPending.delete(k); }
   }
 }
+// 曲面（寺村さんの指示。バーチャルプロダクションの湾曲 LED ウォール）。**内側（手前）に曲がる円弧**で、
+// 幅 w は曲面に沿った長さ（LED パネルの枚数どおり）、足すのは半径 r だけ。弧の真ん中がオブジェクトの位置。
+// 角度は 300° まで（w / r で決まる。それ以上は半径のほうを持ち上げる）
+const CURVE_MAX = 300 * Math.PI / 180;
+const isCurved = it => it.type === 'display' && it.curve === 'curve';
+function curveInfo(it){
+  let r = Math.max(+it.radius || 5, 1);
+  if (it.w / r > CURVE_MAX) r = it.w / CURVE_MAX;
+  const a = it.w / r;                                    // 弧の角度（rad）
+  return {r, a, deg: a * 180 / Math.PI, chord: 2 * r * Math.sin(a/2), depth: r * (1 - Math.cos(a/2))};
+}
+// 平らな geometry を、面の z（zFace）を半径 r の円弧に載せる形で曲げる。x が弧に沿った長さ、
+// z の差はそのまま厚みの差になる（円弧の中心は (0, 0, zFace + r)）
+function bendGeo(geo, r, zFace){
+  const pos = geo.getAttribute('position'), cz = zFace + r;
+  for (let i = 0; i < pos.count; i++){
+    const x = pos.getX(i), z = pos.getZ(i), a = x / r, d = cz - z;
+    pos.setX(i, d * Math.sin(a)); pos.setZ(i, cz - d * Math.cos(a));
+  }
+  pos.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere(); return geo;
+}
+// 板の座標での端の位置（曲面なら弧の端）。寸法ラベルが使う
+function boardEdge(it, sx){
+  if (!isCurved(it)) return [sx * it.w/2, 0, 0];
+  const {r, a} = curveInfo(it); return [sx * r * Math.sin(a/2), 0, r * (1 - Math.cos(a/2))];
+}
 function buildDisplay(it){
-  const {g, pv} = boardPivot(it), T = boardT(it), m = mediaFor(it);
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h),
-    m ? new THREE.MeshBasicMaterial({map: m.tex, toneMapped: false}) : new THREE.MeshBasicMaterial({color: 0x10141a}));
-  face.position.z = T/2 + 0.001; face.userData.screen = true; pv.add(face);
+  const {g, pv} = boardPivot(it), T = boardT(it), m = mediaFor(it), cv = isCurved(it) ? curveInfo(it) : null;
+  const segs = cv ? Math.max(8, Math.ceil(cv.deg / 3)) : 1, zFace = T/2 + 0.001;
+  const faceGeo = new THREE.PlaneGeometry(it.w, it.h, segs, 1).translate(0, 0, zFace);
+  if (cv) bendGeo(faceGeo, cv.r, zFace);
+  const face = new THREE.Mesh(faceGeo, m ? new THREE.MeshBasicMaterial({map: m.tex, toneMapped: false}) : new THREE.MeshBasicMaterial({color: 0x10141a}));
+  face.userData.screen = true; pv.add(face);
   if (m?.video){ if (it.hidden) m.video.pause(); else m.video.play().catch(() => {}); }   // 隠したら止める（音も）
-  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w + 0.02, it.h + 0.02, T), mat(0x22262c, {roughness:0.6}))); pv.add(body);
+  const bodyGeo = new THREE.BoxGeometry(it.w + 0.02, it.h + 0.02, T, segs, 1, 1);
+  if (cv) bendGeo(bodyGeo, cv.r, zFace);
+  pv.add(shadowed(new THREE.Mesh(bodyGeo, mat(0x22262c, {roughness:0.6}))));
   if (!m){   // 何も貼っていない画面。薄い枠線で「画面」と分かるように
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(it.w*0.96, it.h*0.94)), new THREE.LineBasicMaterial({color:0x3a4250}));
-    e.position.z = T/2 + 0.002; pv.add(e);
+    const eg = new THREE.PlaneGeometry(it.w*0.96, it.h*0.94, segs, 1).translate(0, 0, zFace + 0.001);
+    if (cv) bendGeo(eg, cv.r, zFace);
+    pv.add(new THREE.LineSegments(new THREE.EdgesGeometry(eg, 1), new THREE.LineBasicMaterial({color:0x3a4250})));
+  }
+  if (cv){   // 上面図の帯も弧に。boardPivot が置いた平らな帯を差し替える
+    const flat = g.children.find(n => n.userData.plan); if (flat) g.remove(flat);
+    const mk = new THREE.PlaneGeometry(it.w, 0.12, segs, 1).rotateX(-Math.PI/2);
+    bendGeo(mk, cv.r, 0);
+    const marker = new THREE.Mesh(mk, new THREE.MeshBasicMaterial({color:COLORS.display, side:THREE.DoubleSide}));
+    marker.position.y = 0.007; marker.userData.plan = true; g.add(marker);
   }
   return g;
 }
@@ -3103,7 +3129,7 @@ function edgeHandles(it){
   if (!it || it.hidden || it.locked || viewerMode) return [];
   const bottom = [{kx:'w', sx:1, p:[it.w/2, 0.02, 0]}, {kx:'w', sx:-1, p:[-it.w/2, 0.02, 0]}];
   if (isBoard(it))           // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ。浮かせたり傾けたりしたらスライダーだけ
-    return (it.y || it.pitch || it.roll) ? [] : bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
+    return (it.y || it.pitch || it.roll || isCurved(it)) ? [] : bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
   if (it.type === 'mirror')
     return it.kind === 'floor'
       ? [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => ({kx:'w', sx, kz:'h', sz, p:[sx*it.w/2, 0.02, sz*it.h/2]}))   // 床鏡も 4 角（幅と奥行を一度に）
@@ -4295,7 +4321,7 @@ function protoItem(type, opt, id){
   else if (type === 'intre') it = {id, type, x:0, z:0, rot:0, stages:1, ...intreDims(1), color:'#a9b0bd'};
   else if (type === 'kapok') it = {id, type, x:0, z:0.5, rot:0, w:0.91, h:1.82, y:0, pitch:0, roll:0, color:'#f2f0ea'};
   // ディスプレイは 16:9 の 3.2 × 1.8 m から（LED ウォールにもモニターにも寄せやすい真ん中）
-  else if (type === 'display') it = {id, type, x:0, z:-d/2+1.2, rot:0, w:3.2, h:1.8, y:0, pitch:0, roll:0};
+  else if (type === 'display') it = {id, type, x:0, z:-d/2+1.2, rot:0, w:3.2, h:1.8, y:0, pitch:0, roll:0, curve:'flat', radius:5};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
@@ -4779,17 +4805,24 @@ function renderSel(){
     h += `<p class="hint">「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。</p>`;
   } else if (it.type === 'display'){
     h += range('w','幅',0.2,20,0.01,it.w,'m') + range('h','高さ',0.2,20,0.01,it.h,'m');
+    // 形。曲面は内側（手前）に曲がる。幅は曲面に沿った長さ（LED パネルの枚数どおり）で、半径だけ足す
+    h += `<h2>形</h2>` + btns('curve', [['flat','平面'], ['curve','曲面']], isCurved(it) ? 'curve' : 'flat');
+    if (isCurved(it)){
+      const c = curveInfo(it);
+      h += range('radius','半径',1,30,0.1,c.r,'m');
+      h += `<p class="hint">内側に曲がります。幅は曲面に沿った長さです。</p>`;
+      h += `<p class="hint">弦 ${num(c.chord)} m・奥行 ${num(c.depth)} m・${Math.round(c.deg)}°</p>`;
+    }
     h += `<h2>画面</h2>`;
     const m = mediaFor(it);
-    if (m) h += `<p class="hint">${esc(it.name || it.url || '')}（${m.w} × ${m.h}${m.video ? '、動画' : ''}）</p>`;
-    // 動画の音。ミュートが既定で、ボタンが押された状態＝ミュート
-    if (m?.video) h += `<div class="row"><button class="btn ${it.sound ? '' : 'on'}" data-set="sound" data-val="${it.sound ? 0 : 1}">ミュート</button></div>`;
+    if (m) h += `<p class="hint">${esc(it.name || '')}（${m.w} × ${m.h}${m.video ? '、動画' : ''}）</p>`;
     else if (it.key) h += `<p class="hint">画像・動画の実体はこの端末にありません（${esc(it.name || '')}）。共有リンクには乗りません。</p>`;
-    else if (it.url) h += `<p class="hint">読み込み中…</p>`;
+    // 差し替えは同じボタンからもう一度読む。「外す」は要らない（要らなければオブジェクトごと消す。寺村さんの指示）
     h += `<div class="row"><button class="btn" data-media-file>画像・動画を読み込む</button>` +
-         (m ? `<button class="btn" data-media-fit>画面の比率に合わせる</button><button class="btn" data-media-clear>外す</button>` : '') + `</div>`;
-    h += `<div class="row nm"><input type="text" data-media-url placeholder="画像・動画の URL" value="${esc(it.url || '')}"><button class="btn" data-media-load>URL から読む</button></div>`;
-    h += `<p class="hint">ファイルはこの端末に残り、共有リンクには入りません。URL は相手も読みます（画像・動画ファイルの直リンクだけ。YouTube などは貼れません）。</p>`;
+         (m ? `<button class="btn" data-media-fit>画面の比率に合わせる</button>` : '') + `</div>`;
+    // 動画の音。ミュートが既定で、ボタンが押された状態＝ミュート。読み込みボタンの下に、スピーカーの絵で（寺村さんの指示）
+    if (m?.video) h += `<div class="row"><button class="btn snd ${it.sound ? '' : 'on'}" data-set="sound" data-val="${it.sound ? 0 : 1}" aria-pressed="${it.sound ? 'false' : 'true'}">${it.sound ? SND_ON : SND_OFF} ミュート</button></div>`;
+    h += `<p class="hint">ファイルはこの端末に残り、共有リンクには入りません。別の素材にするときは、もう一度読み込みます。</p>`;
     h += `<p class="hint">画面は自発光なので、ライトの影響を受けません。</p>`;
     h += `<h2>置き方</h2>` + range('y','床から',0,6,0.01,it.y || 0,'m');
     h += range('pitch','傾き（前後）',-180,180,1,a1(it.pitch || 0),'°') + range('roll','傾き（左右）',-180,180,1,a1(it.roll || 0),'°');
@@ -4841,10 +4874,6 @@ function renderSel(){
   // ディスプレイの画面。ファイルは隠した input で選ぶ（change は選んでいるディスプレイに入る）
   el.querySelector('[data-media-file]')?.addEventListener('click', () => { mediaInput.value = ''; mediaInput.click(); });
   el.querySelector('[data-media-fit]')?.addEventListener('click', () => { fitDisplay(it); rebuildItem(it); renderSel(); needRender = true; saveHash(); });
-  el.querySelector('[data-media-clear]')?.addEventListener('click', () => clearDisplay(it));
-  const urlEl = el.querySelector('[data-media-url]');
-  el.querySelector('[data-media-load]')?.addEventListener('click', () => setDisplayURL(it, urlEl.value));
-  urlEl?.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); setDisplayURL(it, urlEl.value); } });
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
     it[k] = (k === 'dimCam' || k === 'dimWall') ? it[k] !== true : !dimOn(it, k);   // these two start off
@@ -4907,8 +4936,7 @@ function deleteItem(it){
   if (!it || viewerMode) return;
   state.items = state.items.filter(i => i !== it);
   if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
-  if (it.type === 'display'){ if (it.key && !state.items.some(i => i.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
-    if (it.url && !state.items.some(i => i.url === it.url)) mediaDrop(it.url); }
+  if (it.type === 'display' && it.key && !state.items.some(i => i.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
   if (it.type === 'splat'){
     splatMeshes.get(it.id)?.mesh?.dispose?.();
     splatMeshes.delete(it.id);
@@ -5010,7 +5038,7 @@ function openRangeCtx(it, k, label, px, py){
   ctxEl.style.top  = Math.max(6, Math.min(py, innerHeight - r.height - 6)) + 'px';
 }
 function setProp(it, k, v, live=false){
-  if (['height','y','w','d','h','rot','pitch','roll','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH','tiltX','tiltZ'].includes(k) || k.startsWith('off.')) v = parseFloat(v);
+  if (['height','y','w','d','h','rot','pitch','roll','radius','focal','drape','sensorW','seatH','targetH','lift','scale','spread','soft','power','aspectW','aspectH','tiltX','tiltZ'].includes(k) || k.startsWith('off.')) v = parseFloat(v);
   if (k === 'rot') v = rotStored(it, v);
   if ((k === 'sensorW' || k === 'targetH' || k === 'aspectW' || k === 'aspectH') && !(v > 0)) return;
   // 「トリミング」でモードに入る（箱が無ければ外形いっぱいから）。「確定」で抜ける（箱は残る）。
@@ -6484,7 +6512,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, setDisplayURL, mediaFor, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
