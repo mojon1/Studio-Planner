@@ -3545,6 +3545,26 @@ await block('47', `ディスプレイ`, async () => {
     return (await S(() => window.__sp.renderer.info.render.frame)) - a <= 2; })());
   await P.click('#items .itemrow[data-kind="display"] .ico.eye'); await P.waitForTimeout(500);
   ok('showing it again plays it', !(await vstate()).paused);
+  // 厚み（平面だけ）と、床に敷いたら台になること（寺村さんの指示。人が埋まっていた）
+  ok('a flat screen offers a thickness slider, 8 cm by default', (await P.$eval('#selbody [data-range="t"]', e => e.value)) === '0.08');
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 't', 0.2); }); await P.waitForTimeout(300);
+  const thick = await S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true); const b = new s.THREE.Box3();
+    g.traverse(n => { if (n.isMesh && !n.userData.plan && !n.userData.screen) b.expandByObject(n); }); return +(b.max.z - b.min.z).toFixed(2); }, i.id);
+  ok('and the body follows it (20 cm)', thick === 0.2, String(thick));
+  await S(() => { const s = window.__sp, st = s.state(), o = st.items.find(x => x.type === 'display'); s.setProp(o, 'pitch', 90);
+    s.setPos(st.items.find(x => x.type === 'person'), o.x, o.z); s.setPos(st.items.find(x => x.type === 'camera'), o.x + 0.5, o.z); s.rebuild(); });
+  await P.waitForTimeout(400);
+  let ys = await S(() => { const s = window.__sp, st = s.state(); return [s.restY(st.items.find(o => o.type === 'person')), s.standHeight(st.items.find(o => o.type === 'camera'))]; });
+  ok('laid flat on the floor it is a platform: a person and a camera stand on its 20 cm top', ys.every(y => Math.abs(y - 0.2) < 1e-6), ys.join('/'));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'y', 0.3); }); await P.waitForTimeout(300);
+  ys = await S(() => { const s = window.__sp, st = s.state(); return [s.restY(st.items.find(o => o.type === 'person'))]; });
+  ok('raised 30 cm off the floor, they stand at 50 cm', Math.abs(ys[0] - 0.5) < 1e-6, ys.join('/'));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'curve', 'curve'); }); await P.waitForTimeout(300);
+  ys = await S(() => { const s = window.__sp, st = s.state(); return [s.restY(st.items.find(o => o.type === 'person'))]; });
+  ok('a curved screen is never a platform', ys[0] === 0, ys.join('/'));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'curve', 'flat'); s.setProp(o, 'pitch', 0); s.setProp(o, 'y', 0); s.setProp(o, 't', 0.08); }); await P.waitForTimeout(300);
+  ys = await S(() => { const s = window.__sp, st = s.state(); return [s.restY(st.items.find(o => o.type === 'person'))]; });
+  ok('standing upright it is not a platform either', ys[0] === 0, ys.join('/'));
   // 置き方はカポックと同じ（浮かせる・傾ける）
   await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'y', 1); s.setProp(o, 'pitch', -10); }); await P.waitForTimeout(300);
   const bb = await S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true); const b = new s.THREE.Box3();
