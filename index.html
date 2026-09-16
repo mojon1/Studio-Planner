@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.36.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.37.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -455,8 +455,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
     <h2>取り込む</h2>
     <div class="row"><button class="btn primary" id="pick">外部3Dデータ</button></div>
     <input type="file" id="file" accept=".glb,.gltf,.fbx,.spz,.ply,.sog,.bin,.png,.jpg,.jpeg,.webp,.ktx2,.basis,.bmp,.tga,.dds,.tif,.tiff" multiple hidden>
-    <p class="hint">対応3Dデータ（GLB / glTF / FBX）120MB以下<br>
-      対応3DGS（.spz / .ply / .sog）240MB以下<br>
+    <p class="hint">対応3Dデータ：GLB / glTF / FBX<br>
+      対応3DGS：.spz / .ply / .sog<br>
       URL共有時には外部3Dデータは含まれません。</p>
   </div>
 </div></div>
@@ -572,17 +572,18 @@ const EN = {
   '写真から人物を検出できませんでした':'No person was found in the photo','名前とメモは PDF の頭に入ります。':'The name and notes go at the top of the PDF.',
   '6 畳の部屋 3.6×2.7×2.4 m':'Small room 3.6×2.7×2.4 m','大きさが怪しいので「高さ」で直してください':'The size looks off. Fix it with Height',
   'URL共有時には外部3Dデータは含まれません。':'External 3D data is not included in share links.',
+  '大きすぎて 1 枚にまとめられませんでした。外部3Dデータを減らしてください。':'Too large to bundle into one file. Remove some external 3D data.',
   'ドラッグでパン・チルト / ホイールで焦点距離':'Drag to pan and tilt / wheel for focal length',
   '中スタジオ 10×8×4.5 m（白ホリ 奥）':'Medium studio 10×8×4.5 m (back cove)',
   'まだ何も置いていません。＋ から選んでください。':'Nothing placed yet. Use + to add something.',
   '付属ファイルが多すぎるので一部を読みませんでした':'Too many companion files; some were skipped',
   'GLB / glTF / FBX を選んでください':'Choose a GLB / glTF / FBX file','大スタジオ 15×12×6 m（白ホリ 奥+左右）':'Large studio 15×12×6 m (back + side coves)',
-  '読み込み中…':'Loading…','対応3DGS（.spz / .ply / .sog）240MB以下':'3DGS (.spz / .ply / .sog) up to 240 MB',
+  '読み込み中…':'Loading…','対応3DGS：.spz / .ply / .sog':'3DGS: .spz / .ply / .sog',
   'スマホのカメラを向けると、この配置がそのまま開きます。':'Point a phone camera at it to open this layout.',
   'ポーズ検出の部品を読み込んでいます（初回だけ 21 MB）':'Loading the pose detector (21 MB, first time only)',
   'GLB / glTF / FBX の本体も一緒に選んでください':'Select the GLB / glTF / FBX file itself as well',
   'まとめられませんでした。通信を確かめてもう一度お試しください。':'Could not pack the file. Check the connection and try again.',
-  '対応3Dデータ（GLB / glTF / FBX）120MB以下':'3D data (GLB / glTF / FBX) up to 120 MB',
+  '対応3Dデータ：GLB / glTF / FBX':'3D data: GLB / glTF / FBX',
   'テクスチャが入っていません。書き出しでテクスチャを埋め込んでください':'No textures inside. Embed the textures when exporting',
   '上が奥の壁。1 マス 1 m。':'The top is the back wall. One square = 1 m.','隠し中。目のマークで戻せます。':'Hidden. Use the eye icon to show it.',
   'ライトは簡易表示です。正確なシミュレーションが必要な場合は set.a.light 3D などの専用ソフトをお使いください。':'Lights are schematic. For an accurate simulation use dedicated software such as set.a.light 3D.',
@@ -606,7 +607,7 @@ const EN = {
   '人物モデルはサーバーから開いたときだけ出ます。プレビュー枠では読めません。':'People models load only from a server. Not available in a preview frame.',
   '車のモデルはサーバーから開いたときだけ出ます。file:// では読めません。実寸の箱で表示しています。':'Car models load only from a server. Not available from file://. Shown as a box at real size.',
   '車のモデルはサーバーから開いたときだけ出ます。プレビュー枠では読めません。実寸の箱で表示しています。':'Car models load only from a server. Not available in a preview frame. Shown as a box at real size.',
-  '横倒しを起こす':'Stand upright','機材の名前':'Name','この幅を保存':'Save this width','タップで数値を入力':'Tap to type a value',
+  '上方向':'Up axis','倒れたり裏返ったりして入ったときだけ。データのどの軸が上かを選びます。':'Only if it came in tipped over or upside down. Pick which axis of the data points up.','倒れたり裏返ったりして入ったときだけ。データのどの軸が上かを選びます。トリミングは外れます。':'Only if it came in tipped over or upside down. Pick which axis of the data points up. This clears the trim.','機材の名前':'Name','この幅を保存':'Save this width','タップで数値を入力':'Tap to type a value',
   'スタジオ・被写体':'Studio / Subjects','1 マス = 1 m。寸法は概算です。':'One square = 1 m. Dimensions are approximate.',
   '幅 (m)':'Width (m)','奥行 (m)':'Depth (m)','高さ (m)':'Height (m)','幅・奥行・高さ':'W × D × H','幅・高さ':'W × H',
   'ここに落とすと取り込みます':'Drop to import','スタジオの広さ、演者の立ち位置、カメラの画角、反射面の映り込みをブラウザで確かめて、A4 の図面と共有リンクにする。登録もインストールも不要。':'Check the studio size, where people stand, the camera angle of view and reflections in a browser, then turn it into an A4 sheet and a share link. No sign-up, no install.',
@@ -634,6 +635,7 @@ const EN_RULES = [
   [/^3DGSは 1 カットに (\d+) 個までです$/, n => `Up to ${n} 3DGS per shot`],
   [/^部品を集めています… (\d+)$/, n => `Collecting parts… ${n}`],
   [/^モデルを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing models… ${a} / ${b}`],
+  [/^([\d.]+) MB のファイルにまとめました。外部3Dデータ（合計 (\d+) MB）は 1 枚には入らないので外しました。共有リンクと実体を別便で渡してください。$/, (a, b) => `Bundled into a ${a} MB file. External 3D data (${b} MB in total) does not fit in one file and was left out. Send the share link and the files separately.`],
   [/^取り込んだデータを詰めています… (\d+) \/ (\d+)$/, (a, b) => `Packing imported data… ${a} / ${b}`],
   [/^([\d.-]+)°（0° で奥）$/, n => `${n}° (0° = back)`],
   [/^(.+) を読み込み中$/, f => `Loading ${f}`],
@@ -641,7 +643,6 @@ const EN_RULES = [
   [/^(.+): 既定なし$/, l => `${tr(l)}: no default`],
   [/^(.+) を読めませんでした。\.bin とテクスチャも一緒に選んでください$/, f => `Could not read ${f}. Select the .bin and textures too`],
   [/^(.+) を読めませんでした$/, f => `Could not read ${f}`],
-  [/^(.+) は大きすぎます（(\d+)MB まで）$/, (f, n) => `${f} is too large (max ${n} MB)`],
   [/^(.+) に形がありません$/, f => `${f} has no geometry`],
   [/^(.+) は読めない種類です$/, f => `${f} is not a supported type`],
   [/^(.+) を置きました。共有リンクには入りません（PDF と画像には写ります）$/, f => `${f} placed. Not included in share links (it appears in PDFs and images)`],
@@ -860,6 +861,8 @@ function migrateItems(st, studio){
       if (it.color === '#3d4148') it.color = '#d8c4a0';         // 最初に出した濃い既定色から合板の色へ
     }
     if (it.type === 'intre'){ it.stages = intreStages(it.stages); Object.assign(it, intreDims(it.stages)); }   // 規格寸法は常に引き直す
+    // 上方向。以前の「横倒しを起こす」（upFix = データの +Z が上）は 'z+' と同じ回転
+    if (it.type === 'model' || it.type === 'splat'){ if (it.upFix) it.up = 'z+'; delete it.upFix; if (it.up && !UP_ROT[it.up]) delete it.up; }
     if (it.rot != null) it.rot = norm(it.rot);        // older links stored 0..359
   }
   // links made when there could only be one camera carry no active camera
@@ -2114,7 +2117,7 @@ function modelEnv(){
 const SPLAT_MAX = 3;                       // 1 カットに置ける上限。並べ替えの負担が効く
 const splatBytes = new Map();              // key -> Uint8Array（この端末にあるスキャン）
 const splatMeshes = new Map();             // item id -> {key, mesh}
-const splatBox = new Map();                // key -> {w, d, h, floor}
+const splatBox = new Map();                // key -> {min, max}（スキャン自身の座標。外形は splatBB）
 let sparkMod = null, sparkRenderer = null, sparkLoading = null;
 async function loadSpark(){
   if (sparkRenderer) return sparkMod;
@@ -2157,9 +2160,8 @@ async function makeSplat(it){
   await mesh.initialized;
   splatMeshes.set(it.id, {key: it.key, mesh});
   if (!splatBox.has(it.key)){
-    const b = mesh.getBoundingBox(true), sz = b.getSize(new THREE.Vector3());
-    splatBox.set(it.key, {w:+sz.x.toFixed(2), d:+sz.z.toFixed(2), h:+sz.y.toFixed(2),
-      floor:-b.min.y, cx:(b.min.x + b.max.x)/2, cz:(b.min.z + b.max.z)/2});
+    const b = mesh.getBoundingBox(true);
+    splatBox.set(it.key, {min:b.min.toArray(), max:b.max.toArray()});   // 生の箱。外形は splatBB(it) が上方向込みで出す
   }
   rebuildItem(it); renderSel(); needRender = true;
 }
@@ -2227,6 +2229,22 @@ function splatQuat(it){
   return q.setFromAxisAngle(new V3(0, 1, 0), THREE.MathUtils.degToRad(it.rot || 0));
 }
 const AXIS = {x: new V3(1, 0, 0), y: new V3(0, 1, 0), z: new V3(0, 0, 1)};
+// 上方向（寺村さんの指示）。**データのどの軸が上か**を選ぶ。Scaniverse は Y+ のまま合うが、
+// ほかの書き出しは 90° 倒れたり 180° 回ったりして入ることがある。向き・傾きの前に掛かる
+// 土台の回転で、四元数は固定（setFromUnitVectors に任せると 180° の回し方が端末で揺れる）
+const UPS = [['y+','Y+'], ['y-','Y-'], ['x+','X+'], ['x-','X-'], ['z+','Z+'], ['z-','Z-']];
+const UP_ROT = {'y+':[AXIS.x, 0], 'y-':[AXIS.x, 180], 'z+':[AXIS.x, -90], 'z-':[AXIS.x, 90], 'x+':[AXIS.z, 90], 'x-':[AXIS.z, -90]};
+const upOf = it => UP_ROT[it.up] ? it.up : 'y+';
+const upQuat = it => { const [ax, deg] = UP_ROT[upOf(it)]; return new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg)); };
+// スキャンの外形を、上方向を掛けたあとの向きで。splatBox は生の min/max を持つ
+function splatBB(it){
+  const raw = splatBox.get(it.key); if (!raw) return null;
+  const q = upQuat(it), b = new THREE.Box3();
+  for (const x of [raw.min[0], raw.max[0]]) for (const y of [raw.min[1], raw.max[1]]) for (const z of [raw.min[2], raw.max[2]])
+    b.expandByPoint(new V3(x, y, z).applyQuaternion(q));
+  const sz = b.getSize(new V3());
+  return {w:+sz.x.toFixed(2), d:+sz.z.toFixed(2), h:+sz.y.toFixed(2), floor:-b.min.y, cx:(b.min.x + b.max.x)/2, cz:(b.min.z + b.max.z)/2};
+}
 function spinSplat(it, axis, deg){
   if (!deg) return;
   const d = new THREE.Quaternion().setFromAxisAngle(AXIS[axis], THREE.MathUtils.degToRad(deg));
@@ -2245,7 +2263,7 @@ function applyCropTo(it, m){
     if (prev){ m.remove(prev); m.userData.o36crop = null; }
     return;
   }
-  const bb = splatBox.get(it.key); if (!bb) return;
+  const bb = splatBB(it); if (!bb) return;
   const c = cropBox(it), yaw = cropYaw(it);
   // SDF はメッシュ自身の座標系。こちらの箱は「床が 0・中心が原点」なので戻す。
   // 箱の向き（ry）は SDF 自身の回転で持つ（Spark は SDF の matrixWorld を逆に掛けて判定する）
@@ -2253,12 +2271,15 @@ function applyCropTo(it, m){
   const pos = [mid.x + bb.cx, mid.y - bb.floor, mid.z + bb.cz];
   const half = [Math.max((c.x1-c.x0)/2, 0.01), Math.max((c.y1-c.y0)/2, 0.01), Math.max((c.z1-c.z0)/2, 0.01)];
   // 辺をつまんで動かしているあいだは毎フレーム来る。作り直さず数字だけ入れ替える
-  if (prev){ prev.sdfs[0].position.set(...pos); prev.sdfs[0].scale.set(...half); prev.sdfs[0].rotation.set(0, yaw, 0); return; }
+  // 箱の 6 個の数字は上方向を掛けたあとの座標。SDF はメッシュ（生の座標）の子なので、
+  // 入れ物の SplatEdit に上方向の逆を持たせて、その中では今までどおりの座標で置く
+  if (prev){ prev.quaternion.copy(upQuat(it)).invert(); prev.sdfs[0].position.set(...pos); prev.sdfs[0].scale.set(...half); prev.sdfs[0].rotation.set(0, yaw, 0); return; }
   const {SplatEdit, SplatEditSdf, SplatEditSdfType, SplatEditRgbaBlendMode} = sparkMod;
   const sdf = new SplatEditSdf({type: SplatEditSdfType.BOX, opacity: 0});
   sdf.position.set(...pos); sdf.scale.set(...half); sdf.rotation.set(0, yaw, 0);
   // invert = 「箱の外側に効かせる」。opacity 0 を掛けるので外側が消える
   const edit = new SplatEdit({rgbaBlendMode: SplatEditRgbaBlendMode.MULTIPLY, sdfs:[sdf], invert:true});
+  edit.quaternion.copy(upQuat(it)).invert();
   edit.add(sdf); m.add(edit); m.userData.o36crop = edit;
 }
 // 切り取りだけを差し替える。作り直すと 1 秒近いデコードが挟まる
@@ -2272,9 +2293,10 @@ function refreshCrop(it){
 // buildSplat と同じ式。作り直しも並べ直しもしないので、つまみを引いているあいだに使う
 function placeSplat(it){
   const cached = splatMeshes.get(it.id); if (!cached || cached.key !== it.key) return;
-  const m = cached.mesh, bb = splatBox.get(it.key) || {floor:0, cx:0, cz:0};
+  const m = cached.mesh, bb = splatBB(it) || {floor:0, cx:0, cz:0};
   const sc = it.scale || 1, [ox, oy, oz] = splatOff(it);
   m.scale.setScalar(sc);
+  m.quaternion.copy(upQuat(it));                 // 上方向。位置は回したあとの外形で決める
   m.position.set((-bb.cx + ox)*sc, (bb.floor + oy)*sc, (-bb.cz + oz)*sc);
 }
 function buildSplat(it){
@@ -2282,12 +2304,8 @@ function buildSplat(it){
   const cached = splatMeshes.get(it.id);
   if (cached && cached.key === it.key){
     const m = cached.mesh;
-    const bb = splatBox.get(it.key) || {floor:0, cx:0, cz:0};
-    // スキャンの床を y=0 に、中心を原点に置いてから、こちらの寸法で動かす
-    const sc = it.scale || 1, [ox, oy, oz] = splatOff(it);
-    m.scale.setScalar(sc);
-    m.position.set((-bb.cx + ox)*sc, (bb.floor + oy)*sc, (-bb.cz + oz)*sc);   // 高さ調整は group の y（restY）
-    m.rotation.set(0, 0, 0);
+    // スキャンの床を y=0 に、中心を原点に置いてから、こちらの寸法で動かす（placeSplat と同じ式）
+    placeSplat(it);                                // 高さ調整は group の y（restY）
     m.userData.splat = true;                       // クリックでは選ばない（pick が読み飛ばす）
     applyCropTo(it, m);
     g.add(m);
@@ -2305,12 +2323,19 @@ function buildSplat(it){
 }
 // スキャンはクリックでは選ばない。現場ぜんぶを覆っているので、拾えるようにすると
 // 中に置いた人もカメラも選べなくなる。選ぶのはオブジェクトの一覧から
+// 取り込んだモデルの外形（上方向と拡大率を掛けたあと）。実体が無い端末では null（リンクの数字のまま）
+function modelDims(it){
+  const src = modelCache.get(it.key); if (!src) return null;
+  const inst = src.clone(true); inst.scale.setScalar(it.scale || 1); inst.quaternion.copy(upQuat(it)); inst.updateMatrixWorld(true);
+  const sz = new THREE.Box3().setFromObject(inst).getSize(new V3());
+  return {w:+sz.x.toFixed(3), d:+sz.z.toFixed(3), h:+sz.y.toFixed(3)};
+}
 function buildModel(it){
   const g = new THREE.Group(), src = modelCache.get(it.key);
   if (src){
     const inst = src.clone(true);
     inst.scale.setScalar(it.scale);
-    if (it.upFix) inst.rotation.x = -Math.PI/2;
+    inst.quaternion.copy(upQuat(it));            // 上方向（旧 upFix は migrate で 'z+' にしてある）
     inst.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(inst), ctr = bb.getCenter(new THREE.Vector3());
     inst.position.set(-ctr.x, -bb.min.y, -ctr.z);
@@ -4483,13 +4508,16 @@ function renderSel(){
     h += colors(PROP_SWATCHES, it.color || '#a9b0bd');
   } else if (it.type === 'splat'){
     const here = splatMeshes.get(it.id)?.key === it.key;
-    const bb = splatBox.get(it.key);
+    const bb = splatBB(it);
     h += `<p class="hint">${esc(it.name || '名前なし')}</p>`;
     if (!here) h += splatBytes.has(it.key)
       ? `<p class="hint">読み込み中…</p>`
       : `<p class="hint">スキャンの実体はこの端末にありません。共有リンクには置き方だけが乗ります（PDF と画像には写ります）。</p>`;
     else if (bb) h += `<p class="hint">実寸 ${fmt(bb.w*(it.scale||1))} × ${fmt(bb.d*(it.scale||1))} × 高 ${fmt(bb.h*(it.scale||1))} m</p>`;
     // 向き・傾きはワールド軸まわりの差分（寺村さんの指示）。数字は積算なので、戻すボタンを置く
+    // 上方向（寺村さんの指示）。倒れて入ったときだけ。向き・傾きより先に掛かる土台
+    if (here){ h += `<h2>上方向</h2>` + btns('up', UPS, upOf(it));
+      h += `<p class="hint">倒れたり裏返ったりして入ったときだけ。データのどの軸が上かを選びます。トリミングは外れます。</p>`; }
     h += range('rot','向き',-180,180,1,a1(rotShown(it)),'°');
     h += range('tiltX','傾き（前後）',-180,180,1,a1(it.tiltX || 0),'°') + range('tiltZ','傾き（左右）',-180,180,1,a1(it.tiltZ || 0),'°');
     h += range('lift','高さ調整',-50,50,0.01,it.lift || 0,'m');
@@ -4529,7 +4557,8 @@ function renderSel(){
     }
     h += `<label class="f"><span>高さ</span><input type="number" data-num="targetH" step="0.01" min="0.01" max="40" value="${it.h.toFixed(2)}"><span class="v">m</span></label>`;
     h += `<p class="hint">幅 ${fmt(+it.w.toFixed(2))} × 奥行 ${fmt(+it.d.toFixed(2))} m。高さを変えると全体が拡大縮小します。</p>`;
-    if (here) h += `<div class="row"><button class="btn ${it.upFix?'on':''}" data-set="upFix" data-val="${it.upFix?'':'1'}">横倒しを起こす</button></div>`;
+    if (here){ h += `<h2>上方向</h2>` + btns('up', UPS, upOf(it));
+      h += `<p class="hint">倒れたり裏返ったりして入ったときだけ。データのどの軸が上かを選びます。</p>`; }
   } else if (it.type === 'camera'){
     h += `<h2>アングル</h2>`;
     h += range('y','高さ',0.2,4,0.05,it.y,'m') + range('rot','パン',-180,180,1,a1(rotShown(it)),'°')
@@ -4800,7 +4829,10 @@ function setProp(it, k, v, live=false){
     it.crop = c;
   }
   else if (k === 'targetH'){ const f = v / it.h; it.scale *= f; it.w *= f; it.d *= f; it.h = v; }
-  else if (k === 'upFix'){ it.upFix = !!v; const t = it.d; it.d = it.h; it.h = t; }
+  // 上方向。外形は回したあとで測り直す。3DGS の切り取りの箱は前の向きの数字なので捨てる
+  else if (k === 'up'){ it.up = UP_ROT[v] ? v : 'y+'; delete it.upFix;
+    if (it.type === 'splat'){ delete it.crop; const bb = splatBB(it); if (bb){ it.w = bb.w; it.d = bb.d; it.h = bb.h; } }
+    else { const dm = modelDims(it); if (dm) Object.assign(it, dm); } }
   else if (k === 'kind' && it.type === 'koma'){ it.kind = v; Object.assign(it, komaDims(v)); }
   else if (k === 'stages' && it.type === 'intre'){ it.stages = intreStages(v); Object.assign(it, intreDims(it.stages)); }
   else if (k === 'kind' && it.type === 'car'){ it.kind = v; [it.w, it.d, it.h] = carSize(v); }
@@ -4837,7 +4869,7 @@ function setProp(it, k, v, live=false){
   // 3DGS の置き方は、つまみを引いているあいだは作り直さず、その場で動かすだけ。
   // 1 目盛りごとに作り直して並べ直させると、並べ替えが終わるたびに絵が飛んでガタガタになる
   //（寺村さんの指摘）。並べ直すのは指を離したときの 1 回
-  else if (it.type === 'splat' && (k === 'rot' || k === 'tiltX' || k === 'tiltZ' || k === 'lift' || k === 'scale' || k.startsWith('off.'))){
+  else if (it.type === 'splat' && (k === 'rot' || k === 'tiltX' || k === 'tiltZ' || k === 'lift' || k === 'scale' || k === 'up' || k.startsWith('off.'))){
     if (live){ placeSplat(it); updateItemTransform(it); }
     else { rebuildItem(it); splatRefresh(); }
   }
@@ -5057,15 +5089,9 @@ async function importFiles(files){
     return;
   }
   const assets = {};
-  let sideBytes = 0;
-  for (const f of sides){
-    if (sideBytes + f.size > 240*1024*1024){ toast('付属ファイルが多すぎるので一部を読みませんでした'); break; }
-    sideBytes += f.size;
-    assets[f.name] = await f.arrayBuffer();
-  }
+  for (const f of sides) assets[f.name] = await f.arrayBuffer();
   const sliceAll = () => Object.fromEntries(Object.entries(assets).map(([k,v]) => [k, v.slice(0)]));
   for (const f of mains){
-    if (f.size > 120*1024*1024){ toast(`${f.name} は大きすぎます（120MB まで）`); continue; }
     const ext = extOf(f.name);
     toast(`${f.name} を読み込み中`);
     try {
@@ -5084,7 +5110,7 @@ async function importFiles(files){
       const keep = Object.fromEntries(Object.entries(assets).filter(([n]) => used.includes(baseOf(n))));
       await idbPut(key, {buf, ext, name:f.name, assets:keep})
         .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
-      addItem('model', {key, name:f.name, scale, upFix:false,
+      addItem('model', {key, name:f.name, scale,
         w:+(raw.x*scale).toFixed(3), d:+(raw.z*scale).toFixed(3), h:+(raw.y*scale).toFixed(3)});
       const note = textureNote(key);
       if (note) toast(note);
@@ -5100,12 +5126,14 @@ async function importFiles(files){
 }
 // 3DGS のスキャン。**共有リンクには載らない**（10 MB 級なので原理的に無理）。
 // 実体はこの端末の IndexedDB に置き、リンクには名前と置き方だけが乗る。
+// **大きさの門前払いはしない**（寺村さんの判断。iPhone 14 Pro で 100 MB 超の 3DGS も
+// 問題なかった）。入らなければ IndexedDB が断り、その旨を言って先へ進む。
+// 本当の天井は「HTML書き出し」の 1 本の文字列にあり、そこは makeBundle が見る（bundleFits）。
 // 相手の画面では枠だけが出て、その旨をパネルに書く。
 async function importScan(f){
   if (state.items.filter(i => i.type === 'splat').length >= SPLAT_MAX){
     toast(`3DGSは 1 カットに ${SPLAT_MAX} 個までです`); return;
   }
-  if (f.size > 240*1024*1024){ toast(`${f.name} は大きすぎます（240MB まで）`); return; }
   toast(`${f.name} を読み込み中`);
   try {
     const buf = await f.arrayBuffer();
@@ -5115,7 +5143,7 @@ async function importScan(f){
       .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
     const it = addItem('splat', {key, name:f.name, scale:1, lift:0, w:4, d:4, h:3});
     await makeSplat(it);                       // 大きさが分かるのは読み終えてから
-    const bb = splatBox.get(key);
+    const bb = splatBB(it);
     if (bb){ it.w = bb.w; it.d = bb.d; it.h = bb.h; rebuildItem(it); renderList(); renderSel(); saveHash(); }
     toast(`${f.name} を置きました。共有リンクには入りません（PDF と画像には写ります）`);
   } catch(e){
@@ -6105,6 +6133,12 @@ const jsDataURL = t => 'data:text/javascript;charset=utf-8;base64,' + b64text(t)
 // モジュールらしくないものは追いかけない。取れなかったものは飛ばして先へ進む
 const SPEC_RE = [/\bfrom\s*["']([^"']+)["']/g, /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g, /\bimport\s+["']([^"']+)["']/g];
 const looksLikeModule = sp => /\.(m?js)$/.test(sp) || !/\.[a-z0-9]{1,5}$/i.test(sp);
+// **1 枚の HTML の本当の天井。** 中身は全部 base64 にして**ひとつの JS 文字列**に繋ぐので、
+// V8 の文字列の上限（2^29 − 24 ≈ 5.4 億文字 ≈ 512 MB）を超えると `Invalid string length` で
+// 落ちる。PC のメモリに関係なく固定。素の 1 枚が 28.5 MB、外部データは base64 で 4/3 倍。
+// 取り込みのほうに上限は無いので、入らない外部データはここで外して、その旨を正直に言う
+const BUNDLE_MAX_CHARS = 480 * 1024 * 1024;
+const bundleFits = (fixedChars, assetBytes) => fixedChars + Math.ceil(assetBytes * 4 / 3) <= BUNDLE_MAX_CHARS;
 async function makeBundle(){
   bundleBtn.disabled = true;
   const say = t => { bundleStat.textContent = t; };
@@ -6184,15 +6218,24 @@ async function makeBundle(){
     }
 
     // ---- 取り込んだモデルと3DGSの実体 ----
+    // 先に合計の大きさを見て、1 本の文字列に収まらなければ外部データは丸ごと外す
+    //（半端に入れると、どれが入ってどれが入っていないか相手に分からない）
     const assets = {};
     const keys = [...new Set(items.filter(i => (i.type === 'model' || i.type === 'splat') && i.key).map(i => i.key))];
+    const recs = [];
+    let assetBytes = 0;
     for (const k of keys){
-      try {
-        const rec = await idbGet(k); if (!rec) continue;
-        assets[k] = {ext:rec.ext, name:rec.name, splat:!!rec.splat, b:b64of(new Uint8Array(rec.buf)),
-          assets:Object.fromEntries(Object.entries(rec.assets || {}).map(([nm,v]) => [nm, b64of(new Uint8Array(v))]))};
-        say(`取り込んだデータを詰めています… ${Object.keys(assets).length} / ${keys.length}`);
-      } catch(e){ console.warn('bundle asset failed', e); }
+      try { const rec = await idbGet(k); if (!rec) continue; recs.push([k, rec]);
+        assetBytes += rec.buf.byteLength + Object.values(rec.assets || {}).reduce((a, v) => a + v.byteLength, 0); }
+      catch(e){ console.warn('bundle asset failed', e); }
+    }
+    const fixedChars = src.length + Object.values(files).reduce((a, f) => a + f.b.length, 0);
+    let left = null;
+    if (recs.length && !bundleFits(fixedChars, assetBytes)) left = assetBytes;
+    else for (const [k, rec] of recs){
+      assets[k] = {ext:rec.ext, name:rec.name, splat:!!rec.splat, b:b64of(new Uint8Array(rec.buf)),
+        assets:Object.fromEntries(Object.entries(rec.assets || {}).map(([nm,v]) => [nm, b64of(new Uint8Array(v))]))};
+      say(`取り込んだデータを詰めています… ${Object.keys(assets).length} / ${keys.length}`);
     }
 
     // ---- 組み立て ----
@@ -6209,10 +6252,13 @@ async function makeBundle(){
     const mb = (out.length / 1024 / 1024).toFixed(1);
     await saveFile(projectName() + '.html', new Blob([out], {type:'text/html'}), 'text/html');
     if (missed.length) console.warn('bundle skipped', missed);
-    say(`${mb} MB のファイルにまとめました。ダブルクリックで開けます（通信は要りません）。`);
+    say(left != null
+      ? `${mb} MB のファイルにまとめました。外部3Dデータ（合計 ${Math.round(left / 1024 / 1024)} MB）は 1 枚には入らないので外しました。共有リンクと実体を別便で渡してください。`
+      : `${mb} MB のファイルにまとめました。ダブルクリックで開けます（通信は要りません）。`);
   } catch(e){
     console.warn('bundle failed', e);
-    say('まとめられませんでした。通信を確かめてもう一度お試しください。');
+    say(e instanceof RangeError ? '大きすぎて 1 枚にまとめられませんでした。外部3Dデータを減らしてください。'
+                                : 'まとめられませんでした。通信を確かめてもう一度お試しください。');
   } finally { bundleBtn.disabled = false; }
 }
 if (BUNDLE){
@@ -6237,7 +6283,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

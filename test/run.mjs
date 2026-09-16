@@ -333,6 +333,17 @@ await block('3', `model import, and the box fallback for someone without the fil
     return m && [m.w, m.d, m.h].map(v => +v.toFixed(2)).join('×'); });
   ok('GLB imported at its true size', dims === '2×1×3', String(dims));
   ok('height field matches', (await t.page.inputValue('[data-num="targetH"]')) === '3.00');
+  // 上方向（寺村さんの指示）。データの +Z を上にすると、奥行 1 と高さ 3 が入れ替わる
+  ok('the model panel offers six up axes, Y+ selected', (await t.page.$$eval('#selbody [data-set="up"]', b => b.map(x => x.dataset.val + (x.classList.contains('on') ? '*' : '')).join(' '))) === 'y+* y- x+ x- z+ z-');
+  await t.page.click('#selbody [data-set="up"][data-val="z+"]'); await t.page.waitForTimeout(400);
+  ok('Z+ up turns the model so its depth becomes its height', await t.page.evaluate(() => { const m = window.__sp.state().items.find(i => i.type === 'model');
+    return [m.up, m.w, m.d, m.h].join('/'); }) === 'z+/2/3/1');
+  ok('and the drawn model stands on the floor at that height', await t.page.evaluate(() => { const s = window.__sp, m = s.state().items.find(i => i.type === 'model');
+    const g = s.group(m.id); g.updateMatrixWorld(true); const b = new s.THREE.Box3().setFromObject(g); return Math.abs(b.min.y) < 0.01 && Math.abs(b.max.y - 1) < 0.01; }));
+  await t.page.click('#selbody [data-set="up"][data-val="x-"]'); await t.page.waitForTimeout(400);
+  ok('X- up makes the width the height', await t.page.evaluate(() => { const m = window.__sp.state().items.find(i => i.type === 'model');
+    return [m.up, m.w, m.d, m.h].join('/'); }) === 'x-/3/1/2');
+  await t.page.click('#selbody [data-set="up"][data-val="y+"]'); await t.page.waitForTimeout(400);
   ok('FBX loader resolves through the importmap',
      (await t.page.evaluate(() => import('three/addons/loaders/FBXLoader.js').then(m => typeof m.FBXLoader).catch(e => 'ERR ' + e.message))) === 'function');
   ok('import run clean', t.errors.length === 0, t.errors.join(' | '));
@@ -1420,7 +1431,7 @@ await block('21', `the panel after the tidy-up`, async () => {
   ok('the import button is called 外部3Dデータ', (await t.page.textContent('#pick')).trim() === '外部3Dデータ');
   const imp = (await t.page.$eval('#addpop .popbody .hint', e => e.textContent)).replace(/\s+/g, '');
   ok('and its blurb is three short lines',
-     imp === '対応3Dデータ（GLB/glTF/FBX）120MB以下対応3DGS（.spz/.ply/.sog）240MB以下URL共有時には外部3Dデータは含まれません。', imp);
+     imp === '対応3Dデータ：GLB/glTF/FBX対応3DGS：.spz/.ply/.sogURL共有時には外部3Dデータは含まれません。', imp);
   await t.page.click('#addclose'); await t.page.waitForTimeout(200);
   ok('配置をすべて消す is gone', !(await t.page.$('#reset')));
   ok('and the paper options are no longer in the panel', !(await t.page.$('[data-sec="share"] [data-orient]')));
@@ -1614,6 +1625,27 @@ await block('25', `a location scan (3D gaussian splatting)`, async () => {
   ok('it sits at the origin, not nudged aside', it.x === 0 && it.z === 0);
   ok('the list calls it 3DGS',
      (await t.page.textContent('#items .itemrow[data-kind="splat"] > button.name')).includes('3DGS'));
+  // 上方向（寺村さんの指示）。土台の回転で、回したあとの外形で床と中心を取り直す
+  await t.page.click('#items .itemrow[data-kind="splat"] > button.name'); await t.page.waitForTimeout(300);
+  ok('the scan panel offers six up axes, Y+ selected', (await t.page.$$eval('#selbody [data-set="up"]', b => b.map(x => x.dataset.val + (x.classList.contains('on') ? '*' : '')).join(' '))) === 'y+* y- x+ x- z+ z-');
+  const meshPose = () => t.page.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'splat');
+    const g = s.group(it.id); let m = null; g.traverse(n => { if (n.userData.splat) m = n; }); if (!m) return null;
+    const e = new s.THREE.Euler().setFromQuaternion(m.quaternion); g.updateMatrixWorld(true);
+    const b = m.getBoundingBox(true).applyMatrix4(m.matrixWorld);
+    return {up:it.up || 'y+', rx:+(e.x*180/Math.PI).toFixed(0), y:+m.position.y.toFixed(2), floor:+b.min.y.toFixed(2), crop:!!it.crop}; });
+  await t.page.evaluate(() => { const s = window.__sp, it = s.state().items.find(i => i.type === 'splat'); s.setProp(it, 'cropOn', 1); it.crop = {...it.crop, y1:1}; });
+  await t.page.click('#selbody [data-set="up"][data-val="y-"]'); await t.page.waitForTimeout(500);
+  let mp = await meshPose();
+  ok('Y- up flips the scan over and lifts it so the new bottom sits on the floor', mp && mp.up === 'y-' && Math.abs(mp.rx) === 180 && mp.y > 1.8 && Math.abs(mp.floor) < 0.05, JSON.stringify(mp));
+  ok('and the trim is cleared, since its numbers were in the old frame', mp && mp.crop === false);
+  await t.page.click('#selbody [data-set="up"][data-val="z+"]'); await t.page.waitForTimeout(500);
+  mp = await meshPose();
+  ok('Z+ up tips the scan by -90° about X and keeps it on the floor', mp && mp.up === 'z+' && mp.rx === -90 && Math.abs(mp.floor) < 0.05, JSON.stringify(mp));
+  ok('the up axis rides the share link', /"up":"z\+"/.test(await t.page.evaluate(() => JSON.stringify(window.__sp.state()))) && (await t.page.evaluate(() => location.hash.length)) > 20);
+  await t.page.click('#selbody [data-set="up"][data-val="y+"]'); await t.page.waitForTimeout(500);
+  mp = await meshPose();
+  ok('Y+ puts it back', mp && mp.up === 'y+' && mp.rx === 0 && Math.abs(mp.y) < 0.2 && Math.abs(mp.floor) < 0.05, JSON.stringify(mp));
+  await t.page.evaluate(() => window.__sp.select(null)); await t.page.waitForTimeout(200);
 
   // 現場ぜんぶを覆うので、クリックでは拾わない（中の人やカメラが選べなくなる）
   await t.page.click('[data-view="pers"]'); await t.page.waitForTimeout(600);
@@ -2079,17 +2111,14 @@ await block('28d', `コロフォン`, async () => {
 
 // --- 29. 書き出しボタンの名前、取り込みの上限、iPhone のファイル選び ------------------
 await block('29', `書き出しボタンの名前、取り込みの上限、iPhone のファイル選び`, async () => {
-  // 上限は「現場のスキャンが入らない」と言われて倍にしたもの。下げると元に戻るので、
-  // 数字そのものと、画面に出す文言が一致していることを見る（片方だけ直すのが怖い）
-  const appSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const caps = [...appSrc.matchAll(/f\.size > (\d+)\*1024\*1024\)\{ toast\(`\$\{f\.name\} は大きすぎます（(\d+)MB まで）/g)]
-    .map(m => [+m[1], +m[2]]);
-  ok('a 3D model may be 120 MB and a 3DGS scan 240 MB',
-     caps.map(c => c[0]).join('/') === '120/240', JSON.stringify(caps));
-  ok('and each cap says the number it actually enforces',
-     caps.length === 2 && caps.every(([n, said]) => n === said), JSON.stringify(caps));
-
   const t = await open('naming', { width: 1200, height: 820 });
+  // 取り込みに大きさの門前払いは無い（寺村さんの判断）。天井は「HTML書き出し」の 1 本の文字列だけ
+  //（残っている `15*1024*1024` は「重いのでスマホでは鈍くなる」のトーストで、弾いてはいない）
+  const appSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  ok('imports carry no size gate any more', !/は大きすぎます（/.test(appSrc) && !/f\.size > \d+\*1024\*1024\)\{ toast\([^)]*(continue|return)/.test(appSrc));
+  ok('the blurb no longer quotes a size', !/\d+MB以下/.test(appSrc));
+  const fits = await t.page.evaluate(() => [window.__sp.bundleFits(30e6, 100e6), window.__sp.bundleFits(30e6, 400e6), window.__sp.bundleFits(30e6, 340e6)]);
+  ok('the one-file bundle knows its string ceiling: 100 MB fits, 400 MB does not', fits[0] === true && fits[1] === false && fits[2] === true, JSON.stringify(fits));
   await t.tab('share');
   ok('the one-file export is called HTML書き出し',
      (await t.page.textContent('#bundlebtn')).trim() === 'HTML書き出し',
@@ -2787,7 +2816,7 @@ await block('37', `英語表示`, async () => {
   // トーストは後から出る文字。observer が拾う
   await p.evaluate(() => window.__sp.toast('リンクをコピーしました')); await p.waitForTimeout(100);
   ok('a toast written in Japanese shows up in English', await p.$eval('#toast', e => e.textContent) === 'Link copied', await p.$eval('#toast', e => e.textContent));
-  ok('tr() handles numbers and names', await p.evaluate(() => [window.__sp.tr('カメラ 2 奥壁まで 6.40 m'), window.__sp.tr('x.glb は大きすぎます（120MB まで）')].join('|')) === 'Camera 2: 6.40 m to back wall|x.glb is too large (max 120 MB)');
+  ok('tr() handles numbers and names', await p.evaluate(() => [window.__sp.tr('カメラ 2 奥壁まで 6.40 m'), window.__sp.tr('モデルを詰めています… 3 / 20')].join('|')) === 'Camera 2: 6.40 m to back wall|Packing models… 3 / 20');
   // 用紙のバーと用紙そのもの
   await p.click('#makepdf'); await p.waitForTimeout(4000);
   left = await jpIn(p, '.pmbar, #papers'); ok('no Japanese left on the PDF sheet', left.length === 0, left.slice(0, 5).join(' | '));
