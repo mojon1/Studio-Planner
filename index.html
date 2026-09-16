@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.38.0 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.38.1 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -533,7 +533,7 @@ const EN = {
   '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
   '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
-  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','床から':'Off floor','「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。':'"Off floor" is the height of the board\'s lowest point. 90° forward/back lays it flat.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
   '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
@@ -1299,6 +1299,13 @@ function panelDims(it){
   if (it.type === 'mirror' && it.kind !== 'wall'){          // 床に敷く鏡は 2 辺とも床の上
     out.push({p:at(0, 0.02, it.h/2), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan','pers']});
     out.push({p:at(it.w/2, 0.02, 0), text:`${nm}奥行 ${num(it.h)} m`, cls:'dim', views:['plan','pers']});
+    return out;
+  }
+  if (it.type === 'kapok'){                                   // 傾けても浮かせても板に付いていく
+    out.push({p:kapokWorld(it, 0, it.h/2, 0),  text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['pers','front']});
+    out.push({p:kapokWorld(it, 0, -it.h/2, 0), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
+    out.push({p:kapokWorld(it, it.w/2, 0, 0),  text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side','front']});
+    if (it.y > 0) out.push({p:kapokWorld(it, 0, -it.h/2, 0), text:`床から ${num(it.y)} m`, cls:'dim', views:['pers','side','front']});
     return out;
   }
   const drape = it.type === 'chroma' ? (it.drape || 0) : 0;
@@ -2090,13 +2097,32 @@ function buildIntre(it){
 // カポック（発泡スチロールのレフ板。寺村さんの指示）。サブロク 910 × 1820 mm が既定で、
 // 厚さ 50 mm。立て鏡と同じく床に立てた板で、幅と高さはつまみでもスライダーでも変えられる。
 // 基本は白。黒・グリーン・ブルーも選べる（KAPOK_SWATCHES）。裏面も同じ色で塗る
+// 横向き・斜め・センチュリーで空中に、が多いので（寺村さんの指示）、**板の中心を軸に回し**、
+// 「床から」（it.y）は**板のいちばん低い点の床からの高さ**。傾け直しても沈まず、浮かせた高さも
+// 変わらない（前後 90° で床にぴたりと寝る）。傾きは前後 it.pitch・左右 it.roll、向き（it.rot）は
+// 今までどおり group の yaw
 const KAPOK_T = 0.05;
+const kapokEuler = it => new THREE.Euler(-THREE.MathUtils.degToRad(it.pitch || 0), 0, THREE.MathUtils.degToRad(it.roll || 0), 'XYZ');
+// 板の中心（軸）の床からの高さ。傾けた板の 8 角のいちばん低いところが it.y に来るように
+function kapokLift(it){
+  const e = kapokEuler(it); let minY = Infinity;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1])
+    minY = Math.min(minY, new V3(sx*it.w/2, sy*it.h/2, sz*KAPOK_T/2).applyEuler(e).y);
+  return (it.y || 0) - minY;
+}
+// 板の座標（原点＝板の中心。x が幅、y が高さ、z が厚み）→ 世界。寸法ラベルが使う
+function kapokWorld(it, lx, ly, lz){
+  const q = new V3(lx, ly, lz).applyEuler(kapokEuler(it)); q.y += kapokLift(it);
+  const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
+  return new V3(it.x + q.x*c + q.z*sn, standHeight(it) + q.y, it.z - q.x*sn + q.z*c);
+}
 function buildKapok(it){
-  const g = new THREE.Group();
+  const g = new THREE.Group(), pv = new THREE.Group();
+  pv.position.y = kapokLift(it); pv.rotation.copy(kapokEuler(it)); g.add(pv);
   const board = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, KAPOK_T), mat(it.color || '#f2f0ea', {roughness:0.95})));
-  board.position.set(0, it.h/2, -KAPOK_T/2); g.add(board);
+  pv.add(board);
   const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, KAPOK_T)), new THREE.LineBasicMaterial({color:0x6b6b66, transparent:true, opacity:0.35}));
-  e.position.copy(board.position); g.add(e);
+  pv.add(e);
   const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS.kapok}));
   marker.rotation.x = -Math.PI/2; marker.position.set(0, 0.007, -KAPOK_T/2); marker.userData.plan = true; g.add(marker);
   return g;
@@ -2957,8 +2983,8 @@ const handleMat = gizMat(0xffffff);
 function edgeHandles(it){
   if (!it || it.hidden || it.locked || viewerMode) return [];
   const bottom = [{kx:'w', sx:1, p:[it.w/2, 0.02, 0]}, {kx:'w', sx:-1, p:[-it.w/2, 0.02, 0]}];
-  if (it.type === 'kapok')   // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ
-    return bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
+  if (it.type === 'kapok')   // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ。浮かせたり傾けたりしたらスライダーだけ
+    return (it.y || it.pitch || it.roll) ? [] : bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
   if (it.type === 'mirror')
     return it.kind === 'floor'
       ? [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => ({kx:'w', sx, kz:'h', sz, p:[sx*it.w/2, 0.02, sz*it.h/2]}))   // 床鏡も 4 角（幅と奥行を一度に）
@@ -4147,7 +4173,7 @@ function protoItem(type, opt, id){
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
   else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
   else if (type === 'intre') it = {id, type, x:0, z:0, rot:0, stages:1, ...intreDims(1), color:'#a9b0bd'};
-  else if (type === 'kapok') it = {id, type, x:0, z:0.5, rot:0, w:0.91, h:1.82, color:'#f2f0ea'};
+  else if (type === 'kapok') it = {id, type, x:0, z:0.5, rot:0, w:0.91, h:1.82, y:0, pitch:0, roll:0, color:'#f2f0ea'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
@@ -4625,6 +4651,10 @@ function renderSel(){
     h += colors(KAPOK_SWATCHES, (it.color||'#f2f0ea').toLowerCase());
     h += range('w','幅',0.3,4,0.01,it.w,'m') + range('h','高さ',0.3,4,0.01,it.h,'m');
     h += `<p class="hint">サブロク（910 × 1820 mm）が既定。厚さ 50 mm。</p>`;
+    // 空中に上げて自在に傾ける（寺村さんの指示）。軸は下辺の中心
+    h += `<h2>置き方</h2>` + range('y','床から',0,4,0.01,it.y || 0,'m');
+    h += range('pitch','傾き（前後）',-180,180,1,a1(it.pitch || 0),'°') + range('roll','傾き（左右）',-180,180,1,a1(it.roll || 0),'°');
+    h += `<p class="hint">「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。</p>`;
   } else if (it.type === 'chroma'){
     h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');

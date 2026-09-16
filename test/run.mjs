@@ -3426,14 +3426,31 @@ await block('46', `カポック`, async () => {
   const hs = await S(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray().map(v => +v.toFixed(2))));
   ok('four corner handles like the standing mirror', hs.length === 4 && hs.filter(([, y]) => y > 1.8).length === 2 && hs.filter(([, y]) => y < 0.1).length === 2, JSON.stringify(hs));
   // 寸法は辺ごと（板幅・板高）
-  const labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  let labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
   ok('the labels read 板幅 and 板高', labels.some(l => /^板幅 0\.91 m$/.test(l)) && labels.some(l => /^板高 1\.82 m$/.test(l)), labels.join('|'));
-  // スライダーで大きさが変わり、リンクに乗る
-  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'kapok'); s.setProp(o, 'w', 1.82); s.setProp(o, 'h', 0.91); });
-  await P.waitForTimeout(300);
+  // 空中に上げて傾ける（寺村さんの指示）。「床から」は板のいちばん低い点の高さ
+  const bounds = () => S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true);
+    const b = new s.THREE.Box3(); g.traverse(n => { if (n.isMesh && n.geometry.type === 'BoxGeometry') b.expandByObject(n); });
+    return {min:+b.min.y.toFixed(2), max:+b.max.y.toFixed(2)}; }, i.id);
+  const set = (k, v) => S(([k, v]) => { const s = window.__sp, o = s.state().items.find(x => x.type === 'kapok'); s.setProp(o, k, v); }, [k, v]);
+  await set('y', 1.5); await set('pitch', 45); await set('roll', 10); await P.waitForTimeout(300);
+  let bb = await bounds();
+  ok('lifted 1.5 m and tilted, its lowest point sits at 1.5 m', Math.abs(bb.min - 1.5) < 0.02 && bb.max < 1.5 + 1.82 && bb.max > 1.5 + 1.0, JSON.stringify(bb));
+  ok('no corner handles while lifted or tilted', (await S(() => window.__sp.handles().children.filter(k => k.isMesh).length)) === 0);
+  labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  ok('a 床から label appears', labels.some(l => /^床から 1\.5 m$/.test(l)), labels.join('|'));
+  await set('y', 0); await set('roll', 0); await set('pitch', 90); await P.waitForTimeout(300);
+  bb = await bounds();
+  ok('at 90° it lies flat on the floor, 5 cm thick', Math.abs(bb.min) < 0.01 && Math.abs(bb.max - 0.05) < 0.01, JSON.stringify(bb));
+  await set('pitch', 15); await P.waitForTimeout(200);
+  bb = await bounds();
+  ok('leaning 15° it rests on its bottom edge', Math.abs(bb.min) < 0.01 && bb.max > 1.7 && bb.max < 1.82, JSON.stringify(bb));
+  // スライダーで大きさが変わり、置き方ごとリンクに乗る
+  await set('w', 1.82); await set('h', 0.91); await set('y', 1.2); await P.waitForTimeout(300);
   await P.reload(); await P.waitForTimeout(1500);
   i = await it();
-  ok('a turned sheet (1820 x 910) comes back from the link in black', !!i && i.w === 1.82 && i.h === 0.91 && i.color === '#2b2f36', JSON.stringify(i));
+  const pose = await S(() => { const o = window.__sp.state().items.find(x => x.type === 'kapok'); return [o.y, o.pitch, o.roll].join('/'); });
+  ok('a turned sheet (1820 x 910) comes back from the link in black, lifted and leaning', !!i && i.w === 1.82 && i.h === 0.91 && i.color === '#2b2f36' && pose === '1.2/15/0', JSON.stringify(i) + ' ' + pose);
   await P.screenshot({ path: path.join(OUT, 'kapok.png') });
   ok('kapok runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
