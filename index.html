@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.37.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.38.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -533,7 +533,7 @@ const EN = {
   '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
   '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
-  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
   '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
@@ -717,9 +717,9 @@ if (LANG === 'en'){
 }
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, intre:0x7d8590, splat:0x7f9bd4, ruler:0xe29a44,
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, intre:0x7d8590, kapok:0xd9d5cc, splat:0x7f9bd4, ruler:0xe29a44,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', intre:'イントレ', splat:'3DGS', ruler:'定規',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', intre:'イントレ', kapok:'カポック', splat:'3DGS', ruler:'定規',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -729,6 +729,8 @@ const SWATCHES = [['#1fb24a','グリーン'],['#1f5fd0','ブルー'],['#f4f4f2',
 const PROP_SWATCHES = [['#e8e6e2','白'],['#a9b0bd','グレー'],['#c8a882','木'],['#2b2f36','黒'],['#b5423a','赤'],['#3a63b5','青']];
 // 箱だけは黒の代わりにグリーン。背景布の #1fb24a より少し落ち着かせて見分けをつける
 const BOX_SWATCHES = PROP_SWATCHES.map(s => s[1] === '黒' ? ['#27a05c','グリーン'] : s);
+// カポック（発泡スチロールのレフ板。寺村さんの指示）。基本は白、黒・グリーン・ブルーも
+const KAPOK_SWATCHES = [['#f2f0ea','白'],['#2b2f36','黒'],['#27a05c','グリーン'],['#3a63b5','ブルー'],['#a9b0bd','グレー']];
 const sensorW = it => it.sensor === 'custom' ? clamp(+it.sensorW || 36, 4, 80) : SENSORS[it.sensor]?.w || 36;
 function sensorName(it){
   if (it.sensor !== 'custom') return SENSORS[it.sensor]?.name || 'フルサイズ';
@@ -1288,7 +1290,7 @@ function itemName(it){
 }
 // 背景布と鏡は「幅 × 高さ」をひとつに束ねず、それぞれの辺のそばに置く。
 // 上面とパースの両方に出す（世界座標なので、どのビューでも同じ場所を指す）
-const PANEL_SHORT = it => it.label || (it.type === 'chroma' ? '布' : (MIRROR_NAME[it.kind] || '鏡'));
+const PANEL_SHORT = it => it.label || (it.type === 'chroma' ? '布' : it.type === 'kapok' ? '板' : (MIRROR_NAME[it.kind] || '鏡'));
 function panelDims(it){
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   const base = standHeight(it);
@@ -1316,8 +1318,8 @@ function itemLabels(view){
       out.push({p:a.clone().lerp(b, 0.5).add(new V3(0, 0.12, 0)), text:`${itemName(it)} ${a.distanceTo(b).toFixed(2)} m`, cls:'dist', views:['plan','side','front','pers']});
       continue;
     }
-    // 背景布と鏡は、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
-    if (it.type === 'chroma' || it.type === 'mirror'){
+    // 背景布と鏡とカポックは、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
+    if (it.type === 'chroma' || it.type === 'mirror' || it.type === 'kapok'){
       for (const L of panelDims(it)) if (L.views.includes(view)) out.push(L);
       continue;
     }
@@ -1382,7 +1384,7 @@ const modelCache = new Map();   // key -> parsed Object3D for models this device
 const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma, ruler:buildRuler,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox,
-                  koma:buildKoma, intre:buildIntre, model:buildModel, splat:buildSplat};
+                  koma:buildKoma, intre:buildIntre, kapok:buildKapok, model:buildModel, splat:buildSplat};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
 function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
 function footDisc(r, color){
@@ -1453,7 +1455,7 @@ const PEOPLE_MODELS = [
 ];
 // `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
 const PROPS = ['car','chair','table','box','koma','intre'];
-const GEAR = ['camera','light','mirror','chroma','ruler'];
+const GEAR = ['camera','light','mirror','chroma','kapok','ruler'];
 const REGIONS = {asia:'アジア系', af:'アフリカ系', us:'欧米系'};
 const KIND_LABEL = {man:'男性', woman:'女性', boy:'男の子', girl:'女の子'};
 const WEAR_LABEL = Object.fromEntries(WEARS);
@@ -2083,6 +2085,20 @@ function buildIntre(it){
     b.position.set(0, top + DECK/2, -W/2 + 0.05 + pw*(i + 0.5)); g.add(b);
   }
   g.add(planeMarker(it.w, it.d, COLORS.intre));
+  return g;
+}
+// カポック（発泡スチロールのレフ板。寺村さんの指示）。サブロク 910 × 1820 mm が既定で、
+// 厚さ 50 mm。立て鏡と同じく床に立てた板で、幅と高さはつまみでもスライダーでも変えられる。
+// 基本は白。黒・グリーン・ブルーも選べる（KAPOK_SWATCHES）。裏面も同じ色で塗る
+const KAPOK_T = 0.05;
+function buildKapok(it){
+  const g = new THREE.Group();
+  const board = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, KAPOK_T), mat(it.color || '#f2f0ea', {roughness:0.95})));
+  board.position.set(0, it.h/2, -KAPOK_T/2); g.add(board);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, KAPOK_T)), new THREE.LineBasicMaterial({color:0x6b6b66, transparent:true, opacity:0.35}));
+  e.position.copy(board.position); g.add(e);
+  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS.kapok}));
+  marker.rotation.x = -Math.PI/2; marker.position.set(0, 0.007, -KAPOK_T/2); marker.userData.plan = true; g.add(marker);
   return g;
 }
 // A metal material with nothing to reflect renders black, and glTF's default
@@ -2930,7 +2946,7 @@ function tiltAngle(x, y, needRing){
 }
 // ---------- 背景布・鏡は辺をつまんで大きさを変える ----------
 // スライダーでも変えられるが、現場では「もう少し広く」を figure の横で示したい
-const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
+const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, kapok:{w:[0.3,4], h:[0.3,4]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
                   box:{w:[0.1,8], d:[0.1,8], h:[0.05,4]}, table:{w:[0.4,4], d:[0.3,4], h:[0.2,1.2]}, camera:{y:[0.2,4]}};   // スライダーと同じ範囲
 const isRound = it => it.type === 'table' && it.shape === 'round';
 const handleGeo = new THREE.BoxGeometry(0.13, 0.13, 0.13);
@@ -2941,6 +2957,8 @@ const handleMat = gizMat(0xffffff);
 function edgeHandles(it){
   if (!it || it.hidden || it.locked || viewerMode) return [];
   const bottom = [{kx:'w', sx:1, p:[it.w/2, 0.02, 0]}, {kx:'w', sx:-1, p:[-it.w/2, 0.02, 0]}];
+  if (it.type === 'kapok')   // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ
+    return bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
   if (it.type === 'mirror')
     return it.kind === 'floor'
       ? [[1,1],[1,-1],[-1,1],[-1,-1]].map(([sx, sz]) => ({kx:'w', sx, kz:'h', sz, p:[sx*it.w/2, 0.02, sz*it.h/2]}))   // 床鏡も 4 角（幅と奥行を一度に）
@@ -4129,6 +4147,7 @@ function protoItem(type, opt, id){
   else if (type === 'box') it = {id, type, x:0, z:0, rot:0, w:1.00, d:1.00, h:0.50, color:'#a9b0bd'};
   else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
   else if (type === 'intre') it = {id, type, x:0, z:0, rot:0, stages:1, ...intreDims(1), color:'#a9b0bd'};
+  else if (type === 'kapok') it = {id, type, x:0, z:0.5, rot:0, w:0.91, h:1.82, color:'#f2f0ea'};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
@@ -4602,6 +4621,10 @@ function renderSel(){
     // 起点を今のカメラのレンズに（寺村さんの指示）。被写体までの距離を測る使い方が本命
     if (camItem()) h += `<div class="row"><button class="btn" data-set="fromCam" data-val="1">起点をカメラにする</button></div>`;
     h += colors(PROP_SWATCHES, it.color || '#e29a44');
+  } else if (it.type === 'kapok'){
+    h += colors(KAPOK_SWATCHES, (it.color||'#f2f0ea').toLowerCase());
+    h += range('w','幅',0.3,4,0.01,it.w,'m') + range('h','高さ',0.3,4,0.01,it.h,'m');
+    h += `<p class="hint">サブロク（910 × 1820 mm）が既定。厚さ 50 mm。</p>`;
   } else if (it.type === 'chroma'){
     h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
@@ -5882,7 +5905,7 @@ function studioRows(){
   h += prow('ホリゾント', edges.length ? edges.join('・') : 'なし');
   const people = state.items.filter(i => i.type === 'person' && !i.hidden);
   if (people.length) h += prow('人物', people.map(p => `${personLabel(p)} ${fmt(p.height)}m`).join('、'));
-  const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','mirror'].includes(i.type));
+  const props = state.items.filter(i => !i.hidden && ['car','chair','table','box','model','mirror','kapok'].includes(i.type));
   if (props.length) h += prow('小道具', [...new Set(props.map(p => itemName(p)))].join('、'));
   // backdrops get a line each: on set, the exact cloth size is what people ask for
   const cloths = state.items.filter(i => i.type === 'chroma' && !i.hidden);

@@ -2794,7 +2794,7 @@ await block('37', `英語表示`, async () => {
   await p.click('[data-add="light"]'); await p.waitForTimeout(400);
   const hint = await p.$$eval('#selbody .hint', h => h.map(x => x.textContent).join(' '));
   ok('the light panel keeps the set.a.light note, in English', /Lights are schematic.*set\.a\.light 3D/.test(hint), hint.slice(0, 120));
-  for (const k of ['chroma', 'mirror', 'koma', 'intre', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
+  for (const k of ['chroma', 'mirror', 'kapok', 'koma', 'intre', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
     await t.add(`[data-add="${k}"]`); await p.keyboard.press('Escape');   // 定規のタップ待ちは抜ける
     left = await jpIn(p, '#panel');
     ok(`no Japanese left with ${k} selected`, left.length === 0, left.slice(0, 5).join(' | '));
@@ -3396,6 +3396,46 @@ await block('45', `イントレ`, async () => {
   await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
   await P.screenshot({ path: path.join(OUT, 'intre.png') });
   ok('the scaffold runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+});
+
+// --- 46. カポック（発泡スチロールのレフ板。サブロクが既定、色を選ぶ） ------------------
+await block('46', `カポック`, async () => {
+  const t = await open('kapok', { width: 1200, height: 800 }); const P = t.page;
+  const S = (fn, arg) => P.evaluate(fn, arg);
+  const it = () => S(() => { const i = window.__sp.state().items.find(x => x.type === 'kapok');
+    return i && {w:i.w, h:i.h, color:i.color, id:i.id, x:i.x, z:i.z}; });
+  await P.click('#addfab'); await P.waitForTimeout(250);
+  ok('the bead board sits among the gear, next to the backdrop', (await P.$$eval('#gearlist [data-add]', b => b.map(x => x.dataset.add).join(','))) === 'camera,light,mirror,chroma,kapok,ruler');
+  await P.click('[data-add="kapok"]'); await P.waitForTimeout(500);
+  let i = await it();
+  ok('it lands as a standard 910 x 1820 sheet, white', !!i && i.w === 0.91 && i.h === 1.82 && i.color === '#f2f0ea', JSON.stringify(i));
+  ok('the panel offers white, black, green, blue and grey', (await P.$$eval('#selbody .swatches [data-set="color"]', b => b.map(x => x.title).join('/'))) === '白/黒/グリーン/ブルー/グレー');
+  ok('and width and height sliders', (await P.$$eval('#selbody [data-range="w"], #selbody [data-range="h"]', b => b.length)) === 2);
+  await P.click('#selbody .swatches [data-set="color"][data-val="#2b2f36"]'); await P.waitForTimeout(300);
+  i = await it();
+  ok('picking black recolours the board', i.color === '#2b2f36' && (await S(id => { const g = window.__sp.group(id); let c = null;
+    g.traverse(n => { if (n.isMesh && n.geometry.type === 'BoxGeometry' && !c) c = '#' + n.material.color.getHexString(); }); return c; }, i.id)) === '#2b2f36');
+  // 板は床に立つ。厚さ 5 cm
+  const box = await S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true);
+    const b = new s.THREE.Box3(); g.traverse(n => { if (n.isMesh && n.geometry.type === 'BoxGeometry') b.expandByObject(n); });
+    const sz = b.getSize(new s.THREE.Vector3()); return {w:+sz.x.toFixed(2), h:+sz.y.toFixed(2), t:+sz.z.toFixed(2), floor:+b.min.y.toFixed(2)}; }, i.id);
+  ok('the board stands on the floor, 5 cm thick', box.w === 0.91 && box.h === 1.82 && box.t === 0.05 && box.floor === 0, JSON.stringify(box));
+  // 立て鏡と同じ 4 つの角のつまみ
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
+  const hs = await S(() => window.__sp.handles().children.filter(k => k.isMesh).map(m => m.position.toArray().map(v => +v.toFixed(2))));
+  ok('four corner handles like the standing mirror', hs.length === 4 && hs.filter(([, y]) => y > 1.8).length === 2 && hs.filter(([, y]) => y < 0.1).length === 2, JSON.stringify(hs));
+  // 寸法は辺ごと（板幅・板高）
+  const labels = await P.$$eval('#labels span', s => s.map(x => x.textContent.trim()));
+  ok('the labels read 板幅 and 板高', labels.some(l => /^板幅 0\.91 m$/.test(l)) && labels.some(l => /^板高 1\.82 m$/.test(l)), labels.join('|'));
+  // スライダーで大きさが変わり、リンクに乗る
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'kapok'); s.setProp(o, 'w', 1.82); s.setProp(o, 'h', 0.91); });
+  await P.waitForTimeout(300);
+  await P.reload(); await P.waitForTimeout(1500);
+  i = await it();
+  ok('a turned sheet (1820 x 910) comes back from the link in black', !!i && i.w === 1.82 && i.h === 0.91 && i.color === '#2b2f36', JSON.stringify(i));
+  await P.screenshot({ path: path.join(OUT, 'kapok.png') });
+  ok('kapok runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 });
 
