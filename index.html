@@ -390,7 +390,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.38.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -441,6 +441,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
 <div id="ctx" hidden></div>
 <!-- 写真ポーズ指定。image/* は MIME なので iOS でも写真とカメラがそのまま出る（拡張子の一覧ではない） -->
 <input type="file" id="photofile" accept="image/*" hidden>
+<input type="file" id="mediafile" accept="image/*,video/*" hidden>
 <div id="addpop"><div class="pop">
   <div class="pophead"><strong>オブジェクトを追加</strong><button id="addclose" aria-label="閉じる">✕</button></div>
   <div class="popbody">
@@ -533,7 +534,7 @@ const EN = {
   '側面':'Side','全幅':'Width','全長':'Length','全高':'Height','写真':'Photo','削除':'Delete','右壁':'Right wall','右端':'Right edge',
   '吊り':'Hanging','向き':'Direction','天井':'Ceiling','奥壁':'Back wall','奥端':'Far edge','奥行':'Depth','女性':'Woman','寝る':'Lie',
   '左壁':'Left wall','左端':'Left edge','床鏡':'Floor mirror','座る':'Sit','強さ':'Power','手動':'Custom','椅子':'Chair','正面':'Front',
-  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','床から':'Off floor','「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。':'"Off floor" is the height of the board\'s lowest point. 90° forward/back lays it flat.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
+  '用紙':'Paper','男性':'Man','立つ':'Stand','箱馬':'Apple box','イントレ':'Scaffold','カポック':'Bead board','板幅':'Board W','板高':'Board H','ディスプレイ':'Display','画面幅':'Screen W','画面高':'Screen H','画面':'Screen','画像・動画を読み込む':'Load image / video','画面の比率に合わせる':'Fit to media aspect','外す':'Remove','画像・動画の URL':'Image / video URL','URL から読む':'Load from URL','ファイルはこの端末に残り、共有リンクには入りません。URL は相手も読みます（画像・動画ファイルの直リンクだけ。YouTube などは貼れません）。':'A file stays on this device and is not included in share links. A URL is loaded by the other side too (direct links to image / video files only; YouTube and the like cannot be used).','画面は自発光なので、ライトの影響を受けません。':'The screen is self-lit, so lights do not affect it.','URL から読めませんでした。画像・動画ファイルの直リンクで、置き場が外部からの読み込みを許している必要があります':'Could not load from the URL. It must be a direct link to an image / video file on a host that allows cross-origin loading','画像か動画のファイルを選んでください':'Choose an image or video file','サブロク（910 × 1820 mm）が既定。厚さ 50 mm。':'Standard 910 × 1820 mm sheet. 50 mm thick.','床から':'Off floor','「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。':'"Off floor" is the height of the board\'s lowest point. 90° forward/back lays it flat.','段数':'Stages','1 段':'1 stage','2 段':'2 stages','3 段':'3 stages','4 段':'4 stages','1.83 × 1.22 m、1 段 1.70 m。規格寸法なので大きさは変わりません。':'1.83 × 1.22 m, 1.70 m per stage. Standard size, so it cannot be resized.','範囲':'Range','複製':'Duplicate','身長':'Height','部材':'Part',
   '隠す':'Hide','高さ':'Height','横幅':'Width','明るさ':'Brightness','環境光':'Ambient light','服装':'Outfit','置き方':'Orientation',
   '載せ方':'Mount','トリミング':'Trim','確定':'Done','トリミングのリセット':'Reset trim','箱の回転':'Box rotation','図の箱の白い四角で面を、青いリングで箱ごと動かしたり回したりできます。':'Drag the white squares on the box to move a face, or the blue ring to move and turn the whole box.','全体表示':'Show all','アングル':'Angle','レンズ':'Lens','ポーズ':'Pose',
   'その他':'Other','カット':'Shots','カメラ':'Camera','グレー':'Gray','サイズ':'Size','スーツ':'Suit','セダン':'Sedan','チルト':'Tilt',
@@ -717,9 +718,9 @@ if (LANG === 'en'){
 }
 // video work comes first, so 16:9 leads and is what a new camera gets
 const ASPECTS = {'16:9':16/9,'3:2':3/2,'4:3':4/3,'1:1':1,'9:16':9/16,'4:5':4/5};
-const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, intre:0x7d8590, kapok:0xd9d5cc, splat:0x7f9bd4, ruler:0xe29a44,
+const COLORS = {person:0xd9a06b, camera:0x353a44, light:0xe8c547, mirror:0x6fb2c9, chroma:0x2ec25a, koma:0x6d737d, intre:0x7d8590, kapok:0xd9d5cc, display:0x2f9bd6, splat:0x7f9bd4, ruler:0xe29a44,
                 car:0x8f9bb0, chair:0xb98a55, table:0xc8a882, box:0xa9b0bd, model:0xb07fd0};
-const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', intre:'イントレ', kapok:'カポック', splat:'3DGS', ruler:'定規',
+const NAMES = {person:'人', camera:'カメラ', light:'ライト', mirror:'ミラー', chroma:'背景布', koma:'箱馬', intre:'イントレ', kapok:'カポック', display:'ディスプレイ', splat:'3DGS', ruler:'定規',
                car:'車', chair:'椅子', table:'テーブル', box:'箱', model:'取り込んだモデル'};
 // the four person buttons differ only in body type and starting height
 const PEOPLE = [['man','男性','m',1.72], ['woman','女性','f',1.58], ['boy','男の子','m',1.20], ['girl','女の子','f',1.18]];
@@ -1290,7 +1291,8 @@ function itemName(it){
 }
 // 背景布と鏡は「幅 × 高さ」をひとつに束ねず、それぞれの辺のそばに置く。
 // 上面とパースの両方に出す（世界座標なので、どのビューでも同じ場所を指す）
-const PANEL_SHORT = it => it.label || (it.type === 'chroma' ? '布' : it.type === 'kapok' ? '板' : (MIRROR_NAME[it.kind] || '鏡'));
+const PANEL_SHORT = it => it.label || (it.type === 'chroma' ? '布' : it.type === 'kapok' ? '板' : it.type === 'display' ? '画面' : (MIRROR_NAME[it.kind] || '鏡'));
+const isBoard = it => it.type === 'kapok' || it.type === 'display';   // 床に立てた板（浮かせて傾けられる）
 function panelDims(it){
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   const base = standHeight(it);
@@ -1301,11 +1303,11 @@ function panelDims(it){
     out.push({p:at(it.w/2, 0.02, 0), text:`${nm}奥行 ${num(it.h)} m`, cls:'dim', views:['plan','pers']});
     return out;
   }
-  if (it.type === 'kapok'){                                   // 傾けても浮かせても板に付いていく
-    out.push({p:kapokWorld(it, 0, it.h/2, 0),  text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['pers','front']});
-    out.push({p:kapokWorld(it, 0, -it.h/2, 0), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
-    out.push({p:kapokWorld(it, it.w/2, 0, 0),  text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side','front']});
-    if (it.y > 0) out.push({p:kapokWorld(it, 0, -it.h/2, 0), text:`床から ${num(it.y)} m`, cls:'dim', views:['pers','side','front']});
+  if (isBoard(it)){                                           // 傾けても浮かせても板に付いていく
+    out.push({p:boardWorld(it, 0, it.h/2, 0),  text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['pers','front']});
+    out.push({p:boardWorld(it, 0, -it.h/2, 0), text:`${nm}幅 ${num(it.w)} m`, cls:'dim', views:['plan']});
+    out.push({p:boardWorld(it, it.w/2, 0, 0),  text:`${nm}高 ${num(it.h)} m`, cls:'dim', views:['pers','side','front']});
+    if (it.y > 0) out.push({p:boardWorld(it, 0, -it.h/2, 0), text:`床から ${num(it.y)} m`, cls:'dim', views:['pers','side','front']});
     return out;
   }
   const drape = it.type === 'chroma' ? (it.drape || 0) : 0;
@@ -1326,7 +1328,7 @@ function itemLabels(view){
       continue;
     }
     // 背景布と鏡とカポックは、辺ごとに 1 本ずつ。まとめて書くと、どの数字がどの辺か現場で分からない
-    if (it.type === 'chroma' || it.type === 'mirror' || it.type === 'kapok'){
+    if (it.type === 'chroma' || it.type === 'mirror' || isBoard(it)){
       for (const L of panelDims(it)) if (L.views.includes(view)) out.push(L);
       continue;
     }
@@ -1391,7 +1393,7 @@ const modelCache = new Map();   // key -> parsed Object3D for models this device
 const modelInfo = new Map();    // key -> {meshes, textures, missing} from the last parse
 const BUILDERS = {person:buildPerson, camera:buildCamera, light:buildLight, chroma:buildChroma, ruler:buildRuler,
                   mirror:buildMirror, car:buildCar, chair:buildChair, table:buildTable, box:buildBox,
-                  koma:buildKoma, intre:buildIntre, kapok:buildKapok, model:buildModel, splat:buildSplat};
+                  koma:buildKoma, intre:buildIntre, kapok:buildKapok, display:buildDisplay, model:buildModel, splat:buildSplat};
 function mat(color, extra={}){ return new THREE.MeshStandardMaterial({color, roughness:0.7, ...extra}); }
 function shadowed(m){ m.castShadow = true; m.receiveShadow = true; return m; }
 function footDisc(r, color){
@@ -1461,7 +1463,7 @@ const PEOPLE_MODELS = [
   {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子'},
 ];
 // `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
-const PROPS = ['car','chair','table','box','koma','intre'];
+const PROPS = ['car','chair','table','box','koma','intre','display'];
 const GEAR = ['camera','light','mirror','chroma','kapok','ruler'];
 const REGIONS = {asia:'アジア系', af:'アフリカ系', us:'欧米系'};
 const KIND_LABEL = {man:'男性', woman:'女性', boy:'男の子', girl:'女の子'};
@@ -1610,6 +1612,8 @@ async function photoPose(it, file){
   return true;
 }
 let photoTarget = null;
+const mediaInput = document.getElementById('mediafile');
+mediaInput.addEventListener('change', () => { const f = mediaInput.files?.[0], it = sel(); if (f && it?.type === 'display') setDisplayFile(it, f); });
 const photoInput = document.getElementById('photofile');
 photoInput.addEventListener('change', () => {
   const file = photoInput.files?.[0], it = state.items.find(i => i.id === photoTarget);
@@ -2101,30 +2105,134 @@ function buildIntre(it){
 // 「床から」（it.y）は**板のいちばん低い点の床からの高さ**。傾け直しても沈まず、浮かせた高さも
 // 変わらない（前後 90° で床にぴたりと寝る）。傾きは前後 it.pitch・左右 it.roll、向き（it.rot）は
 // 今までどおり group の yaw
-const KAPOK_T = 0.05;
-const kapokEuler = it => new THREE.Euler(-THREE.MathUtils.degToRad(it.pitch || 0), 0, THREE.MathUtils.degToRad(it.roll || 0), 'XYZ');
+// ディスプレイ（LED パネル・モニター）も同じ「板」。厚みだけ違う
+const BOARD_T = {kapok:0.05, display:0.08};
+const boardT = it => BOARD_T[it.type] || 0.05;
+const boardEuler = it => new THREE.Euler(-THREE.MathUtils.degToRad(it.pitch || 0), 0, THREE.MathUtils.degToRad(it.roll || 0), 'XYZ');
 // 板の中心（軸）の床からの高さ。傾けた板の 8 角のいちばん低いところが it.y に来るように
-function kapokLift(it){
-  const e = kapokEuler(it); let minY = Infinity;
+function boardLift(it){
+  const e = boardEuler(it), t = boardT(it); let minY = Infinity;
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1])
-    minY = Math.min(minY, new V3(sx*it.w/2, sy*it.h/2, sz*KAPOK_T/2).applyEuler(e).y);
+    minY = Math.min(minY, new V3(sx*it.w/2, sy*it.h/2, sz*t/2).applyEuler(e).y);
   return (it.y || 0) - minY;
 }
 // 板の座標（原点＝板の中心。x が幅、y が高さ、z が厚み）→ 世界。寸法ラベルが使う
-function kapokWorld(it, lx, ly, lz){
-  const q = new V3(lx, ly, lz).applyEuler(kapokEuler(it)); q.y += kapokLift(it);
+function boardWorld(it, lx, ly, lz){
+  const q = new V3(lx, ly, lz).applyEuler(boardEuler(it)); q.y += boardLift(it);
   const r = THREE.MathUtils.degToRad(it.rot || 0), c = Math.cos(r), sn = Math.sin(r);
   return new V3(it.x + q.x*c + q.z*sn, standHeight(it) + q.y, it.z - q.x*sn + q.z*c);
 }
-function buildKapok(it){
+// group（位置と向き）の中に、浮かせて傾けた軸（pv）を 1 つ。板はその中に置く
+function boardPivot(it){
   const g = new THREE.Group(), pv = new THREE.Group();
-  pv.position.y = kapokLift(it); pv.rotation.copy(kapokEuler(it)); g.add(pv);
-  const board = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, KAPOK_T), mat(it.color || '#f2f0ea', {roughness:0.95})));
+  pv.position.y = boardLift(it); pv.rotation.copy(boardEuler(it)); g.add(pv);
+  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS[it.type]}));
+  marker.rotation.x = -Math.PI/2; marker.position.set(0, 0.007, 0); marker.userData.plan = true; g.add(marker);
+  return {g, pv};
+}
+function buildKapok(it){
+  const {g, pv} = boardPivot(it), T = boardT(it);
+  const board = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w, it.h, T), mat(it.color || '#f2f0ea', {roughness:0.95})));
   pv.add(board);
-  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, KAPOK_T)), new THREE.LineBasicMaterial({color:0x6b6b66, transparent:true, opacity:0.35}));
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w, it.h, T)), new THREE.LineBasicMaterial({color:0x6b6b66, transparent:true, opacity:0.35}));
   pv.add(e);
-  const marker = new THREE.Mesh(new THREE.PlaneGeometry(it.w, 0.12), new THREE.MeshBasicMaterial({color:COLORS.kapok}));
-  marker.rotation.x = -Math.PI/2; marker.position.set(0, 0.007, -KAPOK_T/2); marker.userData.plan = true; g.add(marker);
+  return g;
+}
+// ---------- ディスプレイ（LED パネル・モニター。寺村さんの指示） ----------
+// 画像か動画を画面に貼って、バーチャルプロダクションの LED ウォールやモニターの見え方を確かめる。
+// 画面は**自発光**（MeshBasicMaterial）なのでライトの影響を受けず、鏡にも映る。
+// 実体（画像・動画のファイル）は取り込んだモデルと同じく **IndexedDB に置き、共有リンクには乗らない**
+//（it.key）。URL で貼ったもの（it.url）は URL だけがリンクに乗り、相手の端末が自分で読む。
+// 動画は VideoTexture。音は出さず、繰り返し再生。動画が動いているあいだは毎フレーム描く（frame()）
+const mediaTex = new Map();   // it.key か it.url -> {tex, video?, w, h}
+const mediaFor = it => (it.key && mediaTex.get(it.key)) || (it.url && mediaTex.get(it.url)) || null;
+const isVideoMedia = (name, mime) => /^video\//.test(mime || '') || /\.(mp4|m4v|webm|mov|ogv)(\?|#|$)/i.test(name || '');
+// Blob か URL から画像／動画のテクスチャを組む。読めなければ投げる
+async function mediaFromSource(src, name, mime){
+  const url = typeof src === 'string' ? src : URL.createObjectURL(src);
+  if (isVideoMedia(name, mime)){
+    const v = document.createElement('video');
+    v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+    if (typeof src === 'string') v.crossOrigin = 'anonymous';
+    v.src = url;
+    await new Promise((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(new Error('video')); });
+    v.play().catch(() => {});
+    const tex = new THREE.VideoTexture(v); tex.colorSpace = THREE.SRGBColorSpace;
+    return {tex, video:v, w:v.videoWidth, h:v.videoHeight};
+  }
+  const img = new Image();
+  if (typeof src === 'string') img.crossOrigin = 'anonymous';
+  img.src = url;
+  await new Promise((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('image')); });
+  const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+  return {tex, w:img.naturalWidth, h:img.naturalHeight};
+}
+function mediaDrop(k){ const m = mediaTex.get(k); if (!m) return; m.video?.pause(); m.tex.dispose(); mediaTex.delete(k); }
+// 動画が動いている画面があるか。frame() が毎フレーム描き直す合図
+function mediaLive(){
+  for (const it of state.items){ if (it.type !== 'display' || it.hidden) continue; const m = mediaFor(it); if (m?.video && !m.video.paused) return true; }
+  return false;
+}
+// 画面の比率を画像に合わせる。幅を保って高さを引き直す
+function fitDisplay(it){ const m = mediaFor(it); if (m && m.w > 0) it.h = +clamp(it.w * m.h / m.w, 0.2, 20).toFixed(2); }
+async function setDisplayFile(it, f){
+  if (!f || !(/^(image|video)\//.test(f.type) || isVideoMedia(f.name, f.type))){ toast('画像か動画のファイルを選んでください'); return; }
+  toast(`${f.name} を読み込み中`);
+  try {
+    const m = await mediaFromSource(f, f.name, f.type);
+    const key = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    if (it.key && !state.items.some(o => o !== it && o.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
+    mediaTex.set(key, m);
+    await idbPut(key, {buf: await f.arrayBuffer(), ext: extOf(f.name), name: f.name, mime: f.type, media: true})
+      .catch(() => toast(`${f.name} はこの端末に残せませんでした。この画面では使えますが、開き直すと消えます`));
+    it.key = key; it.name = f.name; delete it.url;
+    fitDisplay(it); rebuildItem(it); renderSel(); renderList(); needRender = true; saveHash();
+  } catch(e){ console.warn('media failed', e); toast(`${f.name} を読めませんでした`); }
+}
+async function setDisplayURL(it, url){
+  url = (url || '').trim(); if (!url) return;
+  toast(`${url} を読み込み中`);
+  try {
+    const m = mediaTex.get(url) || await mediaFromSource(url, url, '');
+    if (it.key && !state.items.some(o => o !== it && o.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
+    mediaTex.set(url, m);
+    it.url = url; delete it.key; delete it.name;
+    fitDisplay(it); rebuildItem(it); renderSel(); renderList(); needRender = true; saveHash();
+  } catch(e){ console.warn('media url failed', e); toast('URL から読めませんでした。画像・動画ファイルの直リンクで、置き場が外部からの読み込みを許している必要があります'); renderSel(); }
+}
+function clearDisplay(it){
+  if (it.key && !state.items.some(o => o !== it && o.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
+  delete it.key; delete it.url; delete it.name;
+  rebuildItem(it); renderSel(); renderList(); needRender = true; saveHash();
+}
+// 開き直したとき。ファイルは IndexedDB（まとめた 1 枚ならその中）から、URL は取りに行く
+const mediaPending = new Set();
+async function restoreMedia(){
+  for (const it of state.items){
+    if (it.type !== 'display' || mediaFor(it)) continue;
+    const k = it.key || it.url; if (!k || mediaPending.has(k)) continue;
+    mediaPending.add(k);
+    try {
+      let m;
+      if (it.key){ const rec = await idbGet(it.key); if (!rec) continue; m = await mediaFromSource(new Blob([rec.buf], {type: rec.mime || ''}), rec.name, rec.mime); }
+      else m = await mediaFromSource(it.url, it.url, '');
+      mediaTex.set(k, m);
+      for (const o of state.items) if (o.type === 'display' && (o.key === k || o.url === k)) rebuildItem(o);
+      renderSel(); needRender = true;
+    } catch(e){ console.warn('media restore failed', e); }
+    finally { mediaPending.delete(k); }
+  }
+}
+function buildDisplay(it){
+  const {g, pv} = boardPivot(it), T = boardT(it), m = mediaFor(it);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(it.w, it.h),
+    m ? new THREE.MeshBasicMaterial({map: m.tex, toneMapped: false}) : new THREE.MeshBasicMaterial({color: 0x10141a}));
+  face.position.z = T/2 + 0.001; face.userData.screen = true; pv.add(face);
+  const body = shadowed(new THREE.Mesh(new THREE.BoxGeometry(it.w + 0.02, it.h + 0.02, T), mat(0x22262c, {roughness:0.6}))); pv.add(body);
+  if (!m){   // 何も貼っていない画面。薄い枠線で「画面」と分かるように
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(it.w*0.96, it.h*0.94)), new THREE.LineBasicMaterial({color:0x3a4250}));
+    e.position.z = T/2 + 0.002; pv.add(e);
+  }
   return g;
 }
 // A metal material with nothing to reflect renders black, and glTF's default
@@ -2972,7 +3080,7 @@ function tiltAngle(x, y, needRing){
 }
 // ---------- 背景布・鏡は辺をつまんで大きさを変える ----------
 // スライダーでも変えられるが、現場では「もう少し広く」を figure の横で示したい
-const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, kapok:{w:[0.3,4], h:[0.3,4]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
+const SIZE_LIM = {mirror:{w:[0.5,20], h:[0.3,20]}, kapok:{w:[0.3,4], h:[0.3,4]}, display:{w:[0.2,20], h:[0.2,20]}, chroma:{w:[1,12], h:[1,6], drape:[0,6]},
                   box:{w:[0.1,8], d:[0.1,8], h:[0.05,4]}, table:{w:[0.4,4], d:[0.3,4], h:[0.2,1.2]}, camera:{y:[0.2,4]}};   // スライダーと同じ範囲
 const isRound = it => it.type === 'table' && it.shape === 'round';
 const handleGeo = new THREE.BoxGeometry(0.13, 0.13, 0.13);
@@ -2983,7 +3091,7 @@ const handleMat = gizMat(0xffffff);
 function edgeHandles(it){
   if (!it || it.hidden || it.locked || viewerMode) return [];
   const bottom = [{kx:'w', sx:1, p:[it.w/2, 0.02, 0]}, {kx:'w', sx:-1, p:[-it.w/2, 0.02, 0]}];
-  if (it.type === 'kapok')   // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ。浮かせたり傾けたりしたらスライダーだけ
+  if (isBoard(it))           // 立て鏡と同じ: 下の 2 角で幅、上の 2 角で幅と高さ。浮かせたり傾けたりしたらスライダーだけ
     return (it.y || it.pitch || it.roll) ? [] : bottom.concat([{kx:'w', sx:1, ky:'h', p:[it.w/2, it.h, 0]}, {kx:'w', sx:-1, ky:'h', p:[-it.w/2, it.h, 0]}]);
   if (it.type === 'mirror')
     return it.kind === 'floor'
@@ -3496,6 +3604,7 @@ let needRender = true;
 function frame(){
   requestAnimationFrame(frame);
   if (capturing) return;            // 用紙や画像を撮っている最中。大きさも視点も別物
+  if (mediaLive()) needRender = true;   // 動画の画面があるあいだは毎フレーム
   if (!needRender) return; needRender = false;
   shadowNext();                     // この 1 フレームぶん。小窓も鏡も同じものを使い回す
   fitOrtho();
@@ -4174,6 +4283,8 @@ function protoItem(type, opt, id){
   else if (type === 'koma') it = {id, type, x:0, z:0, rot:0, kind:'flat', ...komaDims('flat'), color:'#d8c4a0'};
   else if (type === 'intre') it = {id, type, x:0, z:0, rot:0, stages:1, ...intreDims(1), color:'#a9b0bd'};
   else if (type === 'kapok') it = {id, type, x:0, z:0.5, rot:0, w:0.91, h:1.82, y:0, pitch:0, roll:0, color:'#f2f0ea'};
+  // ディスプレイは 16:9 の 3.2 × 1.8 m から（LED ウォールにもモニターにも寄せやすい真ん中）
+  else if (type === 'display') it = {id, type, x:0, z:-d/2+1.2, rot:0, w:3.2, h:1.8, y:0, pitch:0, roll:0};
   else if (type === 'model') it = {...opt, id, type, x:0, z:0, rot:0};
   // スキャンは現場そのものなので、原点に置いて動かさない（よけ合いもしない）
   else if (type === 'splat') it = {...opt, id, type, x:0, z:0, rot:0};
@@ -4655,6 +4766,20 @@ function renderSel(){
     h += `<h2>置き方</h2>` + range('y','床から',0,4,0.01,it.y || 0,'m');
     h += range('pitch','傾き（前後）',-180,180,1,a1(it.pitch || 0),'°') + range('roll','傾き（左右）',-180,180,1,a1(it.roll || 0),'°');
     h += `<p class="hint">「床から」は板のいちばん低いところの高さ。前後 90° で床に寝ます。</p>`;
+  } else if (it.type === 'display'){
+    h += range('w','幅',0.2,20,0.01,it.w,'m') + range('h','高さ',0.2,20,0.01,it.h,'m');
+    h += `<h2>画面</h2>`;
+    const m = mediaFor(it);
+    if (m) h += `<p class="hint">${esc(it.name || it.url || '')}（${m.w} × ${m.h}${m.video ? '、動画' : ''}）</p>`;
+    else if (it.key) h += `<p class="hint">画像・動画の実体はこの端末にありません（${esc(it.name || '')}）。共有リンクには乗りません。</p>`;
+    else if (it.url) h += `<p class="hint">読み込み中…</p>`;
+    h += `<div class="row"><button class="btn" data-media-file>画像・動画を読み込む</button>` +
+         (m ? `<button class="btn" data-media-fit>画面の比率に合わせる</button><button class="btn" data-media-clear>外す</button>` : '') + `</div>`;
+    h += `<div class="row nm"><input type="text" data-media-url placeholder="画像・動画の URL" value="${esc(it.url || '')}"><button class="btn" data-media-load>URL から読む</button></div>`;
+    h += `<p class="hint">ファイルはこの端末に残り、共有リンクには入りません。URL は相手も読みます（画像・動画ファイルの直リンクだけ。YouTube などは貼れません）。</p>`;
+    h += `<p class="hint">画面は自発光なので、ライトの影響を受けません。</p>`;
+    h += `<h2>置き方</h2>` + range('y','床から',0,6,0.01,it.y || 0,'m');
+    h += range('pitch','傾き（前後）',-180,180,1,a1(it.pitch || 0),'°') + range('roll','傾き（左右）',-180,180,1,a1(it.roll || 0),'°');
   } else if (it.type === 'chroma'){
     h += colors(SWATCHES, (it.color||'#1fb24a').toLowerCase());
     h += range('w','幅',1,12,0.1,it.w,'m') + range('h','高さ',1,6,0.1,it.h,'m') + range('drape','床に垂らす',0,6,0.1,it.drape,'m');
@@ -4700,6 +4825,13 @@ function renderSel(){
     setProp(it, 'posture', b.dataset.pose === 'none' ? null : b.dataset.pose);
   }));
   el.querySelector('[data-photo]')?.addEventListener('click', () => { photoTarget = it.id; photoInput.value = ''; photoInput.click(); });
+  // ディスプレイの画面。ファイルは隠した input で選ぶ（change は選んでいるディスプレイに入る）
+  el.querySelector('[data-media-file]')?.addEventListener('click', () => { mediaInput.value = ''; mediaInput.click(); });
+  el.querySelector('[data-media-fit]')?.addEventListener('click', () => { fitDisplay(it); rebuildItem(it); renderSel(); needRender = true; saveHash(); });
+  el.querySelector('[data-media-clear]')?.addEventListener('click', () => clearDisplay(it));
+  const urlEl = el.querySelector('[data-media-url]');
+  el.querySelector('[data-media-load]')?.addEventListener('click', () => setDisplayURL(it, urlEl.value));
+  urlEl?.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); setDisplayURL(it, urlEl.value); } });
   el.querySelectorAll('[data-dim]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.dim === 'own' ? 'dim' : b.dataset.dim;
     it[k] = (k === 'dimCam' || k === 'dimWall') ? it[k] !== true : !dimOn(it, k);   // these two start off
@@ -4762,6 +4894,8 @@ function deleteItem(it){
   if (!it || viewerMode) return;
   state.items = state.items.filter(i => i !== it);
   if (it.type === 'model' && it.key && !state.items.some(i => i.key === it.key)){ modelCache.delete(it.key); modelInfo.delete(it.key); idbDel(it.key); }
+  if (it.type === 'display'){ if (it.key && !state.items.some(i => i.key === it.key)){ mediaDrop(it.key); idbDel(it.key); }
+    if (it.url && !state.items.some(i => i.url === it.url)) mediaDrop(it.url); }
   if (it.type === 'splat'){
     splatMeshes.get(it.id)?.mesh?.dispose?.();
     splatMeshes.delete(it.id);
@@ -4945,7 +5079,7 @@ async function idbPut(key, val){ const db = await idb(); return new Promise((res
 async function idbGet(key){
   // まとめたファイルから開いたときは、実体はこの中にある（IndexedDB は空）
   const b = BUNDLE?.assets?.[key];
-  if (b) return {buf: b64bytes(b.b).buffer, ext: b.ext, name: b.name, splat: b.splat,
+  if (b) return {buf: b64bytes(b.b).buffer, ext: b.ext, name: b.name, splat: b.splat, mime: b.mime, media: b.media,
                  assets: Object.fromEntries(Object.entries(b.assets || {}).map(([k,v]) => [k, b64bytes(v).buffer]))};
   const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const q = tx.objectStore(IDB_STORE).get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function idbDel(key){ const db = await idb(); return new Promise(res => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); }
@@ -5241,7 +5375,7 @@ async function restoreScans(){
   }
 }
 async function restoreModels(){
-  restoreScans();
+  restoreScans(); restoreMedia();
   const keys = [...new Set(state.items.filter(i => i.type === 'model' && i.key).map(i => i.key))];
   let any = false;
   for (const key of keys){
@@ -6274,7 +6408,7 @@ async function makeBundle(){
     // 先に合計の大きさを見て、1 本の文字列に収まらなければ外部データは丸ごと外す
     //（半端に入れると、どれが入ってどれが入っていないか相手に分からない）
     const assets = {};
-    const keys = [...new Set(items.filter(i => (i.type === 'model' || i.type === 'splat') && i.key).map(i => i.key))];
+    const keys = [...new Set(items.filter(i => (i.type === 'model' || i.type === 'splat' || i.type === 'display') && i.key).map(i => i.key))];
     const recs = [];
     let assetBytes = 0;
     for (const k of keys){
@@ -6286,7 +6420,7 @@ async function makeBundle(){
     let left = null;
     if (recs.length && !bundleFits(fixedChars, assetBytes)) left = assetBytes;
     else for (const [k, rec] of recs){
-      assets[k] = {ext:rec.ext, name:rec.name, splat:!!rec.splat, b:b64of(new Uint8Array(rec.buf)),
+      assets[k] = {ext:rec.ext, name:rec.name, splat:!!rec.splat, mime:rec.mime, media:!!rec.media, b:b64of(new Uint8Array(rec.buf)),
         assets:Object.fromEntries(Object.entries(rec.assets || {}).map(([nm,v]) => [nm, b64of(new Uint8Array(v))]))};
       say(`取り込んだデータを詰めています… ${Object.keys(assets).length} / ${keys.length}`);
     }
@@ -6336,7 +6470,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, setDisplayURL, mediaFor, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

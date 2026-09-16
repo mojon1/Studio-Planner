@@ -13,7 +13,7 @@ const S = 200;
 // 置くもの（`+` の data-add）と、撮る向き。車だけモデルを取りに行くので長めに待つ
 const PROPS = [
   {add:'car',    wait:3000},
-  {add:'chair'}, {add:'table'}, {add:'box'}, {add:'koma'}, {add:'intre'},
+  {add:'chair'}, {add:'table'}, {add:'box'}, {add:'koma'}, {add:'intre'}, {add:'display'},
   {add:'camera'}, {add:'light'}, {add:'mirror'}, {add:'chroma'}, {add:'kapok'}, {add:'ruler'},
 ];
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript','.json':'application/json',

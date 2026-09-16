@@ -2794,7 +2794,7 @@ await block('37', `英語表示`, async () => {
   await p.click('[data-add="light"]'); await p.waitForTimeout(400);
   const hint = await p.$$eval('#selbody .hint', h => h.map(x => x.textContent).join(' '));
   ok('the light panel keeps the set.a.light note, in English', /Lights are schematic.*set\.a\.light 3D/.test(hint), hint.slice(0, 120));
-  for (const k of ['chroma', 'mirror', 'kapok', 'koma', 'intre', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
+  for (const k of ['chroma', 'mirror', 'kapok', 'koma', 'intre', 'display', 'car', 'chair', 'table', 'box', 'ruler', 'camera']){
     await t.add(`[data-add="${k}"]`); await p.keyboard.press('Escape');   // 定規のタップ待ちは抜ける
     left = await jpIn(p, '#panel');
     ok(`no Japanese left with ${k} selected`, left.length === 0, left.slice(0, 5).join(' | '));
@@ -3453,6 +3453,76 @@ await block('46', `カポック`, async () => {
   ok('a turned sheet (1820 x 910) comes back from the link in black, lifted and leaning', !!i && i.w === 1.82 && i.h === 0.91 && i.color === '#2b2f36' && pose === '1.2/15/0', JSON.stringify(i) + ' ' + pose);
   await P.screenshot({ path: path.join(OUT, 'kapok.png') });
   ok('kapok runs clean', t.errors.length === 0, t.errors.join(' | '));
+  await t.ctx.close();
+});
+
+// --- 47. ディスプレイ（画像・動画を貼る画面。LED ウォールの見え方） ---------------------
+await block('47', `ディスプレイ`, async () => {
+  const t = await open('display', { width: 1200, height: 800 }); const P = t.page;
+  const S = (fn, arg) => P.evaluate(fn, arg);
+  const it = () => S(() => { const i = window.__sp.state().items.find(x => x.type === 'display');
+    return i && {w:i.w, h:i.h, key:i.key || null, url:i.url || null, name:i.name || null, id:i.id}; });
+  const screen = () => S(() => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); let f = null;
+    s.group(i.id).traverse(n => { if (n.userData.screen) f = n; }); if (!f) return null;
+    const map = f.material.map; return {hasMap: !!map, video: !!map?.isVideoTexture, iw: map?.image?.videoWidth || map?.image?.naturalWidth || map?.image?.width || 0, lit: f.material.type}; });
+  await P.click('#addfab'); await P.waitForTimeout(250);
+  ok('the display sits among the props after the scaffold', (await P.$$eval('#props [data-add]', b => b.map(x => x.dataset.add).join(','))) === 'car,chair,table,box,koma,intre,display');
+  await P.click('[data-add="display"]'); await P.waitForTimeout(500);
+  let i = await it();
+  ok('it lands as a 3.2 x 1.8 m (16:9) screen with nothing on it', !!i && i.w === 3.2 && i.h === 1.8 && !i.key && !i.url, JSON.stringify(i));
+  let sc = await screen();
+  ok('an empty screen is a dark, self-lit face', sc && !sc.hasMap && sc.lit === 'MeshBasicMaterial', JSON.stringify(sc));
+  ok('the panel offers a file button and a URL field', !!(await P.$('#selbody [data-media-file]')) && !!(await P.$('#selbody [data-media-url]')) && !!(await P.$('#selbody [data-media-load]')));
+  // 画像ファイル（4:3 の 320 x 240）。幅を保って高さが比率に合う
+  const png = `${OUT}/display-test.png`;
+  fs.writeFileSync(png, Buffer.from((await S(() => { const c = document.createElement('canvas'); c.width = 320; c.height = 240; const g = c.getContext('2d');
+    g.fillStyle = '#d33'; g.fillRect(0, 0, 320, 240); g.fillStyle = '#fff'; g.fillRect(40, 40, 240, 160); return c.toDataURL('image/png'); })).split(',')[1], 'base64'));
+  await P.setInputFiles('#mediafile', png); await P.waitForTimeout(800);
+  i = await it(); sc = await screen();
+  ok('a picked image lands on the screen and the height follows its aspect (3.2 x 2.4)', sc?.hasMap && sc.iw === 320 && i.h === 2.4 && !!i.key && i.name === 'display-test.png', JSON.stringify({i, sc}));
+  ok('the panel names the image and offers fit and remove', /display-test\.png（320 × 240）/.test(await P.textContent('#selbody')) && !!(await P.$('#selbody [data-media-clear]')));
+  // 開き直しても IndexedDB から戻る
+  await P.reload(); await P.waitForTimeout(2000);
+  i = await it(); sc = await screen();
+  ok('after a reload the image comes back from this device', sc?.hasMap && sc.iw === 320 && !!i.key, JSON.stringify({i, sc}));
+  await S(id => window.__sp.select(id), i.id); await P.waitForTimeout(300);
+  // URL（同じ origin の画像）。URL だけがリンクに乗る
+  const url = await S(() => location.origin + '/models/thumbs/prop-box.webp');
+  await P.fill('#selbody [data-media-url]', url); await P.click('#selbody [data-media-load]'); await P.waitForTimeout(1000);
+  i = await it(); sc = await screen();
+  ok('an image URL is loaded and replaces the file', sc?.hasMap && sc.iw === 200 && i.url === url && !i.key, JSON.stringify({i, sc}));
+  ok('the URL rides the share link', (await S(() => location.hash.length)) > 20 && /prop-box\.webp/.test(await S(() => JSON.stringify(window.__sp.state()))));
+  // 動画（ページの中で canvas から録った webm）。動いているあいだは毎フレーム描く
+  const vid = await S(async id => {
+    const c = document.createElement('canvas'); c.width = 160; c.height = 90; const g = c.getContext('2d');
+    const stream = c.captureStream(30), rec = new MediaRecorder(stream, {mimeType:'video/webm'}), chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    let n = 0; const tick = setInterval(() => { g.fillStyle = `hsl(${(n++ * 20) % 360} 80% 50%)`; g.fillRect(0, 0, 160, 90); }, 40);
+    rec.start(); await new Promise(r => setTimeout(r, 900)); rec.stop(); clearInterval(tick);
+    await new Promise(r => { rec.onstop = r; });
+    const f = new File(chunks, 'clip.webm', {type:'video/webm'});
+    const it = window.__sp.state().items.find(x => x.id === id);
+    await window.__sp.setDisplayFile(it, f);
+    return f.size;
+  }, i.id);
+  await P.waitForTimeout(800);
+  i = await it(); sc = await screen();
+  ok('a video file becomes a playing VideoTexture', vid > 0 && sc?.hasMap && sc.video && !!i.key && i.name === 'clip.webm', JSON.stringify({vid, i, sc}));
+  const f0 = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(500);
+  const f1 = await S(() => window.__sp.renderer.info.render.frame);
+  ok('and the view keeps redrawing while the video plays', f1 - f0 >= 5, `${f0} -> ${f1}`);
+  // 外すと黒い画面に戻り、置き方はカポックと同じ（浮かせる・傾ける）
+  await P.click('#selbody [data-media-clear]'); await P.waitForTimeout(400);
+  i = await it(); sc = await screen();
+  ok('removing the media leaves an empty screen', sc && !sc.hasMap && !i.key && !i.url, JSON.stringify({i, sc}));
+  ok('the redraw stops once no video is playing', await (async () => { const a = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(400);
+    return (await S(() => window.__sp.renderer.info.render.frame)) - a <= 2; })());
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'y', 1); s.setProp(o, 'pitch', -10); }); await P.waitForTimeout(300);
+  const bb = await S(id => { const s = window.__sp, g = s.group(id); g.updateMatrixWorld(true); const b = new s.THREE.Box3();
+    g.traverse(n => { if (n.isMesh && !n.userData.plan) b.expandByObject(n); }); return {min:+b.min.y.toFixed(2), max:+b.max.y.toFixed(2)}; }, i.id);   // 床の記号（上面図の帯）は外す
+  ok('it can be lifted and tilted like the bead board', bb.min >= 0.99 && bb.min <= 1.01 && bb.max > 2.5, JSON.stringify(bb));
+  await P.screenshot({ path: path.join(OUT, 'display.png') });
+  ok('display runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 });
 
