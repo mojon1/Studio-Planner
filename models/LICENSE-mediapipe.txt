@@ -1,14 +1,16 @@
 models/pose_landmarker_full.task
 models/hand_landmarker.task
+models/face_landmarker.task
 --------------------------------
-MediaPipe Pose Landmarker (full) model and MediaPipe Hand Landmarker model, by Google.
+MediaPipe Pose Landmarker (full), Hand Landmarker and Face Landmarker models, by Google.
 Copyright 2023 The MediaPipe Authors.
 Licensed under the Apache License, Version 2.0 (the "License").
 Unmodified. Sources: https://developers.google.com/mediapipe/solutions/vision/pose_landmarker
                      https://developers.google.com/mediapipe/solutions/vision/hand_landmarker
+                     https://developers.google.com/mediapipe/solutions/vision/face_landmarker
 The wasm runtime (@mediapipe/tasks-vision) is loaded from jsDelivr at run time under the same license.
 
-これらのファイルは Google の MediaPipe Pose Landmarker（full）と Hand Landmarker のモデルで、
+これらのファイルは Google の MediaPipe Pose Landmarker（full）・Hand Landmarker・Face Landmarker のモデルで、
 Apache License 2.0 の下で再配布しています。改変していません。本文は以下のとおり。
 
 

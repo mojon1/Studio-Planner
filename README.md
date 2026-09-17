@@ -182,8 +182,9 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
   URL に `?eng` を付けると日本語のブラウザでも英語で開く（`?lang=ja` で日本語）。
   ソースの文字列は日本語のままで、画面に出た文字を辞書で差し替えている。
 - 写真ポーズ指定は Google の [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)
-  と [Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)
-  をブラウザの中で動かす。wasm（12 MB）は jsDelivr、モデル（9.4 MB ＋ 7.8 MB）は `models/` に同梱。
+  と [Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)、
+  [Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
+  をブラウザの中で動かす。wasm（12 MB）は jsDelivr、モデル（9.4 ＋ 7.8 ＋ 3.7 MB）は `models/` に同梱。
   **押した人だけが初回に取りに行き**、一度取れば圏外でも動く。写真は端末の外に出ない。
   奥行きは 1 枚の写真からの推定なので目安。手（指の曲げと手のひらの向き）は指の骨がある人物モデル
   （順に差し替え中）にだけ乗る。
@@ -203,6 +204,6 @@ three・部品・置いたモデル・ロケーションのスキャン・配置
 ## ライセンス
 
 コードは MIT。`models/` の 3D モデルは対象外で、著作権は Taichi Teramura に帰属する。
-`models/pose_landmarker_full.task` と `models/hand_landmarker.task` は Google の MediaPipe のモデルで、Apache 2.0
+`models/pose_landmarker_full.task`・`models/hand_landmarker.task`・`models/face_landmarker.task` は Google の MediaPipe のモデルで、Apache 2.0
 （本文は [models/LICENSE-mediapipe.txt](models/LICENSE-mediapipe.txt)）。
 詳細は [LICENSE](LICENSE) と [models/README.md](models/README.md)。

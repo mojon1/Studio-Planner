@@ -2802,6 +2802,34 @@ await block('34', `写真ポーズ指定`, async () => {
     return { dDot: +got.d.dot(rest.d).toFixed(2), nDot: +got.n.dot(want).toFixed(2), before: +rest.n.dot(want).toFixed(2) };
   });
   ok('a palm normal from the photo turns the hand (through the forearm and the wrist)', turned.dDot > 0.95 && turned.nDot > 0.9 && Math.abs(turned.before) < 0.2, JSON.stringify(turned));
+  // 顔の向き（v1.42.0〜）: 頭を既知の向きに回して描き、写真に撮ると、顔の向きの行と頭の上向きがそれを追う
+  //（描いた頭の 35 度は 0.3 ほどに出る。検出器が控えめに読む。向きの符号と「0 でない」ことを見る）
+  // （Pose の耳・鼻では傾きが出なかった。Face Landmarker の姿勢行列を使う）
+  const shootHead = async (axis, deg) => {
+    await P4.evaluate(([axis, deg]) => {
+      const sp = window.__sp, st = sp.state(), it = st.items.find(i => i.type === 'person'); sp.setProp(it, 'posture', null); it.hands = null;
+      const g = sp.group(it.id); g.updateMatrixWorld(true); let head; g.traverse(n => { if (n.isBone && /Head$/.test(n.name)) head = n; });
+      const Q = sp.THREE.Quaternion, V = sp.THREE.Vector3, wq = o => o.getWorldQuaternion(new Q());
+      const q = new Q().setFromAxisAngle(new V(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, 0), deg * Math.PI / 180);
+      head.quaternion.copy(wq(head.parent).invert().multiply(q.multiply(wq(head)))); g.updateMatrixWorld(true); sp.render();
+      const cam = st.items.find(i => i.type === 'camera'); cam.x = 0; cam.z = 2.6; cam.y = 1.0; cam.pitch = 0; sp.setProp(cam, 'focal', 35);
+      document.querySelector('[data-view="cam"]').click();
+    }, [axis, deg]);
+    await P4.waitForTimeout(1000);
+    const b64 = (await P4.locator('#gl').screenshot()).toString('base64');
+    return P4.evaluate(async (b64) => {
+      const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
+      const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
+      const okv = await sp.photoPose(it, new File([blob], 'p.png', { type: 'image/png' }));
+      const J = sp.poses().joints, g = n => it.photo[J.indexOf(n)];
+      const up = g('HeadTop_End').map((v, i) => v - g('Head')[i]), L = Math.hypot(...up);
+      return { ok: okv, face: it.photo[23], up: up.map(v => +(v / L).toFixed(2)) };
+    }, b64);
+  };
+  const turnedHead = await shootHead('y', 35);
+  ok('a head turned 35° to its left comes back facing that way', turnedHead.ok && turnedHead.face && turnedHead.face[0] > 0.25 && turnedHead.face[2] > 0.5, JSON.stringify(turnedHead));
+  const lifted = await shootHead('x', -30);
+  ok('a head looking up comes back tilted back with the face raised', lifted.ok && lifted.up[2] < -0.25 && lifted.face[1] > 0.2, JSON.stringify(lifted));
   ok('hands run clean', t4.errors.length === 0, t4.errors.join(' | '));
   await t4.ctx.close();
 
