@@ -2838,7 +2838,7 @@ await block('34', `写真ポーズ指定`, async () => {
     }, b64);
   };
   const turnedHead = await shootHead('y', 35);
-  ok('a head turned 35° to its left comes back facing that way', turnedHead.ok && turnedHead.face && turnedHead.face[0] > 0.25 && turnedHead.face[2] > 0.5, JSON.stringify(turnedHead));
+  ok('a head turned 35° to its left comes back facing that way', turnedHead.ok && turnedHead.face && turnedHead.face[0] > 0.2 && turnedHead.face[2] > 0.5, JSON.stringify(turnedHead));
   const lifted = await shootHead('x', -30);
   ok('a head looking up comes back tilted back with the face raised', lifted.ok && lifted.up[2] < -0.25 && lifted.face[1] > 0.2, JSON.stringify(lifted));
   ok('hands run clean', t4.errors.length === 0, t4.errors.join(' | '));

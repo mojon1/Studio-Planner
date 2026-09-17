@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.2 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.3 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1650,11 +1650,15 @@ function fuseLandmarks(lm, wl, W, H){
 // 決めるものなので、写真の向きは捨てる）。背骨と首の中間点は MediaPipe に無いので、
 // 腰→肩の中点、肩の中点→耳の中点を素の姿勢（rest）と同じ割合で割って作る。
 // applyPose() は向きしか見ないので、体格（長さ）は合わなくてよい。
-// 体の向き（Y まわり）。腰の左右が +X に乗るまで回す角。写真の座標と手の向きに同じものを掛ける
+// 体の向き（Y まわり）。肩の左右が +X に乗るまで回す角。写真の座標と手の向きに同じものを掛ける。
+// v1.42.3 までは腰で揃えていたが、腰と肩がひねれた立ち姿（ガッツポーズ: 腰 -33 度・肩 -12 度）で、正面から見ると
+// 顔と上半身が横を向いて見えた（寺村さんの指摘「顔の角度が違う」）。図で見たいのは上半身と顔の向きなので肩で揃える。
+// 肩の線が立っている（寝ている・肩が見えない）ときは腰
 function bodyYaw(lm){
   const P = i => new V3(lm[i].x, -lm[i].y, -lm[i].z);
-  const lr = P(MP.hipL).sub(P(MP.hipR)); lr.y = 0;
-  return lr.lengthSq() > 1e-8 ? Math.atan2(lr.z, lr.x) : 0;
+  const pick = (a, b) => { const v = P(a).sub(P(b)); const flat = Math.hypot(v.x, v.z); return flat > 0.4 * v.length() && flat > 1e-4 ? Math.atan2(v.z, v.x) : null; };
+  const sh = (lm[MP.shL].visibility ?? 1) > 0.5 && (lm[MP.shR].visibility ?? 1) > 0.5 ? pick(MP.shL, MP.shR) : null;
+  return sh ?? pick(MP.hipL, MP.hipR) ?? 0;
 }
 // Pose の手の点（手首・小指・人差し指・親指の付け根・肘）の番地
 const MP_HAND = {L:{wr:15, el:13, pk:17, ix:19, th:21}, R:{wr:16, el:14, pk:18, ix:20, th:22}};
@@ -6791,7 +6795,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, handDetector: loadHandDetector, detectHand, handFeatures, applyHands, handFrame, boneTable, faceDetector: loadFaceDetector, detectFace, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, bodyYaw, fuseLandmarks, poseDetector: loadPoseDetector, handDetector: loadHandDetector, detectHand, handFeatures, applyHands, handFrame, boneTable, faceDetector: loadFaceDetector, detectFace, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
