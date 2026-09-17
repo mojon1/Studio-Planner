@@ -701,6 +701,55 @@ await block('8', `the built-in person model`, async () => {
   ok('and back on the floor when it steps off', Math.abs(offBox) < 0.002, String(offBox));
   await t.page.screenshot({ path: `${OUT}/on-box.png` });
 
+  // Mixamo のリグ（v1.40.0〜、まず us-business-woman）。骨の名前が違い、指の骨がある。
+  // 同じポーズを Tripo の体に乗せたものと関節の位置を突き合わせる（体格差の範囲に収まること）
+  await t.page.evaluate(() => { const st = window.__sp.state(); for (const it of st.items) if (it.type === 'person'){ it.x = 0; it.z = 0; it.height = 1.70; it.posture = null; }
+    const w = st.items.filter(i => i.type === 'person').at(-1); w.model = 'us-business-woman'; window.__sp.rebuild(); });
+  await t.page.waitForTimeout(3500);
+  const rig = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman'), g = sp.group(it.id);
+    const b = new sp.THREE.Box3().setFromObject(g); let bones = 0, idx = false; g.traverse(n => { if (n.isBone){ bones++; if (/^mixamorig:?LeftHandIndex1$/.test(n.name)) idx = true; } });
+    return {h: +(b.max.y - b.min.y).toFixed(3), minY: +b.min.y.toFixed(3), bones, idx, src: sp.people().find(m => m.id === 'us-business-woman').rev};
+  });
+  ok('the Mixamo-rigged body loads at its set height with finger bones', rig.bones === 34 && rig.idx && Math.abs(rig.h - 1.7) < 0.02 && Math.abs(rig.minY) < 0.01 && rig.src >= 2, JSON.stringify(rig));
+  const jointsOf = () => t.page.evaluate(() => {
+    const sp = window.__sp, out = {};
+    for (const it of sp.state().items.filter(i => i.type === 'person')){
+      const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = {}; g.traverse(n => { if (n.isBone) tb[n.name.replace(/^mixamorig[:_]?/, '')] = n; });
+      const map = {Hips:'Hip', LeftHand:'L_Hand', RightHand:'R_Hand', LeftLeg:'L_Calf', RightLeg:'R_Calf', LeftFoot:'L_Foot', RightFoot:'R_Foot', Head:'Head'};
+      const wp = b => b.getWorldPosition(new sp.THREE.Vector3()); const hip = wp(tb.Hip || tb.Hips); const r = {};
+      for (const [k, tn] of Object.entries(map)){ const b = tb[tn] || tb[k]; if (b) r[k] = wp(b).sub(hip).toArray(); }
+      out[it.model] = r;
+    }
+    return out;
+  });
+  for (const pose of ['sit-chair', 'stand-2']){
+    await t.page.evaluate(id => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = id; window.__sp.rebuild(); }, pose);
+    await t.page.waitForTimeout(1500);
+    const j = await jointsOf(), a = j['asia-casual-man'], w = j['us-business-woman'];
+    const worst = Math.max(...Object.keys(a).filter(k => w[k]).map(k => Math.hypot(a[k][0]-w[k][0], a[k][1]-w[k][1], a[k][2]-w[k][2])));
+    ok(`the same pose lands on the Mixamo rig where it lands on the Tripo rig (${pose})`, worst < 0.16, `worst joint offset ${worst.toFixed(3)} m`);
+    if (pose === 'sit-chair'){
+      const seat = await t.page.evaluate(() => { const sp = window.__sp; const it = sp.state().items.find(i => i.model === 'us-business-woman'); return sp.group(it.id).userData.seatY; });
+      ok('and sitting on the Mixamo rig finds the seat under the hips', isFinite(seat) && seat > 0.3 && seat < 0.6, String(seat));
+    }
+  }
+  const finger = await t.page.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman'), g = sp.group(it.id);
+    let sk, wrist, tip; const knuckles = []; g.traverse(n => { if (n.isSkinnedMesh) sk = n; if (!n.isBone) return; if (/LeftHand$/.test(n.name)) wrist = n; if (/LeftHandIndex3$/.test(n.name)) tip = n; if (/LeftHandIndex[12]$/.test(n.name)) knuckles.push(n); });
+    const wp = b => b.getWorldPosition(new sp.THREE.Vector3()); const d0 = wp(wrist).distanceTo(wp(tip));
+    for (const k of knuckles) k.rotation.x += 1.2;    // 第 1・第 2 関節を曲げる（曲げの軸はこのリグではローカル X）
+    g.updateMatrixWorld(true); const d1 = wp(wrist).distanceTo(wp(tip));
+    const bi = sk.skeleton.bones.indexOf(tip), si = sk.geometry.attributes.skinIndex, sw = sk.geometry.attributes.skinWeight; let n = 0;
+    for (let i = 0; i < si.count; i++) for (const c of 'XYZW') if (si['get'+c](i) === bi && sw['get'+c](i) > 0.3){ n++; break; }
+    for (const k of knuckles) k.rotation.x -= 1.2;
+    g.updateMatrixWorld(true);
+    return {d0: +d0.toFixed(3), d1: +d1.toFixed(3), skinned: n};
+  });
+  ok('a finger bone curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 200, JSON.stringify(finger));
+  await t.page.evaluate(() => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = null; window.__sp.rebuild(); });
+  await t.page.waitForTimeout(800);
+
   ok('person run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 

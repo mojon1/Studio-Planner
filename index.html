@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.7 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.40.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1474,7 +1474,8 @@ const PEOPLE_MODELS = [
   {id:'us-casual-man',       kind:'man',   region:'us',   wear:'casual',   short:'男性'},
   {id:'us-business-man',     kind:'man',   region:'us',   wear:'business', short:'男性'},
   {id:'us-casual-woman',     kind:'woman', region:'us',   wear:'casual',   short:'女性'},
-  {id:'us-business-woman',   kind:'woman', region:'us',   wear:'business', short:'女性'},
+  // rev: ファイルを差し替えたら上げる。Service Worker は .glb をキャッシュ優先で持つので、これが無いと古い体が居座る
+  {id:'us-business-woman',   kind:'woman', region:'us',   wear:'business', short:'女性', rev:2},   // v1.40.0 から Mixamo のリグ（指あり）
   // 子どもは大人のあとにまとめる（4 列なので、地域ごとの行が崩れない）。スーツは無い
   {id:'asia-casual-boy',     kind:'boy',   region:'asia', wear:'casual',   short:'男の子'},
   {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子'},
@@ -1637,6 +1638,13 @@ photoInput.addEventListener('change', () => {
   if (file && it) photoPose(it, file);
 });
 
+// 骨の名前は 2 流儀ある。Tripo（`Hip` / `L_Thigh` …、指なし）と Mixamo（`mixamorig:Hips` /
+// `LeftUpLeg` …、指あり。v1.40 から寺村さんが Mixamo でリグを付け直したモデルが入る）。
+// アプリの正典は Mixamo の名前（POSE_ORDER / poses.json）。Mixamo の骨は接頭辞を取れば
+// そのまま正典の名前なので、表は名前で引き、Tripo だけ POSE_MAP で読み替える
+const BONE_PREFIX = /^mixamorig[:_]?/;
+const boneName = o => o.name.replace(BONE_PREFIX, '');
+function boneTable(root){ const t = {}; root.traverse(o => { if (o.isBone){ t[o.name] = o; t[boneName(o)] = o; } }); return t; }
 // 骨の対応。ひねり用の骨（*Twist*）は動かさず、そのままにする
 const POSE_MAP = {Hips:'Hip', Spine:'Waist', Spine1:'Spine01', Spine2:'Spine02', Neck:'NeckTwist01', Head:'Head',
   LeftShoulder:'L_Clavicle', LeftArm:'L_Upperarm', LeftForeArm:'L_Forearm', LeftHand:'L_Hand',
@@ -1695,8 +1703,8 @@ function twistTargetRef(m, src, fwd, face){
 function applyPose(root, pose){
   const src = {}, rst = {};
   POSES.joints.forEach((j, i) => { src[j] = new V3().fromArray(pose.p[i]); rst[j] = new V3().fromArray(POSES.rest[i]); });
-  const boneOf = {}; root.traverse(o => { if (o.isBone) boneOf[o.name] = o; });
-  const tb = {}; for (const [m, t] of Object.entries(POSE_MAP)) tb[m] = boneOf[t];
+  const boneOf = boneTable(root);
+  const tb = {}; for (const [m, t] of Object.entries(POSE_MAP)) tb[m] = boneOf[t] || boneOf[m];
   const Q = THREE.Quaternion;
   const wq = o => o.getWorldQuaternion(new Q());
   const wp = o => o.getWorldPosition(new V3());
@@ -1751,7 +1759,11 @@ function applyPose(root, pose){
   root.updateMatrixWorld(true);
 }
 
-const personModel = it => MODEL_BY_ID[it.model] ? asset(`models/${it.model}.glb`) : null;
+const personModel = it => {
+  const m = MODEL_BY_ID[it.model]; if (!m) return null;
+  const u = asset(`models/${m.id}.glb`);
+  return m.rev && !u.startsWith('data:') ? `${u}?r=${m.rev}` : u;     // 差し替えた体を確実に取り直す（まとめて書き出した 1 枚は中身ごと持つので不要）
+};
 // 同梱のモデル（人物・車）は使う人だけが取りに行く。人だけだったころの
 // realPeople を車と共有しているので、種類を足すときは modelFile() に 1 行足す。
 const builtIn = new Map();                          // file -> Object3D | 'loading' | 'fail'
@@ -1812,7 +1824,8 @@ function seatBottom(root){
     const g = n.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight; if (!si || !sw) return;
     // Tripo の皮は Hip / Pelvis が支配する頂点をほとんど持たず、お尻は上腿のねじり骨（ThighTwist01）と
     // 腰（Waist）に付いている。上腿までを「座面に触る側」として拾う（実測: sit-chair で 0.38 m、腰の関節は 0.52）
-    const pelvis = new Set(); n.skeleton.bones.forEach((b, i) => { if (/^(Hip|Pelvis|Waist|[LR]_Thigh(Twist01)?)$/.test(b.name)) pelvis.add(i); });
+    // Mixamo のリグでは Hips / Spine / 上腿（LeftUpLeg / RightUpLeg）が同じ役
+    const pelvis = new Set(); n.skeleton.bones.forEach((b, i) => { if (/^(Hip|Pelvis|Waist|[LR]_Thigh(Twist01)?|Hips|Spine|(Left|Right)UpLeg)$/.test(boneName(b))) pelvis.add(i); });
     if (!pelvis.size) return;
     for (let i = 0; i < si.count; i++){
       let bi = si.getX(i), bw = sw.getX(i);

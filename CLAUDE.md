@@ -180,7 +180,8 @@ Artifact への publish は、公開版より古いものを出そうとする�
 
 ```
 index.html            アプリ本体
-models/*.glb          人物と車のモデル。使うときだけ取りに行く（car-*.glb が車）。MIT の対象外（models/README.md）
+models/*.glb          人物と車のモデル。使うときだけ取りに行く（car-*.glb が車）。MIT の対象外（models/README.md）。
+                      人は Tripo のリグ（指なし）と Mixamo のリグ（指あり、v1.40.0 から順に差し替え中）が混在。people.md 参照
 models/LICENSE-mediapipe.txt  pose_landmarker_full.task の Apache 2.0 本文と帰属表示。消さないこと
 ogp.png               リンクを貼ったときのサムネイル（1200 × 630）。寺村さんが用意した絵（v1.39.4〜）。
                       tools/make-ogp.mjs はヘッドレスで撮り直す古い道具で、走らせると上書きするので使わない
@@ -274,7 +275,7 @@ OK が出たら `staging` を `main` に流す（`git push origin staging:main`�
 寸法のリボン描画と項目ごとの寸法スイッチ、A4 の PDF 出力（横・縦とも 1 ページ、
 A4 実寸であることを Chromium の PDF 生成で確認済み）、用紙の中での再構図、
 画像と HTML の「名前を付けて保存」、固定サイズのマニピュレータ、
-人物モデル 14 体（大人 12 体と子ども 2 体）と
+人物モデル 14 体（大人 12 体と子ども 2 体。うち us-business-woman は Mixamo のリグで指の骨があり、同じポーズが Tripo の体と同じ位置に乗ること）と
 サムネイルでの選択、起動時のパースビュー、ポーズ 11 種の適用、
 写真ポーズ指定（MediaPipe がブラウザの中で動き、写した姿勢が 14 体に乗ってリンクに残ること）、
 箱の上に立つこと、

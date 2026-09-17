@@ -41,10 +41,33 @@ window.__run = async (url) => {
     });
     if (n.material.length === 1) n.material = n.material[0];
   });
-  const box = new THREE.Box3().setFromObject(o), sz = new THREE.Vector3(); box.getSize(sz);
+  // Mixamo（と一部の書き出し元）は Z 上・cm・正面が -Y で出てくる。Tripo と同じ
+  // 「Y 上・身長 1 m・正面 +Z・足が y=0」に揃える。骨と皮の関係はそのままなので、
+  // 頂点には触らず、いちばん外の group に回転と縮尺を持たせる。
+  // 上方向は外形のいちばん長い軸（T ポーズでも腕の幅より背のほうが高い）。
+  // 正面は骨から出す（左右の脚の向き × 腰→背骨の向き）。骨が無ければそのまま
+  o.updateMatrixWorld(true);
+  const box0 = new THREE.Box3().setFromObject(o), sz0 = new THREE.Vector3(); box0.getSize(sz0);
+  const wrap = new THREE.Group(); wrap.name = 'root'; wrap.add(o);
+  if (sz0.z > sz0.y && sz0.z > sz0.x){ wrap.rotation.x = -Math.PI / 2; info.fixed = 'z-up'; }
+  wrap.updateMatrixWorld(true);
+  const bone = {}; o.traverse(n => { if (n.isBone) bone[n.name.replace(/^.*?(?=(Hips|Spine|LeftUpLeg|RightUpLeg)$)/, '')] = n; });
+  if (bone.Hips && bone.Spine && bone.LeftUpLeg && bone.RightUpLeg){
+    const wp = n => n.getWorldPosition(new THREE.Vector3());
+    const fwd = new THREE.Vector3().crossVectors(wp(bone.LeftUpLeg).sub(wp(bone.RightUpLeg)), wp(bone.Spine).sub(wp(bone.Hips)));
+    if (fwd.z < 0){ wrap.rotateY(Math.PI); info.fixed = (info.fixed || '') + ' turned'; }
+    wrap.updateMatrixWorld(true);
+  }
+  const box1 = new THREE.Box3().setFromObject(wrap), sz1 = new THREE.Vector3(); box1.getSize(sz1);
+  if (Math.abs(sz1.y - 1) > 0.01 && sz1.y > 0){ wrap.scale.setScalar(1 / sz1.y); info.fixed = (info.fixed || '') + ' scaled 1/' + sz1.y.toFixed(2); }   // この中はテンプレート文字列なのでバッククォートは使えない
+  wrap.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(wrap);
+  wrap.position.set(-(box2.min.x + box2.max.x) / 2, -box2.min.y, -(box2.min.z + box2.max.z) / 2);
+  wrap.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(wrap), sz = new THREE.Vector3(); box.getSize(sz);
   info.size = [+sz.x.toFixed(3), +sz.y.toFixed(3), +sz.z.toFixed(3)];
   info.min = [+box.min.x.toFixed(3), +box.min.y.toFixed(3), +box.min.z.toFixed(3)];
-  const buf = await new GLTFExporter().parseAsync(o, {binary:true});
+  const buf = await new GLTFExporter().parseAsync(wrap, {binary:true});
   info.glb = [...new Uint8Array(buf)];
   return info;
 };
@@ -75,7 +98,7 @@ const info = await p.evaluate(u => window.__run(u), '/src/' + encodeURIComponent
 fs.writeFileSync(dst, Buffer.from(info.glb));
 await b.close(); server.close();
 console.log(`bones ${info.bones}  uv ${info.uv}  texture ${info.maps.map(m => m.join('x')).join(', ') || 'なし'}`);
-console.log(`size ${info.size.join(' x ')} m  min ${info.min.join(', ')}`);
+console.log(`size ${info.size.join(' x ')} m  min ${info.min.join(', ')}${info.fixed ? '  (fixed: ' + info.fixed.trim() + ')' : ''}`);
 if (Math.abs(info.size[1] - 1) > 0.01) console.log('!! 身長が 1 m ではない。人物モデルは 1 m に揃えること');
 if (Math.abs(info.min[1]) > 0.005) console.log('!! 足が y=0 に載っていない');
 if (!info.uv || !info.bones) console.log('!! UV か骨が無い。このままでは人物モデルに使えない');

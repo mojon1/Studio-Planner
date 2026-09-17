@@ -85,6 +85,39 @@ node tools/shrink-glb.mjs 中間.glb models/asia-casual-girl.glb 1024 0.86
 小さすぎて誰か分からなかった（寺村さんの指摘）。モデルは身長 1 m に揃っているので、
 `b.max.y * 0.90` を注視点にして距離 1.0 で切り取れば、どの体でも同じ構図になる。
 
+### Mixamo のリグ（v1.40.0〜、まず us-business-woman 1 体）
+
+寺村さんの「指ボーンが無いのでポージングに制限がある。モデルは Tripo、リグは別の方法に」を受けて、
+**Tripo のメッシュに Mixamo で骨を付け直したモデル**を入れ始めた（Tripo には指ありの自動リグが無かった —
+寺村さんの確認）。最初の 1 体は `us-business-woman`。残りは順に差し替える。
+
+- 骨は Mixamo 名（`mixamorig:Hips` / `LeftUpLeg` / `LeftHandIndex1` …）。**アプリの正典はもともと Mixamo の名前**
+  （`POSE_ORDER` / `poses.json`）なので、接頭辞（`mixamorig` ＋ `:` か `_`。GLTFExporter は `:` を落とす）を
+  取ればそのまま引ける。`boneTable()` が素の名前と接頭辞なしの両方で表を作り、`POSE_MAP`（Tripo 名）で
+  引けなければ正典の名前で引く。**Tripo の骨名を決め打ちしている場所は `seatBottom()` の正規表現だけ**で、
+  そこにも Mixamo の同役（Hips / Spine / UpLeg）を足してある。
+- **骨の本数は 34（Mixamo の「Thumb と Index だけ」の骨組み）。** 寺村さんの最初の書き出しがこれで、
+  中指・薬指・小指は骨が無く手の骨に付いたまま曲がらない。次の書き出しは Mixamo のダウンロード画面で
+  **Skeleton LOD を「Standard Skeleton (65 bones)」**にして、5 本そろえる。`boneTable()` は本数を見ないので、
+  65 本の GLB もそのまま入る（テストの `bones === 34` は差し替えたら 65 に直す）。
+- **指の曲げの軸はローカル X**（このリグを three で読んだとき）。`rotation.x += 1.2` で手のひら側へ曲がる
+  （`docs/pose-check/` に絵は置いていない。`test/run.mjs` ブロック 8 が距離で見ている）。
+- **Mixamo の FBX は Z 上・cm・正面 -Y で出てくる**（寺村さんの書き出しは `mixamo-mini` 経由）。
+  `tools/fbx-to-glb.mjs` が外形のいちばん長い軸を上にし（T ポーズでも腕の幅より背が高い）、骨から正面を出して
+  +Z に向け、身長 1 m・足 y=0 に揃える。**頂点は触らず、いちばん外の group に回転と縮尺を持たせる**
+  （バインド行列と皮の関係を崩さないため）。出力に `(fixed: z-up scaled 1/99.95)` と出れば直っている。
+  Mixamo でリグを付けたメッシュは A ポーズのまま（Mixamo は入れたメッシュの姿勢を素の姿勢にする）なので、
+  素の姿勢は Tripo と同じ見た目。
+- 手順: `node tools/fbx-to-glb.mjs 元.fbx 中間.glb` → `node tools/shrink-glb.mjs 中間.glb models/<id>.glb 1024 0.86` →
+  `cd test && node ../tools/make-thumbs.mjs` → **`PEOPLE_MODELS` の `rev` を上げる**。Service Worker は `.glb` を
+  キャッシュ優先で持つので、`rev` を上げないと古い体が端末に居座る。`personModel()` が `?r=<rev>` を付ける。
+  まとめて書き出した 1 枚（data: URL）には付けない。
+- メッシュは 28k 頂点（Tripo 直の 10k より多い。Mixamo に入れた元がそれ）。1.72 MB。
+- **ポーズは同じ `applyPose()` で乗る。** Tripo の体と同じポーズで関節の位置を比べると、体格差の範囲
+  （最大 12 cm ほど）に収まる（ブロック 8）。差分で合わせる方式なので、Mixamo 同士でも壊れない。
+- 指はまだ動かしていない（素の開いた形のまま）。次は Hand Landmarker で写真から指の曲げを取り、
+  この骨に乗せる（`pose-research.md` の②）。
+
 ### ポーズ（実装済み）
 
 寺村さんの C4D の FBX（`docs/pose-check/suwaru01.fbx`、椅子に座る姿）を使って、
