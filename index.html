@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.2 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1684,7 +1684,9 @@ function detectHand(hd, cv, lm, side){
   const at = i => ({x: x0 + l2[i].x * s, y: y0 + l2[i].y * s});
   const pairs = [[at(0), w], [at(5), pts[1]], [at(17), pts[0]], [at(2), pts[2]]];
   const err = pairs.reduce((a, [q, r]) => a + d(q, r), 0) / pairs.length / s;
-  return {wl, l2, score: res.handedness?.[0]?.[0]?.score ?? 0, err};
+  // 親指が手の軸（手首→中指の付け根）のどちら側に写っているか（写真の上の並びだけで決まる）。握った手の表裏に使う
+  const hx = l2[9].x - l2[0].x, hy = -(l2[9].y - l2[0].y), tx = l2[4].x - l2[0].x, ty = -(l2[4].y - l2[0].y);
+  return {wl, l2, side, score: res.handedness?.[0]?.[0]?.score ?? 0, err, label: res.handedness?.[0]?.[0]?.categoryName || '', thumbSide: Math.sign(hx * ty - hy * tx) || 1};
 }
 // 21 点 → 共有リンクに乗せる 11 個の数: 指 5 本の曲げ（0〜1）、手の向き（手首→中指の付け根）、
 // 手のひらの法線（手首・人差し指の付け根・小指の付け根の三角形。左右どちらの手でも、実物とモデルで
@@ -1692,7 +1694,7 @@ function detectHand(hd, cv, lm, side){
 // 曲げは 3 関節の角度の和（開いた手でも 20 度ほどあるので、そこを 0 にする）
 const HAND_JOINTS = {Thumb:[1,2,3,4], Index:[5,6,7,8], Middle:[9,10,11,12], Ring:[13,14,15,16], Pinky:[17,18,19,20]};
 const HAND_FINGERS = ['Thumb','Index','Middle','Ring','Pinky'];
-function handFeatures({wl}, yaw){
+function handFeatures({wl, label, side, thumbSide}, yaw){
   const P = i => new V3(wl[i].x, -wl[i].y, -wl[i].z);
   const bend = (a, b, c) => { const u = P(b).sub(P(a)), v = P(c).sub(P(b)); return u.lengthSq() > 1e-10 && v.lengthSq() > 1e-10 ? u.angleTo(v) : 0; };
   const deg = Math.PI / 180, r2 = v => Math.round(v * 100) / 100;
@@ -1703,13 +1705,21 @@ function handFeatures({wl}, yaw){
     return tidy((bend(0, a, b) + bend(a, b, c) + bend(b, c, d) - 25 * deg) / (200 * deg)); });
   const Y = new V3(0, 1, 0), w = P(0);
   const dir = P(9).sub(w).normalize().applyAxisAngle(Y, yaw);
-  // 手のひらの法線は、手のひら（か甲）がカメラを向いていれば奥行きに頼らず決まる（z 成分は写真の上の並びだけで決まる）。
-  // 横向きの手は法線が付け根の奥行きで決まり、握った手ではそれが崩れて裏返る（アプリの描いた手で実測: 内積 -0.98）。
-  // 開いた手なら横向きでも当たっていたので、「握っていて横向き」のときだけ法線を捨てる（0 = 向きは手首に任せる）
+  // 手のひらの向き。三角形の法線がどちら側を向くかは、検出器がどちらの手の形として当てはめたか（handedness の
+  // ラベル）で決まる: 「Right」なら手のひら側、「Left」なら甲側（実物の写真 8 枚で確かめた。ラベルは写真の左右と
+  // 必ずしも一致せず、一致しない手は法線が裏返っていた — 寺村さんの指摘「手の向きが逆」。以前はここを写真の左右と
+  // 理屈で決めていて、握った手が裏返るのも「奥行きの崩れ」と読み違えていた）。
+  // 握った手はラベルが当てにならない（アプリの描いた拳で半々に裏返った）。手のひらか甲がカメラを向いていれば、
+  // 親指がどちら側に写っているかと写真の左右で表裏が決まる（左手は親指が右に写れば手のひら側。右手は逆）。
+  // 横向きの拳は決めようが無いので向きを捨て、ひねりは肘まかせ。ここで手のひら側に揃えて持つ
   const nCam = new V3().crossVectors(P(5).sub(w), P(17).sub(w)).normalize();
   const mean = curls.reduce((a, b) => a + b, 0) / curls.length;
-  const n = mean > 0.5 && Math.abs(nCam.z) < 0.7 ? new V3() : nCam.applyAxisAngle(Y, yaw);
-  return [...curls.map(r2), ...dir.toArray().map(r2), ...n.toArray().map(r2)];
+  let n;
+  if (mean > 0.5){
+    if (Math.abs(nCam.z) < 0.3) n = new V3();
+    else { const towardCam = thumbSide * (side === 'L' ? 1 : -1); n = nCam.multiplyScalar(Math.sign(nCam.z) === towardCam ? 1 : -1); }
+  } else n = nCam.multiplyScalar(label === 'Right' ? 1 : -1);
+  return [...curls.map(r2), ...dir.toArray().map(r2), ...n.applyAxisAngle(Y, yaw).toArray().map(r2)];
 }
 function poseFromLandmarks(lm, faceDir){
   const P = i => new V3(lm[i].x, -lm[i].y, -lm[i].z);
@@ -1850,14 +1860,21 @@ function twistTargetRef(m, src, fwd, face, hands){
   // 写真の手のひらの法線があれば、肘の曲がる向きの既定はそちら（伸ばした腕は肘の向きが決まらず、
   // 体の正面を仮の向きにしていた。手のひらの向きは肘の内側の向きとおおむね同じ — 寺村さんの「腕がねじれる」）
   const hn = hands?.[side === 'Left' ? 0 : 1];
-  const palm = hn && (hn[8] || hn[9] || hn[10]) ? palmOfReal(hn, side) : null;   // 右手の法線は甲側なので、手のひら側に直す
+  const palm = hn && (hn[8] || hn[9] || hn[10]) ? palmOfReal(hn) : null;
   const hinge = (a, b, c, dflt) => {
     const u = src[b].clone().sub(src[a]).normalize(), f = src[c].clone().sub(src[b]).normalize();
     const bend = new V3().crossVectors(u, f), w = clamp((Math.asin(Math.min(1, bend.length())) * 180 / Math.PI - 8) / 17, 0, 1);
     const d = new V3().crossVectors(u, dflt);
     return bend.normalize().multiplyScalar(w).addScaledVector(d.normalize(), 1 - w);
   };
-  if (kind === 'elbow') return hinge(side + 'Arm', side + 'ForeArm', side + 'Hand', palm || fwd);
+  if (kind === 'elbow'){
+    // 手のひらが無いとき、上げた腕（上腕が上を向く）は肘の内側が体の内側（頭の方）を向くのが自然。
+    // 体の正面のままだと肘がカメラの方へ折れて見えた（ガッツポーズ）
+    let dflt = palm;
+    if (!dflt){ const u = src[side + 'ForeArm'].clone().sub(src[side + 'Arm']).normalize();
+      dflt = u.y > 0.6 ? new V3(side === 'Left' ? -1 : 1, 0, 0.5).normalize() : fwd; }
+    return hinge(side + 'Arm', side + 'ForeArm', side + 'Hand', dflt);
+  }
   if (kind === 'knee') return hinge(side + 'UpLeg', side + 'Leg', side + 'Foot', fwd.clone().negate());
   if (kind === 'foot') return src[side + 'ToeBase'].clone().sub(src[side + 'Foot']);
   if (kind === 'face') return face ? face.clone() : null;
@@ -1929,8 +1946,8 @@ function applyPose(root, pose){
 // 3. 残ったひねりを手首で
 // 4. 指の曲げ。曲げの軸はローカル X（両手とも）。親指だけ Z で、左は -Z・右は +Z（鏡写しのリグ。絵で確かめた）
 const CURL_K = {Thumb:[0.55, 0.75, 0.55], Index:[1.25, 1.45, 0.95], Middle:[1.25, 1.45, 0.95], Ring:[1.25, 1.45, 0.95], Pinky:[1.25, 1.45, 0.95]};
-// 写真の 11 個の数の「法線」（手首・人差し指・小指の三角形）は、実物の左手では手のひら側、右手では甲側を向く
-const palmOfReal = (h, side) => new V3().fromArray(h.slice(8, 11)).multiplyScalar(side === 'Left' ? 1 : -1);
+// 写真の 11 個の数の後ろ 3 つは手のひらの向き（handFeatures で揃えてある）
+const palmOfReal = h => new V3().fromArray(h.slice(8, 11));
 // モデルの手の向き（手首→中指の付け根）と手のひらの向き。手のひらの側は「指が曲がる向き」（ローカル X まわりに回すと
 // 指先が動く向き）から出す。三角形の法線で決めると鏡写しのモデル（us-business-woman は左手が右手の形。
 // 実物と逆になって手のひらが裏返った — 寺村さんの指摘「手の向きが逆」）で裏返る
@@ -1954,7 +1971,7 @@ function applyHands(root, hands){
     const side = i === 0 ? 'Left' : 'Right';
     const fore = boneOf[side + 'ForeArm'], hand = boneOf[side + 'Hand'];
     if (!fore || !hand || !handFrame(boneOf, side)) return;
-    const dirT = new V3().fromArray(h.slice(5, 8)), palmT = palmOfReal(h, side);
+    const dirT = new V3().fromArray(h.slice(5, 8)), palmT = palmOfReal(h);
     const useN = palmT.lengthSq() > 0.5;          // 法線が無いときは手首の曲げだけ（ひねりは applyPose の肘まかせ）
     if (dirT.lengthSq() > 0.5){
       dirT.normalize(); if (useN) palmT.normalize();

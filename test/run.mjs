@@ -2790,15 +2790,15 @@ await block('34', `写真ポーズ指定`, async () => {
     return { open: +open.toFixed(3), fist: +fist.toFixed(3) };
   });
   ok('curl 1 folds the model\'s fingers toward the wrist', bent.fist < bent.open * 0.7, JSON.stringify(bent));
-  // 手の向きも骨に乗る: 手のひらを 90 度ひねった向きを写真の流儀（左手は三角形の法線が手のひら側、右手は甲側）で
-  // 渡すと、モデルの手のひら（指が曲がる側。鏡写しのモデルでも正しい）がそちらを向く。左右とも
+  // 手の向きも骨に乗る: 手のひらを 90 度ひねった向きを渡すと、モデルの手のひら（指が曲がる側。鏡写しのモデルでも
+  // 正しい）がそちらを向く。左右とも
   const turned = await P4.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'), out = {};
     const read = side => { const g = sp.group(it.id); g.updateMatrixWorld(true); return sp.handFrame(sp.boneTable(g), side); };
-    for (const [i, side, sign] of [[0, 'Left', 1], [1, 'Right', -1]]){
+    for (const [i, side] of [[0, 'Left'], [1, 'Right']]){
       it.hands = null; sp.rebuild(); const rest = read(side);
       const want = rest.palm.clone().applyAxisAngle(rest.d, Math.PI / 2);      // 手の向きは同じ、手のひらだけ 90 度回す
-      const h = [0, 0, 0, 0, 0, ...rest.d.toArray(), ...want.clone().multiplyScalar(sign).toArray()];
+      const h = [0, 0, 0, 0, 0, ...rest.d.toArray(), ...want.toArray()];   // 11 個の後ろ 3 つは手のひらの向き（左右とも）
       it.hands = i === 0 ? [h, null] : [null, h]; sp.rebuild(); const got = read(side);
       out[side] = { dDot: +got.d.dot(rest.d).toFixed(2), pDot: +got.palm.dot(want).toFixed(2), before: +rest.palm.dot(want).toFixed(2) };
     }
