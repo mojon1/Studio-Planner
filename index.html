@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.40.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.41.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -598,7 +598,9 @@ const EN = {
   'GLB / glTF / FBX を選んでください':'Choose a GLB / glTF / FBX file','大スタジオ 15×12×6 m（白ホリ 奥+左右）':'Large studio 15×12×6 m (back + side coves)',
   '読み込み中…':'Loading…','対応3DGS：.spz / .ply / .sog':'3DGS: .spz / .ply / .sog',
   'スマホのカメラを向けると、この配置がそのまま開きます。':'Point a phone camera at it to open this layout.',
-  'ポーズ検出の部品を読み込んでいます（初回だけ 21 MB）':'Loading the pose detector (21 MB, first time only)',
+  'ポーズ検出の部品を読み込んでいます（初回だけ 29 MB）':'Loading the pose detector (29 MB, first time only)',
+  '写真のポーズを写しました。手を読んでいます…':'Pose copied from the photo. Reading the hands…',
+  '手の形も写しました':'The hands were copied too','手は写真から読めませんでした（体だけ写しました）':'The hands could not be read from the photo (body only)',
   'GLB / glTF / FBX の本体も一緒に選んでください':'Select the GLB / glTF / FBX file itself as well',
   'まとめられませんでした。通信を確かめてもう一度お試しください。':'Could not pack the file. Check the connection and try again.',
   '対応3Dデータ：GLB / glTF / FBX':'3D data: GLB / glTF / FBX',
@@ -869,6 +871,9 @@ function migrateItems(st, studio){
     // 写真のポーズは座標を一緒に持っていなければ意味が無い
     if (it.type === 'person' && it.posture === 'photo' && !(Array.isArray(it.photo) && (it.photo.length === 23 || it.photo.length === 24) &&
         it.photo.every(p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)))){ it.posture = null; delete it.photo; }
+    // 手（指の曲げ 5・向き 3・法線 3 × 左右）は写真のポーズにだけ付く。形が崩れていたら捨てる
+    if (it.type === 'person' && it.hands !== undefined && !(it.posture === 'photo' && Array.isArray(it.hands) && it.hands.length === 2 &&
+        it.hands.every(h => h === null || (Array.isArray(h) && h.length === 11 && h.every(Number.isFinite))))) delete it.hands;
     if (it.type === 'mirror' && it.kind === 'water') it.kind = 'floor';   // 水面は廃止
     if (it.type === 'ruler') for (const k of ['a', 'b'])
       if (!(Array.isArray(it[k]) && it[k].length === 3 && it[k].every(Number.isFinite))) it[k] = k === 'a' ? [-0.5, 0.02, 0] : [0.5, 0.02, 0];
@@ -1529,6 +1534,20 @@ function loadPoseDetector(){
     catch(e){ console.warn('pose CPU delegate failed, trying GPU', e); return await mp.PoseLandmarker.createFromOptions(fs, opts('GPU')); }
   })().catch(e => { poseDetReq = null; throw e; });
 }
+// 手の 21 点（MediaPipe Hand Landmarker、models/hand_landmarker.task に同梱、Apache 2.0）。
+// 全身写真では手が小さすぎて直接は当たらないので、Pose の手首のまわりを切り出してから掛ける（detectHand）
+const HAND_MODEL = 'models/hand_landmarker.task';
+let handDetReq = null;
+function loadHandDetector(){
+  return handDetReq ||= (async () => {
+    const mp = await import(`${MP_BASE}/vision_bundle.mjs`);
+    const fs = await mp.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+    const modelAssetPath = (BUNDLE || location.protocol === 'file:') ? WEB_HOME + HAND_MODEL : HAND_MODEL;
+    const opts = delegate => ({baseOptions:{modelAssetPath, delegate}, runningMode:'IMAGE', numHands:1});
+    try { return await mp.HandLandmarker.createFromOptions(fs, opts('CPU')); }
+    catch(e){ console.warn('hand CPU delegate failed, trying GPU', e); return await mp.HandLandmarker.createFromOptions(fs, opts('GPU')); }
+  })().catch(e => { handDetReq = null; throw e; });
+}
 // MediaPipe の 33 点の番地
 const MP = {nose:0, earL:7, earR:8, shL:11, shR:12, elL:13, elR:14, wrL:15, wrR:16,
             hipL:23, hipR:24, kneeL:25, kneeR:26, ankL:27, ankR:28, toeL:31, toeR:32};
@@ -1570,12 +1589,72 @@ function fuseLandmarks(lm, wl, W, H){
 // 決めるものなので、写真の向きは捨てる）。背骨と首の中間点は MediaPipe に無いので、
 // 腰→肩の中点、肩の中点→耳の中点を素の姿勢（rest）と同じ割合で割って作る。
 // applyPose() は向きしか見ないので、体格（長さ）は合わなくてよい。
+// 体の向き（Y まわり）。腰の左右が +X に乗るまで回す角。写真の座標と手の向きに同じものを掛ける
+function bodyYaw(lm){
+  const P = i => new V3(lm[i].x, -lm[i].y, -lm[i].z);
+  const lr = P(MP.hipL).sub(P(MP.hipR)); lr.y = 0;
+  return lr.lengthSq() > 1e-8 ? Math.atan2(lr.z, lr.x) : 0;
+}
+// Pose の手の点（手首・小指・人差し指・親指の付け根・肘）の番地
+const MP_HAND = {L:{wr:15, el:13, pk:17, ix:19, th:21}, R:{wr:16, el:14, pk:18, ix:20, th:22}};
+// 写真から片手を切り出して 21 点を取る。返すのは worldLandmarks（m、手の中心が原点、向きはカメラのまま）。
+// 切り出しの大きさは Pose の手の 3 点の広がりから（無ければ前腕の長さから）。取れた手首が Pose の手首から
+// 離れていれば別の物（隣の人の手など）として捨てる。写真に手が写っていなければ null
+function detectHand(hd, cv, lm, side){
+  const H = MP_HAND[side], W = cv.width, Hh = cv.height;
+  const px = i => ({x: lm[i].x * W, y: lm[i].y * Hh, v: lm[i].visibility ?? 1});
+  const w = px(H.wr), pts = [H.pk, H.ix, H.th].map(px), el = px(H.el);
+  if (w.v < 0.3) return null;
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // Pose の手の 3 点は指の付け根あたりで、手の長さの半分も無い。前腕の長さ（手の長さの 1.3 倍ほど）も見て、
+  // 手全体と余白が入る正方形にする（小さすぎると検出器が手を見つけられない）
+  const r = Math.max(...pts.map(q => d(w, q)));
+  const c = r > 6 ? {x: (w.x + pts[1].x) / 2, y: (w.y + pts[1].y) / 2} : {x: w.x, y: w.y};
+  const s = clamp(Math.max(r * 3.2, d(w, el) * 1.7, 64), 64, Math.min(W, Hh));
+  const x0 = clamp(c.x - s / 2, 0, W - s), y0 = clamp(c.y - s / 2, 0, Hh - s);
+  const crop = document.createElement('canvas'); const N = 256; crop.width = crop.height = N;
+  crop.getContext('2d').drawImage(cv, x0, y0, s, s, 0, 0, N, N);
+  const res = hd.detect(crop);
+  const l2 = res.landmarks?.[0], wl = res.worldLandmarks?.[0];
+  if (!l2 || !wl || wl.length < 21) return null;
+  if (Math.hypot(x0 + l2[0].x * s - w.x, y0 + l2[0].y * s - w.y) > s * 0.35) return null;
+  // 手の検出の点（手首・人差し指と小指の付け根・親指の関節）が Pose の手の 4 点とどれだけ合っているか。
+  // 手の大きさ（切り出し）に対する割合。膝の上で隠れた手などは検出器が別の場所に手を「見つけて」しまい、ここがずれる
+  const at = i => ({x: x0 + l2[i].x * s, y: y0 + l2[i].y * s});
+  const pairs = [[at(0), w], [at(5), pts[1]], [at(17), pts[0]], [at(2), pts[2]]];
+  const err = pairs.reduce((a, [q, r]) => a + d(q, r), 0) / pairs.length / s;
+  return {wl, l2, score: res.handedness?.[0]?.[0]?.score ?? 0, err};
+}
+// 21 点 → 共有リンクに乗せる 11 個の数: 指 5 本の曲げ（0〜1）、手の向き（手首→中指の付け根）、
+// 手のひらの法線（手首・人差し指の付け根・小指の付け根の三角形。左右どちらの手でも、実物とモデルで
+// 同じ三角形なので同じ側を向く）。向きは poses.json の空間（y 上・体が +Z）に揃える。
+// 曲げは 3 関節の角度の和（開いた手でも 20 度ほどあるので、そこを 0 にする）
+const HAND_JOINTS = {Thumb:[1,2,3,4], Index:[5,6,7,8], Middle:[9,10,11,12], Ring:[13,14,15,16], Pinky:[17,18,19,20]};
+const HAND_FINGERS = ['Thumb','Index','Middle','Ring','Pinky'];
+function handFeatures({wl}, yaw){
+  const P = i => new V3(wl[i].x, -wl[i].y, -wl[i].z);
+  const bend = (a, b, c) => { const u = P(b).sub(P(a)), v = P(c).sub(P(b)); return u.lengthSq() > 1e-10 && v.lengthSq() > 1e-10 ? u.angleTo(v) : 0; };
+  const deg = Math.PI / 180, r2 = v => Math.round(v * 100) / 100;
+  // 開いた手でも 0.1〜0.2 は出るので、下を切って 0 に寄せる
+  const tidy = c => clamp((c - 0.12) / 0.8, 0, 1);
+  const curls = HAND_FINGERS.map(f => { const [a, b, c, d] = HAND_JOINTS[f];
+    if (f === 'Thumb') return tidy((bend(a, b, c) + bend(b, c, d) - 15 * deg) / (90 * deg));
+    return tidy((bend(0, a, b) + bend(a, b, c) + bend(b, c, d) - 25 * deg) / (200 * deg)); });
+  const Y = new V3(0, 1, 0), w = P(0);
+  const dir = P(9).sub(w).normalize().applyAxisAngle(Y, yaw);
+  // 手のひらの法線は、手のひら（か甲）がカメラを向いていれば奥行きに頼らず決まる（z 成分は写真の上の並びだけで決まる）。
+  // 横向きの手は法線が付け根の奥行きで決まり、握った手ではそれが崩れて裏返る（アプリの描いた手で実測: 内積 -0.98）。
+  // 開いた手なら横向きでも当たっていたので、「握っていて横向き」のときだけ法線を捨てる（0 = 向きは手首に任せる）
+  const nCam = new V3().crossVectors(P(5).sub(w), P(17).sub(w)).normalize();
+  const mean = curls.reduce((a, b) => a + b, 0) / curls.length;
+  const n = mean > 0.5 && Math.abs(nCam.z) < 0.7 ? new V3() : nCam.applyAxisAngle(Y, yaw);
+  return [...curls.map(r2), ...dir.toArray().map(r2), ...n.toArray().map(r2)];
+}
 function poseFromLandmarks(lm){
   const P = i => new V3(lm[i].x, -lm[i].y, -lm[i].z);
   const mid = (a, b) => a.clone().add(b).multiplyScalar(0.5);
   const hips = mid(P(MP.hipL), P(MP.hipR)), chest = mid(P(MP.shL), P(MP.shR)), ear = mid(P(MP.earL), P(MP.earR));
-  const lr = P(MP.hipL).sub(P(MP.hipR)); lr.y = 0;
-  const yaw = lr.lengthSq() > 1e-8 ? Math.atan2(lr.z, lr.x) : 0;   // Y まわりに yaw 回すと左右が +X に乗る
+  const yaw = bodyYaw(lm);
   const along = (a, b, t) => a.clone().lerp(b, t);
   // 頭の向きは耳 2 点と鼻で作る（頭そのものの枠）。肩の中点→耳の中点で出すと、
   // まっすぐ立った人でも 16 度ほど前に倒れる（MediaPipe の肩の点が耳より後ろに出るため）。
@@ -1616,17 +1695,29 @@ async function readPhoto(file){
   } finally { URL.revokeObjectURL(url); }
 }
 async function photoPose(it, file){
-  toast(poseDetReq ? '写真を読んでいます…' : 'ポーズ検出の部品を読み込んでいます（初回だけ 21 MB）');
+  toast(poseDetReq ? '写真を読んでいます…' : 'ポーズ検出の部品を読み込んでいます（初回だけ 29 MB）');
   let det, cv;
+  // 手の部品は体と並行して取りに行く。取れなくても体のポーズは成り立つので、失敗は握りつぶす
+  const handReq = loadHandDetector().catch(e => { console.warn('hand detector failed', e); return null; });
   try { [det, cv] = await Promise.all([loadPoseDetector(), loadPoses(), readPhoto(file)]).then(r => [r[0], r[2]]); }
   catch(e){ console.warn('photo pose failed', e); toast(navigator.onLine === false ? '写真ポーズ指定には通信が必要です' : '写真を読めませんでした'); return false; }
   if (!POSES){ toast('ポーズのデータを読めませんでした'); return false; }
   const res = det.detect(cv), wl = res.worldLandmarks?.[0], lm = res.landmarks?.[0];
   if (!wl || wl.length < 33){ toast('写真から人物を検出できませんでした'); return false; }
   if (!state.items.includes(it)) return false;          // 読んでいるあいだに消された
-  it.photo = poseFromLandmarks(fuseLandmarks(lm, wl, cv.width, cv.height)); it.posture = 'photo';
+  const fused = fuseLandmarks(lm, wl, cv.width, cv.height);
+  it.photo = poseFromLandmarks(fused); it.posture = 'photo'; delete it.hands;
   rebuildItem(it); renderSel(); needRender = true; saveHash();
-  toast('写真のポーズを写しました');
+  toast('写真のポーズを写しました。手を読んでいます…');
+  // 手は体のあとで。指の骨の無い体（Tripo）でも数字は持っておく（着替えて Mixamo の体になれば効く）
+  let hands = null;
+  try { const hd = await handReq; if (hd){ const yaw = bodyYaw(fused);
+    hands = ['L', 'R'].map(side => { const h = detectHand(hd, cv, lm, side); return h ? handFeatures(h, yaw) : null; }); } }
+  catch(e){ console.warn('hand detection failed', e); hands = null; }
+  if (!state.items.includes(it)) return true;
+  if (hands && hands.some(Boolean)){ it.hands = hands; toast('手の形も写しました'); }
+  else toast('手は写真から読めませんでした（体だけ写しました）');
+  rebuildItem(it); renderSel(); needRender = true; saveHash();
   return true;
 }
 let photoTarget = null;
@@ -1759,6 +1850,47 @@ function applyPose(root, pose){
   root.updateMatrixWorld(true);
 }
 
+// 写真の手を骨に乗せる。指の骨がある体（Mixamo のリグ）だけ。Tripo の体は手首から先が 1 本なので何もしない。
+// 1. 前腕のひねり（回内・回外）で手のひらの法線を合わせる — 手首の骨だけで回すと手首がねじ切れる
+// 2. 手首の曲げで手の向き（手首→中指の付け根）を合わせる（80 度まで）
+// 3. 残ったひねりを手首で
+// 4. 指の曲げ。曲げの軸はローカル X（両手とも）。親指だけ Z で、左は -Z・右は +Z（鏡写しのリグ。絵で確かめた）
+const CURL_K = {Thumb:[0.55, 0.75, 0.55], Index:[1.25, 1.45, 0.95], Middle:[1.25, 1.45, 0.95], Ring:[1.25, 1.45, 0.95], Pinky:[1.25, 1.45, 0.95]};
+function applyHands(root, hands){
+  const boneOf = boneTable(root), Q = THREE.Quaternion;
+  const wq = o => o.getWorldQuaternion(new Q()), wp = o => o.getWorldPosition(new V3());
+  const setWorld = (bone, q) => { bone.quaternion.copy(wq(bone.parent).invert().multiply(q)); bone.updateMatrixWorld(true); };
+  root.updateMatrixWorld(true);
+  hands.forEach((h, i) => {
+    if (!h) return;
+    const side = i === 0 ? 'Left' : 'Right';
+    const fore = boneOf[side + 'ForeArm'], hand = boneOf[side + 'Hand'], ix = boneOf[side + 'HandIndex1'], pk = boneOf[side + 'HandPinky1'], md = boneOf[side + 'HandMiddle1'];
+    if (!fore || !hand || !ix || !pk || !md) return;
+    const dirT = new V3().fromArray(h.slice(5, 8)), nT = new V3().fromArray(h.slice(8, 11));
+    const useN = nT.lengthSq() > 0.5;          // 法線が無いときは手首の曲げだけ（ひねりは applyPose の肘まかせ）
+    if (dirT.lengthSq() > 0.5){
+      dirT.normalize(); if (useN) nT.normalize();
+      const cur = () => { const w = wp(hand); return {d: wp(md).sub(w).normalize(), n: new V3().crossVectors(wp(ix).sub(w), wp(pk).sub(w)).normalize()}; };
+      const twist = (bone, axis, from, to) => {
+        const a = axis.clone().normalize(), f = from.clone().projectOnPlane(a), t = to.clone().projectOnPlane(a);
+        if (f.lengthSq() < 1e-6 || t.lengthSq() < 1e-6) return;
+        setWorld(bone, new Q().setFromAxisAngle(a, Math.atan2(new V3().crossVectors(f, t).dot(a), f.dot(t))).multiply(wq(bone)));
+      };
+      if (useN) twist(fore, wp(hand).sub(wp(fore)), cur().n, nT);
+      { const c = cur(); let q = new Q().setFromUnitVectors(c.d, dirT); const a = c.d.angleTo(dirT), LIM = 80 * Math.PI / 180;
+        if (a > LIM) q = new Q().slerp(q, LIM / a);
+        setWorld(hand, q.multiply(wq(hand))); }
+      if (useN){ const c = cur(); twist(hand, c.d, c.n, nT); }
+    }
+    HAND_FINGERS.forEach((f, k) => {
+      const c = clamp(+h[k] || 0, 0, 1); if (!(c > 0.02)) return;
+      CURL_K[f].forEach((K, j) => { const b = boneOf[`${side}Hand${f}${j + 1}`]; if (!b) return;
+        b.quaternion.multiply(new Q().setFromAxisAngle(f === 'Thumb' ? new V3(0, 0, side === 'Left' ? -1 : 1) : new V3(1, 0, 0), c * K)); });
+    });
+  });
+  root.updateMatrixWorld(true);
+}
+
 const personModel = it => {
   const m = MODEL_BY_ID[it.model]; if (!m) return null;
   const u = asset(`models/${m.id}.glb`);
@@ -1851,6 +1983,7 @@ function buildRealPerson(it, src){
   inst.scale.setScalar(k);
   const pose = it.posture === 'photo' ? photoPoseOf(it) : it.posture && POSES ? poseById(it.posture) : null;
   if (pose) applyPose(inst, pose);
+  if (pose && it.posture === 'photo' && Array.isArray(it.hands)) applyHands(inst, it.hands);
   const bb = posedBox(inst);
   // 脚を垂らして座るポーズなら、お尻の底の高さを控えておく（restY が台に吸着させる）
   if (pose && isSittingPose(pose)){ const sb = seatBottom(inst); if (isFinite(sb)) g.userData.seatY = sb - bb.min.y; }
@@ -5109,7 +5242,7 @@ function setProp(it, k, v, live=false){
   else if (k === 'kind' && it.type === 'light'){ const t = LIGHT_BY_KIND[v] || LIGHT_BY_KIND.spot;
     it.kind = t.kind; it.spread = t.spread; it.soft = t.soft; }
   // 写真のポーズは 23 関節の座標をアイテムに持つ。別のポーズを選んだら捨てる（リンクを重くしない）
-  else if (k === 'posture'){ it.posture = v; if (v !== 'photo') delete it.photo; }
+  else if (k === 'posture'){ it.posture = v; if (v !== 'photo'){ delete it.photo; delete it.hands; } }
   else if (k === 'shape'){ it.shape = v === 'round' ? 'round' : 'rect'; }
   else if (k === 'sound'){ it.sound = v === 1 || v === true || v === '1'; applySound(it); renderSel(); saveHash(); needRender = true; return; }
   // 定規の起点をカメラのレンズへ。定規は group の座標（x/z/rot、y は床から）で点を持つので、そこへ戻す
@@ -6553,7 +6686,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, handDetector: loadHandDetector, detectHand, handFeatures, applyHands, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

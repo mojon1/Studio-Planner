@@ -2743,12 +2743,85 @@ await block('34', `写真ポーズ指定`, async () => {
   const ui = await p.$eval('#selbody', el => ({ on: el.querySelector('[data-photo]')?.classList.contains('on'), hint: el.textContent.includes('写真の奥行きは推定です') }));
   ok('the camera button lights up and the depth caveat shows', ui.on && ui.hint, JSON.stringify(ui));
 
-  // 共有リンクに 23 点が乗って、相手の画面でも同じポーズになる
+  // 手（v1.41.0〜）: 指の骨のある体（Mixamo のリグ）に着替え、握った手と開いた手を写真に撮って、
+  // 指の曲げ（0〜1）が戻ってくるか。手は Pose の手首まわりを切り出して Hand Landmarker に掛ける。
+  // 手が小さいと当たらないので大きな画面で、両手が体の脇に見える「立つ 5」の座標を写真ポーズとして使う
+  const t4 = await open('photopose-hands', { width: 1600, height: 1000 });
+  const P4 = t4.page;
+  await P4.click('#items .itemrow[data-kind="person"] > button.name'); await P4.waitForTimeout(300);
+  await P4.waitForFunction(() => !!window.__sp.poses(), null, { timeout: 15000 });
+  await P4.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'); it.model = 'us-business-woman'; sp.rebuild(); });
+  await P4.waitForFunction(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'); let f = false; sp.group(it.id)?.traverse(n => { if (n.isBone && /HandRing3$/.test(n.name)) f = true; }); return f; }, null, { timeout: 20000 });
+  const shootHands = async (curl) => {
+    await P4.evaluate((curl) => {
+      const sp = window.__sp, st = sp.state(), it = st.items.find(i => i.type === 'person');
+      const rows = sp.poses().poses.find(q => q.id === 'stand-5').p.concat([[0, 0, 1]]);
+      it.rot = 0; it.posture = 'photo'; it.photo = rows;
+      it.hands = [[curl, curl, curl, curl, curl, 0, 0, 0, 0, 0, 0], [curl, curl, curl, curl, curl, 0, 0, 0, 0, 0, 0]];
+      sp.rebuild();
+      const cam = st.items.find(i => i.type === 'camera'); cam.x = 0; cam.z = 2.6; cam.y = 1.0; cam.pitch = 0; sp.setProp(cam, 'focal', 35);
+      document.querySelector('[data-view="cam"]').click();
+    }, curl);
+    await P4.waitForTimeout(1200);
+    const b64 = (await P4.locator('#gl').screenshot()).toString('base64');
+    return P4.evaluate(async (b64) => {
+      const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
+      const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
+      const okv = await sp.photoPose(it, new File([blob], 'p.png', { type: 'image/png' }));
+      const hs = it.hands || [null, null];
+      const mean = h => h ? +(h.slice(0, 5).reduce((a, b) => a + b, 0) / 5).toFixed(2) : null;
+      const unit = v => Math.abs(Math.hypot(...v) - 1) < 0.05 || Math.hypot(...v) === 0;
+      return { ok: okv, hands: hs.map(h => h ? h.length : null), curl: hs.map(mean), unit: hs.every(h => !h || (unit(h.slice(5, 8)) && unit(h.slice(8, 11)))) };
+    }, b64);
+  };
+  const open_ = await shootHands(0);
+  ok('a figure with open hands comes back with hands (11 numbers each, unit vectors for the direction and the palm)', open_.ok && open_.hands.filter(Boolean).length === 2 && open_.hands.every(n => n === 11) && open_.unit, JSON.stringify(open_));
+  ok('and its fingers read as open', open_.curl.every(c => c !== null && c < 0.4), JSON.stringify(open_.curl));
+  const fist = await shootHands(1);
+  ok('clenched fists read as curled', fist.ok && fist.hands.filter(Boolean).length === 2 && fist.curl.every(c => c !== null && c > 0.5), JSON.stringify(fist));
+  await P4.screenshot({ path: `${OUT}/photopose-hands.png` });
+  // 曲げは骨に乗る: 曲げ 1 の手は開いた手より指先が手首に近い
+  const bent = await P4.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
+    const d = () => { const g = sp.group(it.id); g.updateMatrixWorld(true); let w, t; g.traverse(n => { if (!n.isBone) return; if (/LeftHand$/.test(n.name)) w = n; if (/LeftHandMiddle3$/.test(n.name)) t = n; });
+      return w.getWorldPosition(new sp.THREE.Vector3()).distanceTo(t.getWorldPosition(new sp.THREE.Vector3())); };
+    it.hands = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], null]; sp.rebuild(); const open = d();
+    it.hands = [[1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0], null]; sp.rebuild(); const fist = d();
+    return { open: +open.toFixed(3), fist: +fist.toFixed(3) };
+  });
+  ok('curl 1 folds the model\'s fingers toward the wrist', bent.fist < bent.open * 0.7, JSON.stringify(bent));
+  // 手の向きも骨に乗る: 検出した向きと法線を 90 度ひねって渡すと、手のひらの法線がそちらを向く
+  const turned = await P4.evaluate(() => {
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'), V = sp.THREE.Vector3;
+    const read = () => { const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = {}; g.traverse(n => { if (n.isBone) tb[n.name.replace(/^mixamorig[:_]?/, '')] = n; });
+      const wp = b => b.getWorldPosition(new V()); const w = wp(tb.LeftHand);
+      return { d: wp(tb.LeftHandMiddle1).sub(w).normalize(), n: new V().crossVectors(wp(tb.LeftHandIndex1).sub(w), wp(tb.LeftHandPinky1).sub(w)).normalize() }; };
+    it.hands = null; sp.rebuild(); const rest = read();
+    const want = rest.n.clone().applyAxisAngle(rest.d, Math.PI / 2);      // 手の向きは同じ、手のひらだけ 90 度回す
+    it.hands = [[0, 0, 0, 0, 0, ...rest.d.toArray(), ...want.toArray()], null]; sp.rebuild(); const got = read();
+    return { dDot: +got.d.dot(rest.d).toFixed(2), nDot: +got.n.dot(want).toFixed(2), before: +rest.n.dot(want).toFixed(2) };
+  });
+  ok('a palm normal from the photo turns the hand (through the forearm and the wrist)', turned.dDot > 0.95 && turned.nDot > 0.9 && Math.abs(turned.before) < 0.2, JSON.stringify(turned));
+  ok('hands run clean', t4.errors.length === 0, t4.errors.join(' | '));
+  await t4.ctx.close();
+
+  // 共有リンクに 23 点と手が乗って、相手の画面でも同じポーズになる
   await p.waitForTimeout(500);
   const hash = await p.evaluate(() => location.hash);
   const t2 = await open('photopose-link', { width: 900, height: 900 }, false, hash);
   const back = await t2.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, n: it.photo?.length }; });
   ok('the photo pose survives the share link', back.posture === 'photo' && back.n === 24, JSON.stringify(back));
+  // 手も同じ道で乗る（11 個 × 2。片方だけでもよい）
+  const withHands = await p.evaluate(async () => {
+    const st = JSON.parse(JSON.stringify(window.__sp.state())); st.cuts = undefined;
+    const it = st.items.find(i => i.type === 'person'); it.hands = [[1, 0.5, 0, 0, 0, 0, -1, 0, 1, 0, 0], null];
+    const bytes = new TextEncoder().encode(JSON.stringify(st)); let b = ''; for (const x of bytes) b += String.fromCharCode(x);
+    return '#s=j' + btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  });
+  const t5 = await open('photopose-hands-link', { width: 900, height: 900 }, false, withHands);
+  const hb = await t5.page.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, hands: JSON.stringify(it.hands) }; });
+  ok('the hands survive the share link', hb.posture === 'photo' && hb.hands === JSON.stringify([[1, 0.5, 0, 0, 0, 0, -1, 0, 1, 0, 0], null]), JSON.stringify(hb));
+  await t5.ctx.close();
   await t2.ctx.close();
   // 座標の無い photo は素の姿勢に戻す
   const broken = await t.page.evaluate(async () => {
@@ -2765,8 +2838,8 @@ await block('34', `写真ポーズ指定`, async () => {
   await t3.ctx.close();
   // 別のポーズを選んだら写真の座標は捨てる（リンクを重くしない）
   await p.click('#selbody [data-pose="sit-chair"]'); await p.waitForTimeout(400);
-  const after = await p.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, photo: it.photo }; });
-  ok('picking a preset pose drops the photo coordinates', after.posture === 'sit-chair' && after.photo === undefined, JSON.stringify(after));
+  const after = await p.evaluate(() => { const it = window.__sp.state().items.find(i => i.type === 'person'); return { posture: it.posture, photo: it.photo, hands: it.hands }; });
+  ok('picking a preset pose drops the photo coordinates and the hands', after.posture === 'sit-chair' && after.photo === undefined && after.hands === undefined, JSON.stringify(after));
   ok('photo pose runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
 });
