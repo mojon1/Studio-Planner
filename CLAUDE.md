@@ -145,7 +145,14 @@ CG スタッフではなく、**PC に不慣れなプロダクションマネー
 ## 置き場所とバージョンの注意
 
 公開先は **https://sp.taichi-teramura.com/**（寺村さんのドメインのサブドメイン。v1.37.1 から）。
-`main` に push すれば出る。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →
+`main` に push すれば出る。**試験版は `staging` ブランチ → https://sp.taichi-teramura.com/beta/**（v1.39.6 から。
+案 A、寺村さんの判断）。**本番サイトで検証しない。** 出す順は「作業ブランチ → `staging`（ベータ）→ 寺村さんが
+実機で確認 → OK と言われてから `main`（本番）」。`main` へは `staging` をそのまま流す（fast-forward）ので、
+ベータで見たものと本番が一致する。**寺村さんの OK 無しに `main` へ push しない。** 急ぎの一行直しも同じ道。
+ワークフローはどちらの push でも両方のブランチを取り出して 1 つのサイトに組む（Pages は 1 リポジトリ 1 サイト）。
+同じドメインなので保存領域はドメイン単位で共有される。そこで **IndexedDB・localStorage・Service Worker の
+キャッシュ名に置き場のパスを足して分けてある**（`SITE_KEY`、sw.js の `TAG`。ルートは今までどおりの名前なので
+本番の保存物はそのまま）。ベータは読み値の先頭とタブの題に BETA と出し、manifest の名前も「SP β」にしている。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →
 Custom domain** にある（DNS 側は `sp` の CNAME → `mojon1.github.io`）。GitHub Actions で出しているので
 **`CNAME` ファイルは要らない**（Actions のデプロイでは無視される）。旧 `mojon1.github.io/Studio-Planner/` は
 GitHub が新ドメインへ転送し、`#` 以降の共有データも引き継がれるので、**配った古いリンクと QR は生きている**。
@@ -246,8 +253,9 @@ node run.mjs --quick           文字直し・パネルの並べ替え向けの�
 `node tools/bump.mjs --check` で今の版を確かめられる。
 
 **1 回出す手順**: 直す → 関係するブロックを `--only` で回す → `tools/bump.mjs` で版を上げる →
-全部回す → CLAUDE.md か `docs/notes/` に書く → コミット・push（ブランチと main）→ Artifact に出す →
-Pages のデプロイを確かめる。
+全部回す → CLAUDE.md か `docs/notes/` に書く → コミット・push（作業ブランチと **`staging`**）→ Artifact に出す →
+Pages のデプロイを確かめ、**https://sp.taichi-teramura.com/beta/ で寺村さんに実機確認してもらう** →
+OK が出たら `staging` を `main` に流す（`git push origin staging:main`）→ 本番のデプロイを確かめる。
 
 ## 現状
 

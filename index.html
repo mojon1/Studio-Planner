@@ -392,7 +392,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.5 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.6 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -511,10 +511,19 @@ const PRESETS = [
 // sensor formats, not camera models: these are standards, so the list never needs updating
 const SENSORS = {s35:{name:'スーパー35', w:25}, ff:{name:'フルサイズ', w:36}, mft:{name:'マイクロフォーサーズ', w:17.3}, custom:{name:'手動', w:null}};
 const LENSES = {s35:[18,25,32,50,75], ff:[24,35,50,85], mft:[12,17,25,42,75], custom:[24,35,50,85]};
+// ---------- 保存領域の名前空間（本番と /beta/ を分ける） ----------
+// 同じドメインの /beta/ に試験版を出す（案 A、寺村さんの判断）。IndexedDB・localStorage・Service Worker の
+// キャッシュはドメイン単位で共有されるので、置き場のパスを名前に足して分ける。ルート（本番）は今までどおりの
+// 名前（''）なので、既存の保存物はそのまま。file:// の 1 枚も自分のフォルダごとに分かれる
+const SITE_DIR = location.pathname.replace(/[^/]*$/, '');
+const SITE_KEY = SITE_DIR === '/' ? '' : ':' + SITE_DIR;
+const IS_BETA = /\/beta\/$/.test(SITE_DIR);
+const LS = {get: k => localStorage.getItem(k + SITE_KEY), set: (k, v) => localStorage.setItem(k + SITE_KEY, v)};
+if (IS_BETA) document.title = 'BETA — ' + document.title;
 // widths the user saved under their own names, kept on this device only
 let savedSensors = [];
-try { const v = JSON.parse(localStorage.getItem('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
-function saveSensors(){ try { localStorage.setItem('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
+try { const v = JSON.parse(LS.get('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}
+function saveSensors(){ try { LS.set('studio3d.sensors', JSON.stringify(savedSensors)); } catch {} }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // ---------- 英語表示 ----------
 // 設定は持たない（寺村さんの指示）。ブラウザの言語が日本語でなければ英語、
@@ -3356,11 +3365,11 @@ function setActiveCam(id){
 let W = 1, H = 1;
 const pipEl = document.getElementById('pip');
 let pip = {x:-1, y:-1, w:280, h:210, open:true};
-try { const s = JSON.parse(localStorage.getItem('studio3d.pip')||'null'); if (s && s.w > 60) pip = {open:true, ...s}; } catch {}
+try { const s = JSON.parse(LS.get('studio3d.pip')||'null'); if (s && s.w > 60) pip = {open:true, ...s}; } catch {}
 let showDims = true;
-try { showDims = localStorage.getItem('studio3d.dims') !== '0'; } catch {}
+try { showDims = LS.get('studio3d.dims') !== '0'; } catch {}
 let showGrid = true;
-try { showGrid = localStorage.getItem('studio3d.grid') !== '0'; } catch {}
+try { showGrid = LS.get('studio3d.grid') !== '0'; } catch {}
 function resize(){
   const r = viewEl.getBoundingClientRect(); W = Math.max(1, Math.floor(r.width)); H = Math.max(1, Math.floor(r.height));
   renderer.setSize(W, H, false); canvas.style.width = W+'px'; canvas.style.height = H+'px';
@@ -3393,7 +3402,7 @@ function layoutPip(){
   layoutInfo();
   persCam.aspect = W/H; persCam.updateProjectionMatrix();
 }
-function savePip(){ try { localStorage.setItem('studio3d.pip', JSON.stringify(pip)); } catch {} }
+function savePip(){ try { LS.set('studio3d.pip', JSON.stringify(pip)); } catch {} }
 function fitOrtho(){
   // 角のつまみで部屋を引いている最中は、引き始めの寸法で画角を固定する。frame() が毎フレーム
   // ここを通るので、部屋が広がるたびに画角も広がると、同じ指の位置がより遠くを指して
@@ -3658,6 +3667,7 @@ function frame(){
 function updateInfo(){
   const s = state.studio; const ci = camItem(); const el = document.getElementById('info');
   let t = `スタジオ ${s.w} × ${s.d} × 高 ${s.h} m`;
+  if (IS_BETA) t = 'BETA\n' + t;                       // 試験版と本番を取り違えないように
   // 広い現場では 1 m では引いていない。**書かないと目盛りの意味が変わる**
   if (gridStep !== 1) t += `\nグリッド ${gridStep} m`;
   if (ci){
@@ -4154,7 +4164,7 @@ document.getElementById('redobtn').addEventListener('click', redo);
 const rulerBtn = document.getElementById('ruler');
 function setDims(v){
   showDims = v; rulerBtn.classList.toggle('on', v);
-  try { localStorage.setItem('studio3d.dims', v ? '1' : '0'); } catch {}
+  try { LS.set('studio3d.dims', v ? '1' : '0'); } catch {}
   needRender = true;
 }
 rulerBtn.addEventListener('click', () => setDims(!showDims));
@@ -4163,7 +4173,7 @@ const gridBtn = document.getElementById('gridbtn');
 function setGrid(v){
   showGrid = v; gridBtn.classList.toggle('on', v);
   syncGrid();
-  try { localStorage.setItem('studio3d.grid', v ? '1' : '0'); } catch {}
+  try { LS.set('studio3d.grid', v ? '1' : '0'); } catch {}
   needRender = true;
 }
 gridBtn.addEventListener('click', () => setGrid(!showGrid));
@@ -4172,11 +4182,11 @@ setGrid(showGrid);
 // ---------- UI: tabs ----------
 const tabs = document.querySelectorAll('#tabs button[data-tab]');
 let folded = false;
-try { const f = localStorage.getItem('studio3d.folded'); folded = f === null ? (innerWidth <= 760) : f === '1'; } catch { folded = innerWidth <= 760; }
+try { const f = LS.get('studio3d.folded'); folded = f === null ? (innerWidth <= 760) : f === '1'; } catch { folded = innerWidth <= 760; }
 const gearEl = document.getElementById('gear');
 function setFolded(v){
   folded = v; document.body.classList.toggle('folded', v); gearEl.classList.toggle('on', !v);
-  try { localStorage.setItem('studio3d.folded', v ? '1' : '0'); } catch {}
+  try { LS.set('studio3d.folded', v ? '1' : '0'); } catch {}
 }
 function showTab(name, open){ tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === name)); document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.dataset.sec === name)); if (open) setFolded(false); }
 tabs.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab, true)));
@@ -5122,7 +5132,7 @@ function setProp(it, k, v, live=false){
 
 // ---------- import 3D models ----------
 // files live in this browser only; the share link carries name, size and position
-const IDB_NAME = 'studio3d', IDB_STORE = 'models';
+const IDB_NAME = 'studio3d' + SITE_KEY, IDB_STORE = 'models';   // /beta/ は別の箱（SITE_KEY）
 function idb(){ return new Promise((res, rej) => {
   const r = indexedDB.open(IDB_NAME, 1);
   r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE); };
@@ -6041,13 +6051,13 @@ let toastT; function toast(msg){ const t = document.getElementById('toast'); t.t
 // browser's own print-to-PDF. jsPDF would have to embed a multi-MB CJK font to match.
 // The dimension labels stay HTML on top of each image, so they print as text.
 let orient = 'landscape';
-try { const o = localStorage.getItem('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
+try { const o = LS.get('studio3d.orient'); if (o === 'portrait' || o === 'landscape') orient = o; } catch {}
 const papersEl = document.getElementById('papers'), paperModal = document.getElementById('papermodal');
 let pdfScope = 'one';        // 'one' = 今のカットだけ / 'all' = 全カット
 // 用紙に載せる図。順番はこの並びで、選んだ数に応じて割り付けが変わる
 const PDF_VIEWS = [['plan','上面'], ['side','側面'], ['front','正面'], ['pers','3D'], ['cam','ファインダー']];
 let pdfPanes = ['plan','side','pers','cam'];
-try { const v = JSON.parse(localStorage.getItem('studio3d.panes')||'null');
+try { const v = JSON.parse(LS.get('studio3d.panes')||'null');
   if (Array.isArray(v) && v.length) pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => v.includes(k)); } catch {}
 // 用紙の図の領域（mm）。ここに収まるように 1 枚ぶんの大きさを割り出す
 const PDF_AREA = {landscape:[206, 177], portrait:[194, 156]}, PDF_GAP = 4, PDF_PXMM = 12;
@@ -6280,7 +6290,7 @@ async function refreshSheet(){
 document.querySelectorAll('[data-orient]').forEach(b => b.addEventListener('click', () => {
   orient = b.dataset.orient;
   document.querySelectorAll('[data-orient]').forEach(x => x.classList.toggle('on', x.dataset.orient === orient));
-  try { localStorage.setItem('studio3d.orient', orient); } catch {}
+  try { LS.set('studio3d.orient', orient); } catch {}
   refreshSheet();
 }));
 document.querySelectorAll('.pmbar [data-pane]').forEach(b => b.addEventListener('click', () => {
@@ -6289,7 +6299,7 @@ document.querySelectorAll('.pmbar [data-pane]').forEach(b => b.addEventListener(
   if (!next.length){ toast('図は 1 つ以上必要です'); return; }   // 空の用紙は刷らせない
   pdfPanes = PDF_VIEWS.map(([k]) => k).filter(k => next.includes(k));
   syncPaneBtns();
-  try { localStorage.setItem('studio3d.panes', JSON.stringify(pdfPanes)); } catch {}
+  try { LS.set('studio3d.panes', JSON.stringify(pdfPanes)); } catch {}
   refreshSheet();
 }));
 function syncPaneBtns(){
@@ -6524,7 +6534,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先

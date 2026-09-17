@@ -87,6 +87,10 @@ https://sp.taichi-teramura.com/
 `mojon1.github.io/Studio-Planner/` は GitHub Pages のカスタムドメイン設定で上へ転送される。
 古いリンクと QR もそのまま開ける。
 
+**試験版は `staging` ブランチ → https://sp.taichi-teramura.com/beta/** 。直したものはまずここに出し、
+実機で確かめてから `main`（本番）へ流す。同じドメインだが、保存領域（取り込んだモデル・スキャン・設定・
+オフラインのキャッシュ）は本番と別に持つ。画面の読み値とタブに BETA と出る。
+
 **最初の 1 回だけ手作業がいる。** リポジトリの Settings → Pages →
 Build and deployment → Source を「**GitHub Actions**」にする。
 カスタムドメインも同じ画面の Custom domain に `sp.taichi-teramura.com` を入れて Save し、

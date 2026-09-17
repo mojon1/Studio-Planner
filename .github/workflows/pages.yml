@@ -1,4 +1,8 @@
-# main に push するたび、そのまま GitHub Pages に出る。ビルドは無い。
+# main と staging のどちらに push しても、そのまま GitHub Pages に出る。ビルドは無い。
+#   main    → https://sp.taichi-teramura.com/        （本番）
+#   staging → https://sp.taichi-teramura.com/beta/   （試験版。実機で確かめてから main へ昇格する）
+# Pages は 1 リポジトリ 1 サイトなので、どちらの push でも両方のブランチを取り出して 1 つの
+# サイトに組む（片方だけ出すと、もう片方が消える）。
 #
 # 最初の 1 回だけ、リポジトリの Settings → Pages → Source を
 # 「GitHub Actions」にする必要がある。GITHUB_TOKEN には Pages サイトを
@@ -8,7 +12,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   workflow_dispatch:
 
 permissions:
@@ -28,10 +32,24 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Collect the site
-        run: sh tools/collect-site.sh
+        with:
+          ref: main
+          path: main
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          path: staging
+      - name: Collect the site (main at /, staging at /beta/)
+        run: |
+          sh main/tools/collect-site.sh
+          mv main/_site site
+          sh staging/tools/collect-site.sh
+          mv staging/_site site/beta
+          # ホーム画面に置いたとき本番と見分けが付くように、試験版の manifest だけ名前を変える
+          sed -i 's/"short_name": "Studio Planner"/"short_name": "SP β"/; s/"name": "Studio Planner — /"name": "Studio Planner β — /' site/beta/manifest.webmanifest
+          grep -n "short_name" site/beta/manifest.webmanifest
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site
       - id: deploy
         uses: actions/deploy-pages@v4

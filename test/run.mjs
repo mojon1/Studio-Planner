@@ -118,7 +118,8 @@ const MIME = {'.html':'text/html; charset=utf-8', '.glb':'model/gltf-binary', '.
   '.webmanifest':'application/manifest+json', '.png':'image/png', '.webp':'image/webp', '.svg':'image/svg+xml',
   '.task':'application/octet-stream', '.wasm':'application/wasm', '.jpg':'image/jpeg'};
 const server = http.createServer((req, res) => {
-  const u = req.url.split('?')[0].split('#')[0];   // ?eng のような検索文字列は落とす
+  let u = req.url.split('?')[0].split('#')[0];   // ?eng のような検索文字列は落とす
+  if (u.startsWith('/beta/')) u = u.slice(5);       // /beta/ は本番と同じ物を別の置き場で出す（保存領域が分かれることを見る）
   const p = path.join(ROOT, u === '/' ? 'index.html' : u);
   if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript'});
@@ -3594,6 +3595,35 @@ await block('47', `ディスプレイ`, async () => {
   await P.screenshot({ path: path.join(OUT, 'display.png') });
   ok('display runs clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
+});
+
+// --- 48. /beta/（試験版）は保存領域が本番と分かれる ------------------------------------
+await block('48', `/beta/ は保存領域が本番と分かれる`, async () => {
+  const b = await open('beta', { width: 1200, height: 800 }, false, 'beta/'); const P = b.page;
+  const S = fn => P.evaluate(fn);
+  const info = await S(() => window.__sp && [window.__sp.siteKey, window.__sp.idbName, window.__sp.isBeta]);
+  ok('under /beta/ the app knows it is the beta and names its storage after the path', !!info && info[0] === ':/beta/' && info[1] === 'studio3d:/beta/' && info[2] === true, JSON.stringify(info));
+  ok('the title and the readout say BETA', /^BETA — /.test(await P.title()) && /^BETA\n/.test(await P.textContent('#info')), await P.title());
+  await P.click('#gridbtn'); await P.waitForTimeout(200);
+  const keys = await S(() => [localStorage.getItem('studio3d.grid:/beta/'), localStorage.getItem('studio3d.grid')]);
+  ok('a setting saved on the beta lands under the beta key, not the production one', keys[0] === '0' && keys[1] === null, JSON.stringify(keys));
+  // 同じ端末の本番（ルート）は今までどおりの名前で、ベータの設定を見ない
+  const r = await b.ctx.newPage();
+  await r.route('https://cdn.jsdelivr.net/npm/three@0.180.0/**', route => {
+    const rel = route.request().url().replace('https://cdn.jsdelivr.net/npm/three@0.180.0/', '');
+    const f = path.join(NM, 'three', rel);
+    if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
+  });
+  await r.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
+  await r.goto('http://localhost:8765/'); await r.waitForTimeout(1500);
+  const root = await r.evaluate(() => [window.__sp.siteKey, window.__sp.idbName, window.__sp.isBeta, document.title.startsWith('BETA'),
+    document.getElementById('gridbtn').classList.contains('on')]);
+  ok('the production root keeps its old storage names and its own grid setting', root[0] === '' && root[1] === 'studio3d' && root[2] === false && root[3] === false && root[4] === true, JSON.stringify(root));
+  // Service Worker のキャッシュ名も scope で分ける（SW はテストでは止めているので、ソースを見る）
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  ok('the service worker names its caches after its scope and only sweeps its own', /self\.registration\.scope/.test(sw) && /const mine = k =>/.test(sw) && /if \(mine\(k\) && k !== SHELL\)/.test(sw));
+  ok('beta runs clean', b.errors.length === 0, b.errors.join(' | '));
+  await b.ctx.close();
 });
 
 await browser.close(); server.close();

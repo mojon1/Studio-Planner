@@ -7,9 +7,14 @@
 //     勝手に取りに行かない。実際に使ったものだけを runtime に溜める
 //     （「オフラインに保存」ボタンは外した）。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.39.5';
-const SHELL = 'sp-shell-' + VERSION;   // 起動に要るもの。版ごとに作り直す
-const RUNTIME = 'sp-runtime';          // 使ったものを溜める場所。版をまたいで残す
+const VERSION = 'v1.39.6';
+// 同じドメインの /beta/ に試験版を出す。キャッシュはドメイン単位で共有されるので、殻の scope を名前に足して
+// 分ける。ルート（本番）は今までどおりの名前で、/beta/ は '@/beta/' が付く。捨てるのも自分の scope のぶんだけ
+const SCOPE = new URL(self.registration.scope).pathname;
+const TAG = SCOPE === '/' ? '' : '@' + SCOPE;
+const SHELL = 'sp-shell-' + VERSION + TAG;   // 起動に要るもの。版ごとに作り直す
+const RUNTIME = 'sp-runtime' + TAG;          // 使ったものを溜める場所。版をまたいで残す
+const mine = k => k.startsWith('sp-shell-') && (TAG ? k.endsWith(TAG) : !k.includes('@'));
 
 const SHELL_FILES = [
   './', './index.html', './manifest.webmanifest',
@@ -36,7 +41,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     for (const k of await caches.keys())
-      if (k.startsWith('sp-shell-') && k !== SHELL) await caches.delete(k);
+      if (mine(k) && k !== SHELL) await caches.delete(k);
     await self.clients.claim();
   })());
 });
