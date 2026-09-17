@@ -2790,18 +2790,29 @@ await block('34', `写真ポーズ指定`, async () => {
     return { open: +open.toFixed(3), fist: +fist.toFixed(3) };
   });
   ok('curl 1 folds the model\'s fingers toward the wrist', bent.fist < bent.open * 0.7, JSON.stringify(bent));
-  // 手の向きも骨に乗る: 検出した向きと法線を 90 度ひねって渡すと、手のひらの法線がそちらを向く
+  // 手の向きも骨に乗る: 手のひらを 90 度ひねった向きを写真の流儀（左手は三角形の法線が手のひら側、右手は甲側）で
+  // 渡すと、モデルの手のひら（指が曲がる側。鏡写しのモデルでも正しい）がそちらを向く。左右とも
   const turned = await P4.evaluate(() => {
-    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'), V = sp.THREE.Vector3;
-    const read = () => { const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = {}; g.traverse(n => { if (n.isBone) tb[n.name.replace(/^mixamorig[:_]?/, '')] = n; });
-      const wp = b => b.getWorldPosition(new V()); const w = wp(tb.LeftHand);
-      return { d: wp(tb.LeftHandMiddle1).sub(w).normalize(), n: new V().crossVectors(wp(tb.LeftHandIndex1).sub(w), wp(tb.LeftHandPinky1).sub(w)).normalize() }; };
-    it.hands = null; sp.rebuild(); const rest = read();
-    const want = rest.n.clone().applyAxisAngle(rest.d, Math.PI / 2);      // 手の向きは同じ、手のひらだけ 90 度回す
-    it.hands = [[0, 0, 0, 0, 0, ...rest.d.toArray(), ...want.toArray()], null]; sp.rebuild(); const got = read();
-    return { dDot: +got.d.dot(rest.d).toFixed(2), nDot: +got.n.dot(want).toFixed(2), before: +rest.n.dot(want).toFixed(2) };
+    const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'), out = {};
+    const read = side => { const g = sp.group(it.id); g.updateMatrixWorld(true); return sp.handFrame(sp.boneTable(g), side); };
+    for (const [i, side, sign] of [[0, 'Left', 1], [1, 'Right', -1]]){
+      it.hands = null; sp.rebuild(); const rest = read(side);
+      const want = rest.palm.clone().applyAxisAngle(rest.d, Math.PI / 2);      // 手の向きは同じ、手のひらだけ 90 度回す
+      const h = [0, 0, 0, 0, 0, ...rest.d.toArray(), ...want.clone().multiplyScalar(sign).toArray()];
+      it.hands = i === 0 ? [h, null] : [null, h]; sp.rebuild(); const got = read(side);
+      out[side] = { dDot: +got.d.dot(rest.d).toFixed(2), pDot: +got.palm.dot(want).toFixed(2), before: +rest.palm.dot(want).toFixed(2) };
+    }
+    return out;
   });
-  ok('a palm normal from the photo turns the hand (through the forearm and the wrist)', turned.dDot > 0.95 && turned.nDot > 0.9 && Math.abs(turned.before) < 0.2, JSON.stringify(turned));
+  ok('a palm direction from the photo turns each hand (through the forearm and the wrist)',
+     ['Left', 'Right'].every(s => turned[s].dDot > 0.95 && turned[s].pDot > 0.9 && Math.abs(turned[s].before) < 0.2), JSON.stringify(turned));
+  // このモデルは鏡写し（左手が右手の形）。手のひらの側が三角形の法線と左手で逆・右手で同じになる。写真の流儀と突き合わせる
+  const mirror = await P4.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person'), V = sp.THREE.Vector3; it.hands = null; sp.rebuild();
+    const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = sp.boneTable(g), out = {};
+    for (const side of ['Left', 'Right']){ const wp = b => b.getWorldPosition(new V()); const w = wp(tb[side + 'Hand']);
+      const n = new V().crossVectors(wp(tb[side + 'HandIndex1']).sub(w), wp(tb[side + 'HandPinky1']).sub(w)).normalize(); out[side] = +sp.handFrame(tb, side).palm.dot(n).toFixed(2); }
+    return out; });
+  ok('the model palm side is read from the finger curl, not assumed from the triangle', mirror.Left < -0.9 && mirror.Right > 0.9, JSON.stringify(mirror));
   // 顔の向き（v1.42.0〜）: 頭を既知の向きに回して描き、写真に撮ると、顔の向きの行と頭の上向きがそれを追う
   //（描いた頭の 35 度は 0.3 ほどに出る。検出器が控えめに読む。向きの符号と「0 でない」ことを見る）
   // （Pose の耳・鼻では傾きが出なかった。Face Landmarker の姿勢行列を使う）

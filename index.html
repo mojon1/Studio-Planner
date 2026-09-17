@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.0 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.1 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1575,8 +1575,10 @@ function detectFace(fd, cv, lm){
   const x0 = clamp(c.x - s / 2, 0, W - s), y0 = clamp(c.y - s / 2, 0, H - s);
   const crop = document.createElement('canvas'); crop.width = crop.height = 256;
   crop.getContext('2d').drawImage(cv, x0, y0, s, s, 0, 0, 256, 256);
-  const M = fd.detect(crop).facialTransformationMatrixes?.[0];
-  if (!M || M.rows !== 4 || M.columns !== 4) return null;
+  const fr = fd.detect(crop), M = fr.facialTransformationMatrixes?.[0], fl = fr.faceLandmarks?.[0];
+  if (!M || M.rows !== 4 || M.columns !== 4 || !fl) return null;
+  // 取れた顔の鼻先（点 1）が Pose の鼻から離れていれば別の物（隣の人、顔のそばの拳など）
+  if (Math.hypot(x0 + fl[1].x * s - n.x, y0 + fl[1].y * s - n.y) > s * 0.25) return null;
   const m = M.data, col = j => new V3(m[j * 4], m[j * 4 + 1], m[j * 4 + 2]);   // 列優先
   const up = col(1), fwd = col(2);
   if (Math.abs(up.length() - 1) > 0.1 || Math.abs(fwd.length() - 1) > 0.1) return null;
@@ -1848,7 +1850,7 @@ function twistTargetRef(m, src, fwd, face, hands){
   // 写真の手のひらの法線があれば、肘の曲がる向きの既定はそちら（伸ばした腕は肘の向きが決まらず、
   // 体の正面を仮の向きにしていた。手のひらの向きは肘の内側の向きとおおむね同じ — 寺村さんの「腕がねじれる」）
   const hn = hands?.[side === 'Left' ? 0 : 1];
-  const palm = hn && (hn[8] || hn[9] || hn[10]) ? new V3().fromArray(hn.slice(8, 11)) : null;
+  const palm = hn && (hn[8] || hn[9] || hn[10]) ? palmOfReal(hn, side) : null;   // 右手の法線は甲側なので、手のひら側に直す
   const hinge = (a, b, c, dflt) => {
     const u = src[b].clone().sub(src[a]).normalize(), f = src[c].clone().sub(src[b]).normalize();
     const bend = new V3().crossVectors(u, f), w = clamp((Math.asin(Math.min(1, bend.length())) * 180 / Math.PI - 8) / 17, 0, 1);
@@ -1927,6 +1929,21 @@ function applyPose(root, pose){
 // 3. 残ったひねりを手首で
 // 4. 指の曲げ。曲げの軸はローカル X（両手とも）。親指だけ Z で、左は -Z・右は +Z（鏡写しのリグ。絵で確かめた）
 const CURL_K = {Thumb:[0.55, 0.75, 0.55], Index:[1.25, 1.45, 0.95], Middle:[1.25, 1.45, 0.95], Ring:[1.25, 1.45, 0.95], Pinky:[1.25, 1.45, 0.95]};
+// 写真の 11 個の数の「法線」（手首・人差し指・小指の三角形）は、実物の左手では手のひら側、右手では甲側を向く
+const palmOfReal = (h, side) => new V3().fromArray(h.slice(8, 11)).multiplyScalar(side === 'Left' ? 1 : -1);
+// モデルの手の向き（手首→中指の付け根）と手のひらの向き。手のひらの側は「指が曲がる向き」（ローカル X まわりに回すと
+// 指先が動く向き）から出す。三角形の法線で決めると鏡写しのモデル（us-business-woman は左手が右手の形。
+// 実物と逆になって手のひらが裏返った — 寺村さんの指摘「手の向きが逆」）で裏返る
+function handFrame(boneOf, side){
+  const hand = boneOf[side + 'Hand'], ix = boneOf[side + 'HandIndex1'], ix2 = boneOf[side + 'HandIndex2'], pk = boneOf[side + 'HandPinky1'], md = boneOf[side + 'HandMiddle1'];
+  if (!hand || !ix || !ix2 || !pk || !md) return null;
+  const wq = o => o.getWorldQuaternion(new THREE.Quaternion()), wp = o => o.getWorldPosition(new V3());
+  const w = wp(hand), d = wp(md).sub(w).normalize();
+  const n = new V3().crossVectors(wp(ix).sub(w), wp(pk).sub(w)).normalize();
+  const ax = new V3(1, 0, 0).applyQuaternion(wq(ix)).normalize(), f = wp(ix2).sub(wp(ix)).normalize();
+  const curl = new V3().crossVectors(ax, f);
+  return {d, palm: n.multiplyScalar(curl.dot(n) < 0 ? -1 : 1)};
+}
 function applyHands(root, hands){
   const boneOf = boneTable(root), Q = THREE.Quaternion;
   const wq = o => o.getWorldQuaternion(new Q()), wp = o => o.getWorldPosition(new V3());
@@ -1935,23 +1952,23 @@ function applyHands(root, hands){
   hands.forEach((h, i) => {
     if (!h) return;
     const side = i === 0 ? 'Left' : 'Right';
-    const fore = boneOf[side + 'ForeArm'], hand = boneOf[side + 'Hand'], ix = boneOf[side + 'HandIndex1'], pk = boneOf[side + 'HandPinky1'], md = boneOf[side + 'HandMiddle1'];
-    if (!fore || !hand || !ix || !pk || !md) return;
-    const dirT = new V3().fromArray(h.slice(5, 8)), nT = new V3().fromArray(h.slice(8, 11));
-    const useN = nT.lengthSq() > 0.5;          // 法線が無いときは手首の曲げだけ（ひねりは applyPose の肘まかせ）
+    const fore = boneOf[side + 'ForeArm'], hand = boneOf[side + 'Hand'];
+    if (!fore || !hand || !handFrame(boneOf, side)) return;
+    const dirT = new V3().fromArray(h.slice(5, 8)), palmT = palmOfReal(h, side);
+    const useN = palmT.lengthSq() > 0.5;          // 法線が無いときは手首の曲げだけ（ひねりは applyPose の肘まかせ）
     if (dirT.lengthSq() > 0.5){
-      dirT.normalize(); if (useN) nT.normalize();
-      const cur = () => { const w = wp(hand); return {d: wp(md).sub(w).normalize(), n: new V3().crossVectors(wp(ix).sub(w), wp(pk).sub(w)).normalize()}; };
+      dirT.normalize(); if (useN) palmT.normalize();
+      const cur = () => handFrame(boneOf, side);
       const twist = (bone, axis, from, to) => {
         const a = axis.clone().normalize(), f = from.clone().projectOnPlane(a), t = to.clone().projectOnPlane(a);
         if (f.lengthSq() < 1e-6 || t.lengthSq() < 1e-6) return;
         setWorld(bone, new Q().setFromAxisAngle(a, Math.atan2(new V3().crossVectors(f, t).dot(a), f.dot(t))).multiply(wq(bone)));
       };
-      if (useN) twist(fore, wp(hand).sub(wp(fore)), cur().n, nT);
+      if (useN) twist(fore, wp(hand).sub(wp(fore)), cur().palm, palmT);
       { const c = cur(); let q = new Q().setFromUnitVectors(c.d, dirT); const a = c.d.angleTo(dirT), LIM = 80 * Math.PI / 180;
         if (a > LIM) q = new Q().slerp(q, LIM / a);
         setWorld(hand, q.multiply(wq(hand))); }
-      if (useN){ const c = cur(); twist(hand, c.d, c.n, nT); }
+      if (useN){ const c = cur(); twist(hand, c.d, c.palm, palmT); }
     }
     HAND_FINGERS.forEach((f, k) => {
       const c = clamp(+h[k] || 0, 0, 1); if (!(c > 0.02)) return;
@@ -6757,7 +6774,7 @@ try { matchMedia('(display-mode: standalone)').addEventListener('change', markSt
 document.documentElement.lang = LANG;     // there is no <html> tag of ours to put it on（英語表示なら 'en'）
 // a hook for test/run.mjs, which otherwise cannot see whether what was drawn is the
 // right size. Nothing in the app reads it.
-window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, handDetector: loadHandDetector, detectHand, handFeatures, applyHands, faceDetector: loadFaceDetector, detectFace, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
+window.__sp = {THREE, renderer, scene, gizmo, frustum: () => frustumGroup, qr: QR, tilt: () => tiltGiz, camera: () => mainCam(), state: () => state, group: id => itemObjs.get(id)?.group || null, pick, sel: () => selectedId, select, orbit, render: () => { needRender = true; }, setProp, refreshCrop, cropBox, handles: () => handleGroup, spark: () => sparkRenderer, people: () => PEOPLE_MODELS, glb: () => buildGLB(), world: () => worldSpan(), limit: () => moveLimit(), setPos, grid: () => gridExtent(), addItem, rebuild: () => rebuildItems(), lights: () => lightObjs, lightType, photoPose, poseFromLandmarks, fuseLandmarks, poseDetector: loadPoseDetector, handDetector: loadHandDetector, detectHand, handFeatures, applyHands, handFrame, boneTable, faceDetector: loadFaceDetector, detectFace, poses: () => POSES, ambient: ambientLevel, setAmbient, hemi, sun, toast, tr, lang: LANG, restY, isSitting, standHeight, cropGiz: () => cropGiz, cropGizOn: () => !!cropGiz.userData.on, cropFrame, cropEdit: () => cropEdit, resetProp, defaultOf, bundleFits, upQuat, splatBB, modelDims, setDisplayFile, mediaFor, siteKey: SITE_KEY, idbName: IDB_NAME, isBeta: IS_BETA, axisMode: v => { if (v != null){ axisMode = !!v; axisBtn.classList.toggle('active', axisMode); } return axisMode; }, axisHitAt};
 (async () => {
   findDownloads();
   // まとめたファイルは自分の中に配置を持っている。リンクのハッシュより優先
