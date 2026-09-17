@@ -200,7 +200,7 @@ tools/make-thumbs.mjs models/*.glb から models/thumbs/*.webp を焼く（人�
 tools/make-prop-thumbs.mjs  小道具と機材の models/thumbs/prop-*.webp を焼く
 tools/make-ogp.mjs    ogp.png を撮り直す
 tools/make-poses.mjs  FBX からポーズ（models/poses.json）とサムネイルを作る
-models/poses.json     11 ポーズぶんの関節位置。6 KB。14 体で共通
+models/poses.json     11 ポーズぶんの関節位置と手（指の曲げ・手の向き・手のひら）。8 KB。14 体で共通
 tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実験。下の「ポーズ」参照
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
@@ -276,7 +276,7 @@ OK が出たら `staging` を `main` に流す（`git push origin staging:main`�
 A4 実寸であることを Chromium の PDF 生成で確認済み）、用紙の中での再構図、
 画像と HTML の「名前を付けて保存」、固定サイズのマニピュレータ、
 人物モデル 14 体（大人 12 体と子ども 2 体。うち us-business-woman は Mixamo のリグ（65 本、5 本指）で、同じポーズが Tripo の体と同じ位置に乗り、指の骨が皮ごと曲がること）と
-サムネイルでの選択、起動時のパースビュー、ポーズ 11 種の適用、
+サムネイルでの選択、起動時のパースビュー、ポーズ 11 種の適用（v1.43.0 から指の骨のある体には手首・指も。FBX の指の骨から `poses.json` に 11 個 × 2 で持つ）、
 写真ポーズ指定（MediaPipe がブラウザの中で動き、写した姿勢が 14 体に乗ってリンクに残ること。v1.41.0 から手も: 手首まわりを切り出して Hand Landmarker に掛け、指 5 本の曲げと手のひらの向きが指の骨のある体に乗り、リンクに 11 個 × 2 の数字で残ること。v1.42.0 から顔の向きも Face Landmarker の姿勢行列から取り、膝は後ろ・肘は前にしか曲がらない決まりで奥行きの符号を決めること。v1.42.4 から頭の行が poses.json の流儀（素の 19 度前）で置かれてまっすぐな頭が反らないこと、握った手の表裏を指の折れる向きで決めること、手足の長さを左右の長い方で持つこと）、
 箱の上に立つこと、
 パースでの映り込み、見た目どおりの当たり判定、右クリック／長押しのメニュー、

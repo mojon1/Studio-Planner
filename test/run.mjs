@@ -735,6 +735,9 @@ await block('8', `the built-in person model`, async () => {
       ok('and sitting on the Mixamo rig finds the seat under the hips', isFinite(seat) && seat > 0.3 && seat < 0.6, String(seat));
     }
   }
+  // 素の開いた手から曲げる（v1.43.0 からプリセットに手が付くので、ポーズを着たままだと薬指が既に曲がっている）
+  await t.page.evaluate(() => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = null; window.__sp.rebuild(); });
+  await t.page.waitForTimeout(800);
   const finger = await t.page.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman'), g = sp.group(it.id);
     let sk, wrist, tip; const knuckles = []; g.traverse(n => { if (n.isSkinnedMesh) sk = n; if (!n.isBone) return; if (/LeftHand$/.test(n.name)) wrist = n; if (/LeftHandRing3$/.test(n.name)) tip = n; if (/LeftHandRing[12]$/.test(n.name)) knuckles.push(n); });
@@ -748,6 +751,20 @@ await block('8', `the built-in person model`, async () => {
     return {d0: +d0.toFixed(3), d1: +d1.toFixed(3), skinned: n};
   });
   ok('a finger bone (the ring finger) curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 80, JSON.stringify(finger));   // 薬指の先は小さく、強く付いた頂点は 100 個ほど
+  // プリセットの手（v1.43.0〜）: poses.json の hands（写真と同じ 11 個 × 2）が指の骨のある体に乗る。
+  // 「歩く」は両手が拳、「立つ 3」は開いた手。手の向きと手のひらの向きが FBX の数字どおりになること
+  const preset = await t.page.evaluate(() => {
+    const sp = window.__sp, P = sp.poses(), it = sp.state().items.find(i => i.model === 'us-business-woman'), V = sp.THREE.Vector3;
+    const shape = P.poses.every(p => Array.isArray(p.hands) && p.hands.length === 2 && p.hands.every(h => Array.isArray(h) && h.length === 11 && h.every(Number.isFinite)));
+    const tipDist = () => { const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = sp.boneTable(g); const wp = b => b.getWorldPosition(new V()); return +wp(tb.RightHand).distanceTo(wp(tb.RightHandMiddle3)).toFixed(3); };
+    it.posture = 'stand-5'; sp.rebuild(); const open = tipDist();
+    it.posture = 'walk'; sp.rebuild(); const fist = tipDist();
+    const g = sp.group(it.id); g.updateMatrixWorld(true); const tb = sp.boneTable(g), fr = sp.handFrame(tb, 'Right'), h = P.poses.find(p => p.id === 'walk').hands[1];
+    const un = v => v.applyAxisAngle(new V(0, 1, 0), -(it.rot || 0) * Math.PI / 180);
+    return {shape, open, fist, dDot: +un(fr.d.clone()).dot(new V().fromArray(h.slice(5, 8))).toFixed(2), pDot: +un(fr.palm.clone()).dot(new V().fromArray(h.slice(8, 11))).toFixed(2)};
+  });
+  ok('every preset pose carries both hands (11 numbers each) in poses.json', preset.shape, JSON.stringify(preset));
+  ok('the walking preset closes the fist on the finger-boned body and turns the palm as the FBX had it', preset.fist < preset.open * 0.8 && preset.dDot > 0.95 && preset.pDot > 0.95, JSON.stringify(preset));
   await t.page.evaluate(() => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = null; window.__sp.rebuild(); });
   await t.page.waitForTimeout(800);
 

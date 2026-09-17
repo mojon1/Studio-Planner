@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.4 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.43.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -2120,7 +2120,9 @@ function buildRealPerson(it, src){
   inst.scale.setScalar(k);
   const pose = it.posture === 'photo' ? photoPoseOf(it) : it.posture && POSES ? poseById(it.posture) : null;
   if (pose) applyPose(inst, pose);
-  if (pose && it.posture === 'photo' && Array.isArray(it.hands)) applyHands(inst, it.hands);
+  // 手（写真は it.hands、プリセットは poses.json の hands。v1.43.0 から）。指の骨のある体にだけ効く
+  const hands = it.posture === 'photo' ? (Array.isArray(it.hands) ? it.hands : null) : pose?.hands;
+  if (pose && Array.isArray(hands)) applyHands(inst, hands);
   const bb = posedBox(inst);
   // 脚を垂らして座るポーズなら、お尻の底の高さを控えておく（restY が台に吸着させる）
   if (pose && isSittingPose(pose)){ const sb = seatBottom(inst); if (isFinite(sb)) g.userData.seatY = sb - bb.min.y; }

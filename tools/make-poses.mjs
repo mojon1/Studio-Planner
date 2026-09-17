@@ -3,6 +3,7 @@
 // FBX を実行時に読ませないための道具。書き出すのは関節のワールド位置だけで、
 // 回転は入れない。骨の長さもリグの初期姿勢も関係なくなるので、この 1 ファイルを
 // 11 体すべてで共通に使える（回転を焼くと体ごとに別ファイルが要る）。
+// v1.43.0 から手も（指の曲げ・手の向き・手のひらの法線。写真の手と同じ 11 個 × 2）。`--hands` で数字を出す。
 //
 // 向き合わせの本体は index.html の applyPose() にもある。片方を直したら
 // もう片方も直すこと。ここはサムネイルを焼くためだけに持っている。
@@ -60,6 +61,38 @@ const ORDER2 = ['Hips','Spine','Spine1','Spine2','Neck','Head','LeftShoulder','L
   'RightShoulder','RightArm','RightForeArm','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
 const V = THREE.Vector3, Q = THREE.Quaternion;
 const byName = (r, n) => { let f = null; r.traverse(o => { if (!f && o.name === n) f = o; }); return f; };
+// 手（v1.43.0〜）。写真の手と同じ 11 個の数: 指 5 本の曲げ（0〜1）、手の向き（手首→中指の付け根）、手のひらの法線。
+// 曲げは「素の姿勢からどれだけ折れたか」を、アプリが曲げ 1 で回す角の和（CURL_K。指は 72+83+54 度、親指は
+// 32+43+32 度）で割ったもの。写真は検出の絶対角から出すが、こちらは FBX の数字そのものなので素との差分で出せる。
+// 手のひらの側は index.html の handFrame() と同じ「指が曲がる向き」（付け根の骨のローカル X まわり）から決める
+const FINGERS = ['Thumb','Index','Middle','Ring','Pinky'];
+const CURL_K = {Thumb:[0.55, 0.75, 0.55], Index:[1.25, 1.45, 0.95], Middle:[1.25, 1.45, 0.95], Ring:[1.25, 1.45, 0.95], Pinky:[1.25, 1.45, 0.95]};
+function readHand(root, prefix, side){
+  const b = n => byName(root, prefix + side + 'Hand' + n), hand = b('');
+  const wp = o => o.getWorldPosition(new V());
+  if (!hand) return null;
+  const P = {}; for (const f of FINGERS) for (let j = 1; j <= 4; j++){ const o = b(f + j); if (!o) return null; P[f + j] = wp(o); }
+  const w = wp(hand);
+  const ang = (a, b, c) => { const u = b.clone().sub(a), v = c.clone().sub(b); return u.lengthSq() > 1e-10 && v.lengthSq() > 1e-10 ? u.angleTo(v) : 0; };
+  const bends = {}; for (const f of FINGERS){ const [a, b2, c, d] = [1,2,3,4].map(j => P[f + j]);
+    bends[f] = f === 'Thumb' ? [ang(a, b2, c), ang(b2, c, d)] : [ang(w, a, b2), ang(a, b2, c), ang(b2, c, d)]; }
+  const d = P.Middle1.clone().sub(w).normalize();
+  const n = new V().crossVectors(P.Index1.clone().sub(w), P.Pinky1.clone().sub(w)).normalize();
+  const ix = b('Index1'), ax = new V(1, 0, 0).applyQuaternion(ix.getWorldQuaternion(new Q())).normalize();
+  const curlDir = new V().crossVectors(ax, P.Index2.clone().sub(P.Index1).normalize());
+  // 折れ方からも（第二関節で指が折れる向き）。骨の軸の流儀が違うリグが来たときに気付けるよう両方返す
+  let fold = 0; for (const f of ['Index','Middle','Ring','Pinky']){ const u = P[f + '2'].clone().sub(P[f + '1']).normalize(), v = P[f + '3'].clone().sub(P[f + '2']).normalize(); fold += v.sub(u).dot(n); }
+  const axisSign = curlDir.dot(n) < 0 ? -1 : 1;
+  return {bends, d, palm: n.clone().multiplyScalar(axisSign), axisSign, fold};
+}
+// 素の手と姿勢の手から 11 個の数
+function handRow(rest, pose){
+  if (!rest || !pose) return null;
+  const r2 = v => Math.round(v * 100) / 100;
+  const curls = FINGERS.map(f => { const K = CURL_K[f].slice(0, pose.bends[f].length), sum = pose.bends[f].reduce((a, v, i) => a + (v - rest.bends[f][i]), 0);
+    return r2(Math.min(1, Math.max(0, sum / K.reduce((a, v) => a + v, 0)))); });
+  return [...curls, ...pose.d.toArray().map(r2), ...pose.palm.toArray().map(r2)];
+}
 
 window.__read = async file => {
   const fbx = await new FBXLoader().loadAsync('/s/' + encodeURIComponent(file));
@@ -68,6 +101,7 @@ window.__read = async file => {
   const hips = bones.find(n => /Hips$/.test(n));
   if (!hips) throw new Error('Hips が見つからない: ' + file);
   const prefix = hips.replace(/Hips$/, '');
+  const grabHands = () => { fbx.updateMatrixWorld(true); return {L: readHand(fbx, prefix, 'Left'), R: readHand(fbx, prefix, 'Right')}; };
   const grab = () => {
     fbx.updateMatrixWorld(true);
     const pos = {};
@@ -81,7 +115,7 @@ window.__read = async file => {
   };
   // 読んだままの骨は T ポーズ（バインド姿勢）。姿勢そのものではなく
   // 「素の姿勢からどれだけ回ったか」を出すために、両方を持ち帰る。
-  const rest = grab();
+  const rest = grab(), restHands = grabHands();
   // Mixamo の書き出しは姿勢が 1 フレームのアニメーションに入っている。
   // C4D 経由のものは骨に焼かれていて、その場合 pose は rest と同じになってしまう。
   const baked = !fbx.animations.length;
@@ -90,7 +124,14 @@ window.__read = async file => {
     m.clipAction(fbx.animations[0]).play();
     m.setTime(0);
   }
-  return {rest, pose: grab(), baked};
+  const pose = grab(), poseHands = grabHands();
+  const hands = ['L', 'R'].map(s => handRow(restHands[s], poseHands[s]));
+  // 手のひらの側: 骨の軸から出した側と、指の折れ方から出した側が食い違えばログに出す（姿勢の手で見る）
+  // 握った手（第二関節が 50 度超）は折れ方の向きが手首の方を向くので見ない
+  const palmCheck = ['L', 'R'].map(s => { const h = poseHands[s]; if (!h) return 'none';
+    const fist = ['Index','Middle','Ring','Pinky'].some(f => h.bends[f][1] > 50 * Math.PI / 180);
+    return fist ? 'fist' : Math.abs(h.fold) < 0.05 ? 'flat' : Math.sign(h.fold) === h.axisSign ? 'ok' : 'differs'; });
+  return {rest, pose, baked, hands, palmCheck, handDbg: ['L', 'R'].map(s => poseHands[s] ? {fold: +poseHands[s].fold.toFixed(3), axisSign: poseHands[s].axisSign, bends: Object.fromEntries(Object.entries(poseHands[s].bends).map(([f, a]) => [f, a.map(v => Math.round(v * 180 / Math.PI))]))} : null)};
 };
 
 // --- 向き合わせ（index.html の applyPose と同じもの。片方を直したら両方直す） ---
@@ -244,17 +285,20 @@ await p.goto('http://localhost:8778/');
 await p.waitForFunction(() => window.__ready, null, {timeout:60000});
 
 fs.mkdirSync(THUMBS, { recursive: true });
-const out = {version:2, joints:null, rest:null, poses:[]};
+const out = {version:3, joints:null, rest:null, poses:[]};
 const got = {}; let restRef = null;
 for (const f of files){
   const key = f.replace(/\.fbx$/i, '');
   const meta = NAMES[key];
   if (!meta) { console.log(`skip  ${f}`); continue; }
-  const {rest, pose, baked} = await p.evaluate(n => window.__read(n), f);
+  const {rest, pose, baked, hands, palmCheck, handDbg} = await p.evaluate(n => window.__read(n), f);
+  if (palmCheck.some(c => c === 'differs')) console.log(`      ! ${f} の手のひらの側が、骨の軸と指の折れ方で食い違う ${palmCheck}`);
   if (!restRef) restRef = rest;
   else if (JSON.stringify(rest) !== JSON.stringify(restRef)) console.log(`      ! ${f} のバインド姿勢が他と違う`);
   if (baked) console.log(`      ! ${f} はアニメーションが無い。素の姿勢が取れないので差分にできない`);
   got[meta.id] = {id: meta.id, label: meta.label, p: pose};
+  if (hands.some(Boolean)) got[meta.id].hands = hands; else console.log(`      ! ${f} に指の骨が無い。手は付けない`);
+  if (process.argv.includes('--hands')) console.log('      hands', JSON.stringify(hands), JSON.stringify(handDbg));
   const url = await p.evaluate(([r, pz]) => window.__shoot(r, pz), [restRef, pose]);
   const png = path.join(THUMBS, `pose-${meta.id}.webp`);
   fs.writeFileSync(png, Buffer.from(url.split(',')[1], 'base64'));
