@@ -150,6 +150,11 @@ CG スタッフではなく、**PC に不慣れなプロダクションマネー
 実機で確認 → OK と言われてから `main`（本番）」。`main` へは `staging` をそのまま流す（fast-forward）ので、
 ベータで見たものと本番が一致する。**寺村さんの OK 無しに `main` へ push しない。** 急ぎの一行直しも同じ道。
 ワークフローはどちらの push でも両方のブランチを取り出して 1 つのサイトに組む（Pages は 1 リポジトリ 1 サイト）。
+ただし **デプロイの job は main の上でしか走れない**。Pages が自動で作る `github-pages` 環境に「既定ブランチ
+からしか出せない」という保護規則が付いていて、`staging` の push で走った deploy は runner に載る前に弾かれる
+（2 秒で failure、ログ無し）。そこで `staging` の push は `relay` job が `gh workflow run pages.yml --ref main` で
+main 上の run を起こすだけにしてあり、その run が `/beta/` も組む。**`staging` に push したら、Actions で
+「staging の run（relay）→ main の workflow_dispatch の run」の 2 本が緑になったことを見る。**
 同じドメインなので保存領域はドメイン単位で共有される。そこで **IndexedDB・localStorage・Service Worker の
 キャッシュ名に置き場のパスを足して分けてある**（`SITE_KEY`、sw.js の `TAG`。ルートは今までどおりの名前なので
 本番の保存物はそのまま）。ベータは読み値の先頭とタブの題に BETA と出し、manifest の名前も「SP β」にしている。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →

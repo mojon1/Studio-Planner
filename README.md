@@ -90,6 +90,8 @@ https://sp.taichi-teramura.com/
 **試験版は `staging` ブランチ → https://sp.taichi-teramura.com/beta/** 。直したものはまずここに出し、
 実機で確かめてから `main`（本番）へ流す。同じドメインだが、保存領域（取り込んだモデル・スキャン・設定・
 オフラインのキャッシュ）は本番と別に持つ。画面の読み値とタブに BETA と出る。
+`staging` の push は main 上のデプロイを起こし直す形で出る（Pages の環境保護規則で、デプロイは既定ブランチ
+からしか走れないため）。Actions には staging の run と main の run の 2 本が並ぶ。
 
 **最初の 1 回だけ手作業がいる。** リポジトリの Settings → Pages →
 Build and deployment → Source を「**GitHub Actions**」にする。

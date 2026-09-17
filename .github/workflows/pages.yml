@@ -4,6 +4,14 @@
 # Pages は 1 リポジトリ 1 サイトなので、どちらの push でも両方のブランチを取り出して 1 つの
 # サイトに組む（片方だけ出すと、もう片方が消える）。
 #
+# デプロイの job は必ず main の上で走らせる。Pages が自動で作る「github-pages」環境には
+# 「既定ブランチからしか出せない」という保護規則が付いていて、staging の push で走った
+# deploy は runner に載る前に弾かれる（2 秒で failure、ログ無し。v1.39.6 の run 97 がそれ）。
+# なので staging の push では relay が main の workflow_dispatch を起こすだけにしてある。
+# 起こされた main の run が staging も取り出して /beta/ を組む。
+# （GITHUB_TOKEN で起こしたイベントは新しい run を作らないのが原則だが、
+#   workflow_dispatch と repository_dispatch だけは例外で走る。）
+#
 # 最初の 1 回だけ、リポジトリの Settings → Pages → Source を
 # 「GitHub Actions」にする必要がある。GITHUB_TOKEN には Pages サイトを
 # 新規作成する権限が無く、configure-pages の enablement では入らなかった
@@ -15,18 +23,29 @@ on:
     branches: [main, staging]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
-  deploy:
+  # staging の push → main 上のデプロイを起こす（上のコメント参照）
+  relay:
+    if: github.ref_name == 'staging'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run pages.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+  deploy:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
