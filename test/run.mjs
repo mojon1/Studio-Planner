@@ -2832,15 +2832,20 @@ await block('34', `写真ポーズ指定`, async () => {
       const sp = window.__sp, it = sp.state().items.find(i => i.type === 'person');
       const blob = await (await fetch('data:image/png;base64,' + b64)).blob();
       const okv = await sp.photoPose(it, new File([blob], 'p.png', { type: 'image/png' }));
-      const J = sp.poses().joints, g = n => it.photo[J.indexOf(n)];
+      const J = sp.poses().joints, g = n => it.photo[J.indexOf(n)], rest = n => sp.poses().rest[J.indexOf(n)];
       const up = g('HeadTop_End').map((v, i) => v - g('Head')[i]), L = Math.hypot(...up);
-      return { ok: okv, face: it.photo[23], up: up.map(v => +(v / L).toFixed(2)) };
+      // 頭の行は poses.json の流儀（素の Head→HeadTop_End は顔の側へ 19 度倒れている）。その分を引いた「本当の反り」を度で
+      const ru = rest('HeadTop_End').map((v, i) => v - rest('Head')[i]);
+      const tiltBack = (Math.atan2(-up[2], up[1]) + Math.atan2(ru[2], ru[1])) * 180 / Math.PI;
+      return { ok: okv, face: it.photo[23], up: up.map(v => +(v / L).toFixed(2)), tiltBack: +tiltBack.toFixed(1) };
     }, b64);
   };
   const turnedHead = await shootHead('y', 35);
   ok('a head turned 35° to its left comes back facing that way', turnedHead.ok && turnedHead.face && turnedHead.face[0] > 0.2 && turnedHead.face[2] > 0.5, JSON.stringify(turnedHead));
+  // 頭の行は素の傾き（19 度前）を含めて置くので、まっすぐな頭は「反り 0」に戻る（v1.42.4。以前は 19 度反っていた）
+  ok('an upright head comes back upright, in the poses.json convention (not 19° tilted back)', Math.abs(turnedHead.tiltBack) < 12 && turnedHead.up[2] > 0.15, JSON.stringify(turnedHead));
   const lifted = await shootHead('x', -30);
-  ok('a head looking up comes back tilted back with the face raised', lifted.ok && lifted.up[2] < -0.25 && lifted.face[1] > 0.2, JSON.stringify(lifted));
+  ok('a head looking up comes back tilted back with the face raised', lifted.ok && lifted.tiltBack > 15 && lifted.face[1] > 0.2, JSON.stringify(lifted));
   ok('hands run clean', t4.errors.length === 0, t4.errors.join(' | '));
   await t4.ctx.close();
 

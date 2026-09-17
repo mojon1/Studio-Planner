@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.3 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.42.4 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1582,7 +1582,14 @@ function detectFace(fd, cv, lm){
   const m = M.data, col = j => new V3(m[j * 4], m[j * 4 + 1], m[j * 4 + 2]);   // 列優先
   const up = col(1), fwd = col(2);
   if (Math.abs(up.length() - 1) > 0.1 || Math.abs(fwd.length() - 1) > 0.1) return null;
-  return {up: up.normalize(), fwd: fwd.normalize()};
+  up.normalize(); fwd.normalize();
+  // 横向きの角は大きくなるほど控えめに出る（アプリの頭を回して撮ると 20 度 → 18、40 度 → 31、60 度 → 44。
+  // 上下は 20 度 → 25 と少し大きめなので触らない）。バレエの写真（ほぼ横顔）が 39 度と出て、正面寄りの顔に
+  // なった。同じ曲線で戻す（45 度で 1.21 倍、上限 1.4 倍。戻したあと 20/40/60/70 度が 19/39/63/73）。
+  // 頭の枠ごとカメラの上下軸まわりに回すので直交は保つ
+  const yaw = Math.atan2(fwd.x, fwd.z), k = Math.min(1.4, 1 + 0.45 * (yaw / (Math.PI / 4)) ** 2), extra = yaw * (k - 1);
+  if (Math.abs(extra) > 1e-4){ const Y = new V3(0, 1, 0); up.applyAxisAngle(Y, extra); fwd.applyAxisAngle(Y, extra); }
+  return {up, fwd};
 }
 // MediaPipe の 33 点の番地
 const MP = {nose:0, earL:7, earR:8, shL:11, shR:12, elL:13, elR:14, wrL:15, wrR:16,
@@ -1597,6 +1604,7 @@ const MP = {nose:0, earL:7, earR:8, shL:11, shR:12, elL:13, elR:14, wrL:15, wrR:
 const MP_EDGES = [['hip',23],['hip',24],[23,25],[25,27],[27,31],[24,26],[26,28],[28,32],['hip','sh'],['sh',11],['sh',12],
   [11,13],[13,15],[12,14],[14,16],['sh','ear'],['ear',7],['ear',8],['ear',0]];   // 親が先
 const MP_LIMB = new Set(['23-25','25-27','27-31','24-26','26-28','28-32','11-13','13-15','12-14','14-16']);
+const MP_PAIR = {'23-25':'24-26','24-26':'23-25','25-27':'26-28','26-28':'25-27','27-31':'28-32','28-32':'27-31','11-13':'12-14','12-14':'11-13','13-15':'14-16','14-16':'13-15'};   // 左右の相方
 function fuseLandmarks(lm, wl, W, H){
   if (!lm || !wl) return wl;
   const P2 = {hip:[(lm[23].x+lm[24].x)/2*W, (lm[23].y+lm[24].y)/2*H], sh:[(lm[11].x+lm[12].x)/2*W, (lm[11].y+lm[12].y)/2*H], ear:[(lm[7].x+lm[8].x)/2*W, (lm[7].y+lm[8].y)/2*H]};
@@ -1635,10 +1643,17 @@ function fuseLandmarks(lm, wl, W, H){
     if (Math.abs(dp - dm) < 0.02) return wzSign;                                   // 奥行きが効かない曲がり方
     return dp > dm ? 1 : -1;
   };
+  // 手足の「3D の長さ」は左右で同じはず。MediaPipe はカメラへ向いて縮んで写った側を本当に短く出す
+  //（ガッツポーズ: 上げた太ももが 0.26 m、立った側は 0.44 m）ので、その側は奥行きが 0 になり、
+  // 前に上げた膝が立った膝より後ろに出た（寺村さんの指摘）。左右の長い方を両方に使う（写っている側だけ）。
+  // それでも長さの差から出す奥行きは、ほぼ画面に平行な骨で誤差だけの奥行きを作る（立った太ももに 0.15 m）ので、
+  // 長さを 5% 引いてから引き算する — 45 度の骨でも奥行きが 1 割減るだけ
+  const pairLen = (a, b) => { const o = MP_PAIR[a + '-' + b]; if (!o) return len3(a, b);
+    const [c, d] = o.split('-').map(Number); return vis(c) > 0.5 && vis(d) > 0.5 ? Math.max(len3(a, b), len3(c, d)) : len3(a, b); };
   for (const [a, b] of MP_EDGES){
-    const dx = (P2[b][0]-P2[a][0]) * s, dy = (P2[b][1]-P2[a][1]) * s, L = len3(a, b), wz = W3[b].z - W3[a].z;
+    const dx = (P2[b][0]-P2[a][0]) * s, dy = (P2[b][1]-P2[a][1]) * s, wz = W3[b].z - W3[a].z;
     let dz;
-    if (MP_LIMB.has(a + '-' + b)){ const dzAbs = Math.sqrt(Math.max(0, L*L - dx*dx - dy*dy)); dz = dzAbs * hingeSign(a + '-' + b, a, dx, dy, dzAbs, wz < 0 ? -1 : 1); }
+    if (MP_LIMB.has(a + '-' + b)){ const L = pairLen(a, b) * 0.95, dzAbs = Math.sqrt(Math.max(0, L*L - dx*dx - dy*dy)); dz = dzAbs * hingeSign(a + '-' + b, a, dx, dy, dzAbs, wz < 0 ? -1 : 1); }
     else dz = wz;
     out[b] = {x:out[a].x + dx, y:out[a].y + dy, z:out[a].z + dz};
   }
@@ -1688,9 +1703,7 @@ function detectHand(hd, cv, lm, side){
   const at = i => ({x: x0 + l2[i].x * s, y: y0 + l2[i].y * s});
   const pairs = [[at(0), w], [at(5), pts[1]], [at(17), pts[0]], [at(2), pts[2]]];
   const err = pairs.reduce((a, [q, r]) => a + d(q, r), 0) / pairs.length / s;
-  // 親指が手の軸（手首→中指の付け根）のどちら側に写っているか（写真の上の並びだけで決まる）。握った手の表裏に使う
-  const hx = l2[9].x - l2[0].x, hy = -(l2[9].y - l2[0].y), tx = l2[4].x - l2[0].x, ty = -(l2[4].y - l2[0].y);
-  return {wl, l2, side, score: res.handedness?.[0]?.[0]?.score ?? 0, err, label: res.handedness?.[0]?.[0]?.categoryName || '', thumbSide: Math.sign(hx * ty - hy * tx) || 1};
+  return {wl, l2, side, score: res.handedness?.[0]?.[0]?.score ?? 0, err, label: res.handedness?.[0]?.[0]?.categoryName || ''};
 }
 // 21 点 → 共有リンクに乗せる 11 個の数: 指 5 本の曲げ（0〜1）、手の向き（手首→中指の付け根）、
 // 手のひらの法線（手首・人差し指の付け根・小指の付け根の三角形。左右どちらの手でも、実物とモデルで
@@ -1698,7 +1711,7 @@ function detectHand(hd, cv, lm, side){
 // 曲げは 3 関節の角度の和（開いた手でも 20 度ほどあるので、そこを 0 にする）
 const HAND_JOINTS = {Thumb:[1,2,3,4], Index:[5,6,7,8], Middle:[9,10,11,12], Ring:[13,14,15,16], Pinky:[17,18,19,20]};
 const HAND_FINGERS = ['Thumb','Index','Middle','Ring','Pinky'];
-function handFeatures({wl, label, side, thumbSide}, yaw){
+function handFeatures({wl, label}, yaw){
   const P = i => new V3(wl[i].x, -wl[i].y, -wl[i].z);
   const bend = (a, b, c) => { const u = P(b).sub(P(a)), v = P(c).sub(P(b)); return u.lengthSq() > 1e-10 && v.lengthSq() > 1e-10 ? u.angleTo(v) : 0; };
   const deg = Math.PI / 180, r2 = v => Math.round(v * 100) / 100;
@@ -1713,15 +1726,18 @@ function handFeatures({wl, label, side, thumbSide}, yaw){
   // ラベル）で決まる: 「Right」なら手のひら側、「Left」なら甲側（実物の写真 8 枚で確かめた。ラベルは写真の左右と
   // 必ずしも一致せず、一致しない手は法線が裏返っていた — 寺村さんの指摘「手の向きが逆」。以前はここを写真の左右と
   // 理屈で決めていて、握った手が裏返るのも「奥行きの崩れ」と読み違えていた）。
-  // 握った手はラベルが当てにならない（アプリの描いた拳で半々に裏返った）。手のひらか甲がカメラを向いていれば、
-  // 親指がどちら側に写っているかと写真の左右で表裏が決まる（左手は親指が右に写れば手のひら側。右手は逆）。
-  // 横向きの拳は決めようが無いので向きを捨て、ひねりは肘まかせ。ここで手のひら側に揃えて持つ
+  // 握った手はラベルが当てにならない（アプリの描いた拳で半々に裏返った）。握った指は付け根から第二関節
+  //（5→6 など）が手のひらの側へ折れるので、その向きが法線のどちら側かで表裏を決める。真横から見た拳は絵の上の
+  // 並びだけで決まるので確か。手のひらか甲がカメラを向いた拳は検出器の奥行きが頼り（実物の拳 3 つと、
+  // アプリの描いた拳 14 で 12 が合った）。v1.42.2〜3 は親指がどちら側に写っているかで決めていたが、その規則は
+  // 鏡写しのモデル（親指が逆側に付いている）の拳で決めたもので、実物では裏返った（寺村さんの指摘）。
+  // 折れ方がはっきりしない（4 本の和が 3 cm 未満）ときは向きを捨て、ひねりは肘まかせ。ここで手のひら側に揃えて持つ
   const nCam = new V3().crossVectors(P(5).sub(w), P(17).sub(w)).normalize();
   const mean = curls.reduce((a, b) => a + b, 0) / curls.length;
   let n;
   if (mean > 0.5){
-    if (Math.abs(nCam.z) < 0.3) n = new V3();
-    else { const towardCam = thumbSide * (side === 'L' ? 1 : -1); n = nCam.multiplyScalar(Math.sign(nCam.z) === towardCam ? 1 : -1); }
+    let fold = 0; for (const [a, b] of [[5, 6], [9, 10], [13, 14], [17, 18]]) fold += P(b).sub(P(a)).dot(nCam);
+    n = Math.abs(fold) < 0.03 ? new V3() : nCam.multiplyScalar(Math.sign(fold));
   } else n = nCam.multiplyScalar(label === 'Right' ? 1 : -1);
   return [...curls.map(r2), ...dir.toArray().map(r2), ...n.applyAxisAngle(Y, yaw).toArray().map(r2)];
 }
@@ -1742,9 +1758,22 @@ function poseFromLandmarks(lm, faceDir){
   if (faceDir){ const torsoUp = chest.clone().sub(hips).normalize(); up = faceDir.up.clone();
     const a = up.angleTo(torsoUp), LIM = 75 * Math.PI / 180;
     if (a > LIM) up = torsoUp.clone().applyQuaternion(new THREE.Quaternion().setFromUnitVectors(torsoUp, up).slerp(new THREE.Quaternion(), 1 - LIM / a)).normalize(); }
+  // 鼻の向き（頭の正面）。上向きに直交させる。顔の検出が無ければ Pose の耳の中点→鼻。それも無ければ体の正面
+  let nose = (faceDir ? faceDir.fwd.clone() : P(MP.nose).sub(ear)).projectOnPlane(up);
+  if (nose.lengthSq() < 1e-8) nose = new V3().crossVectors(P(MP.hipL).sub(P(MP.hipR)), chest.clone().sub(hips)).projectOnPlane(up);
+  nose = nose.lengthSq() > 1e-8 ? nose.normalize() : null;
+  // 頭の行は poses.json の流儀で置く。素の姿勢も既定ポーズも、Neck→Head と Head→HeadTop_End は真上ではなく
+  // 顔の側へ 10 度・19 度倒れている（FBX のリグの HeadTop_End が額の上にあるため）。写真から出した上向きをそのまま
+  // 置くと、applyPose() は「素からどれだけ回ったか」で頭を回すので、そのぶん頭が後ろに反った（バレエで顔が
+  // 天井を向いた — 寺村さんの指摘「顔の向きがおかしい」。まっすぐな頭でも 19 度反っていた）。
+  // 素の行の y と z を「上向き」と「鼻の向き」に掛けて同じ流儀に揃える
+  const restRow = n => new V3().fromArray(POSES.rest[POSES.joints.indexOf(n)]);
+  const conv = (a, b) => { const r = restRow(b).sub(restRow(a)).normalize(); return nose ? up.clone().multiplyScalar(r.y).addScaledVector(nose, r.z).normalize() : up; };
+  const nh = conv('Neck', 'Head'), ht = conv('Head', 'HeadTop_End');
+  const head = neck.clone().addScaledVector(nh, headLen * 0.4);
   const J = {
     Hips: hips, Spine: along(hips, chest, 0.25), Spine1: along(hips, chest, 0.50), Spine2: along(hips, chest, 0.73),
-    Neck: neck, Head: neck.clone().addScaledVector(up, headLen * 0.4), HeadTop_End: neck.clone().addScaledVector(up, headLen * 1.3),
+    Neck: neck, Head: head, HeadTop_End: head.clone().addScaledVector(ht, headLen * 0.9),
     LeftShoulder: along(chest, P(MP.shL), 0.3), LeftArm: P(MP.shL), LeftForeArm: P(MP.elL), LeftHand: P(MP.wrL),
     RightShoulder: along(chest, P(MP.shR), 0.3), RightArm: P(MP.shR), RightForeArm: P(MP.elR), RightHand: P(MP.wrR),
     LeftUpLeg: P(MP.hipL), LeftLeg: P(MP.kneeL), LeftFoot: P(MP.ankL), LeftToeBase: P(MP.toeL),
@@ -1752,9 +1781,8 @@ function poseFromLandmarks(lm, faceDir){
   };
   const Y = new V3(0, 1, 0), r3 = v => Math.round(v * 1000) / 1000;
   const rows = POSES.joints.map(j => J[j].clone().sub(hips).applyAxisAngle(Y, yaw).toArray().map(r3));
-  // 24 行目は顔の向き（鼻の向き）。頭を横に向けた写真で、頭が向く先を決める
-  const nose = (faceDir ? faceDir.fwd.clone() : P(MP.nose).sub(ear)).projectOnPlane(up);
-  if (nose.lengthSq() > 1e-8) rows.push(nose.normalize().applyAxisAngle(Y, yaw).toArray().map(r3));
+  // 24 行目は顔の向き（鼻の向き）。頭を横に向けた写真で、頭が向く先を決める（軸まわりのねじれ）
+  if (nose) rows.push(nose.clone().applyAxisAngle(Y, yaw).toArray().map(r3));
   return rows;
 }
 const photoPoseOf = it => POSES && Array.isArray(it.photo) && it.photo.length >= POSES.joints.length
