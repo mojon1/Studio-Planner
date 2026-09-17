@@ -157,7 +157,9 @@ main 上の run を起こすだけにしてあり、その run が `/beta/` も�
 「staging の run（relay）→ main の workflow_dispatch の run」の 2 本が緑になったことを見る。**
 同じドメインなので保存領域はドメイン単位で共有される。そこで **IndexedDB・localStorage・Service Worker の
 キャッシュ名に置き場のパスを足して分けてある**（`SITE_KEY`、sw.js の `TAG`。ルートは今までどおりの名前なので
-本番の保存物はそのまま）。ベータは読み値の先頭とタブの題に BETA と出し、manifest の名前も「SP β」にしている。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →
+本番の保存物はそのまま）。ベータは読み値の先頭とタブの題に BETA と出し、manifest の名前も「SP β」にしている。**スマホにはタブが無く、
+パネルも畳んであって読み値が見えない**（寺村さんの指摘）ので、v1.39.7 から画面の左上（ビューボタンの下、
+「中心に戻す」の並び）に黄色の BETA の印を常に出す（`#betatag`。本番では `hidden`）。GitHub Pages のカスタムドメインで、設定は **リポジトリの Settings → Pages →
 Custom domain** にある（DNS 側は `sp` の CNAME → `mojon1.github.io`）。GitHub Actions で出しているので
 **`CNAME` ファイルは要らない**（Actions のデプロイでは無視される）。旧 `mojon1.github.io/Studio-Planner/` は
 GitHub が新ドメインへ転送し、`#` 以降の共有データも引き継がれるので、**配った古いリンクと QR は生きている**。

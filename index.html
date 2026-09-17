@@ -193,6 +193,10 @@ input[type=color]{width:56px;height:44px;border:1px solid var(--rule);border-rad
   border:0;border-radius:8px;background:rgba(20,22,26,.75);color:#fff;font:inherit;font-weight:700;font-size:.8rem;
   white-space:nowrap;cursor:pointer;backdrop-filter:blur(6px)}
 #axisbtn{padding:0 12px}
+/* /beta/ の印。タブの無いスマホでも本番と取り違えないように、画面の左上に常に出す */
+#betatag{display:flex;align-items:center;height:34px;padding:0 10px;border-radius:8px;background:#e8a400;color:#1d1600;
+  font-weight:800;font-size:.8rem;letter-spacing:.08em;pointer-events:none}
+#betatag[hidden]{display:none}
 #recenter.on{display:flex}
 #axisbtn.show{display:flex}
 #axisbtn.active{background:#4c8dff;color:#fff}
@@ -353,6 +357,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
   #viewtools{top:calc(52px + var(--sat))}
   #recenter,#axisbtn{height:30px;font-size:.72rem;padding:0 10px 0 7px}
   #axisbtn{padding:0 10px}
+  #betatag{height:30px;font-size:.72rem;padding:0 8px}
   #info{font-size:.68rem;padding:4px 8px}
   #labels span{font-size:.52rem;padding:1px 4px}   /* 7 割。小さな画面では邪魔になる */
   label.f{grid-template-columns:5em 1fr auto}
@@ -392,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.6 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.39.7 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -412,6 +417,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
       </button>
     </div>
     <div id="viewtools">
+    <span id="betatag" hidden>BETA</span>
     <button id="recenter" title="表示を中心に戻す" aria-label="表示を中心に戻す">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
       中心に戻す
@@ -519,7 +525,7 @@ const SITE_DIR = location.pathname.replace(/[^/]*$/, '');
 const SITE_KEY = SITE_DIR === '/' ? '' : ':' + SITE_DIR;
 const IS_BETA = /\/beta\/$/.test(SITE_DIR);
 const LS = {get: k => localStorage.getItem(k + SITE_KEY), set: (k, v) => localStorage.setItem(k + SITE_KEY, v)};
-if (IS_BETA) document.title = 'BETA — ' + document.title;
+if (IS_BETA){ document.title = 'BETA — ' + document.title; document.getElementById('betatag').hidden = false; }   // 画面の印はタブの無いスマホのため
 // widths the user saved under their own names, kept on this device only
 let savedSensors = [];
 try { const v = JSON.parse(LS.get('studio3d.sensors')||'[]'); if (Array.isArray(v)) savedSensors = v.filter(s => s && typeof s.name === 'string' && +s.w > 0); } catch {}

@@ -3604,6 +3604,9 @@ await block('48', `/beta/ は保存領域が本番と分かれる`, async () => 
   const info = await S(() => window.__sp && [window.__sp.siteKey, window.__sp.idbName, window.__sp.isBeta]);
   ok('under /beta/ the app knows it is the beta and names its storage after the path', !!info && info[0] === ':/beta/' && info[1] === 'studio3d:/beta/' && info[2] === true, JSON.stringify(info));
   ok('the title and the readout say BETA', /^BETA — /.test(await P.title()) && /^BETA\n/.test(await P.textContent('#info')), await P.title());
+  // スマホにはタブが無く、パネルも畳んであるので、画面の左上の印だけが頼り（寺村さんの指摘）
+  const tag = await S(() => { const e = document.getElementById('betatag'), r = e.getBoundingClientRect(); return [e.hidden, getComputedStyle(e).display, r.width, r.height, r.top]; });
+  ok('a BETA badge sits on the screen itself, next to the view tools', tag[0] === false && tag[1] === 'flex' && tag[2] > 30 && tag[3] > 20 && tag[4] > 40, JSON.stringify(tag));
   await P.click('#gridbtn'); await P.waitForTimeout(200);
   const keys = await S(() => [localStorage.getItem('studio3d.grid:/beta/'), localStorage.getItem('studio3d.grid')]);
   ok('a setting saved on the beta lands under the beta key, not the production one', keys[0] === '0' && keys[1] === null, JSON.stringify(keys));
@@ -3617,8 +3620,8 @@ await block('48', `/beta/ は保存領域が本番と分かれる`, async () => 
   await r.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
   await r.goto('http://localhost:8765/'); await r.waitForTimeout(1500);
   const root = await r.evaluate(() => [window.__sp.siteKey, window.__sp.idbName, window.__sp.isBeta, document.title.startsWith('BETA'),
-    document.getElementById('gridbtn').classList.contains('on')]);
-  ok('the production root keeps its old storage names and its own grid setting', root[0] === '' && root[1] === 'studio3d' && root[2] === false && root[3] === false && root[4] === true, JSON.stringify(root));
+    document.getElementById('gridbtn').classList.contains('on'), getComputedStyle(document.getElementById('betatag')).display]);
+  ok('the production root keeps its old storage names and its own grid setting, and shows no BETA badge', root[0] === '' && root[1] === 'studio3d' && root[2] === false && root[3] === false && root[4] === true && root[5] === 'none', JSON.stringify(root));
   // Service Worker のキャッシュ名も scope で分ける（SW はテストでは止めているので、ソースを見る）
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   ok('the service worker names its caches after its scope and only sweeps its own', /self\.registration\.scope/.test(sw) && /const mine = k =>/.test(sw) && /if \(mine\(k\) && k !== SHELL\)/.test(sw));
