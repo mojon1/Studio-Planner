@@ -708,10 +708,11 @@ await block('8', `the built-in person model`, async () => {
   await t.page.waitForTimeout(3500);
   const rig = await t.page.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman'), g = sp.group(it.id);
-    const b = new sp.THREE.Box3().setFromObject(g); let bones = 0, idx = false; g.traverse(n => { if (n.isBone){ bones++; if (/^mixamorig:?LeftHandIndex1$/.test(n.name)) idx = true; } });
-    return {h: +(b.max.y - b.min.y).toFixed(3), minY: +b.min.y.toFixed(3), bones, idx, src: sp.people().find(m => m.id === 'us-business-woman').rev};
+    const b = new sp.THREE.Box3().setFromObject(g); let bones = 0; const fingers = new Set(); g.traverse(n => { if (n.isBone){ bones++; const m = n.name.match(/^mixamorig:?(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)3$/); if (m) fingers.add(m[1] + m[2]); } });
+    return {h: +(b.max.y - b.min.y).toFixed(3), minY: +b.min.y.toFixed(3), bones, fingers: fingers.size, src: sp.people().find(m => m.id === 'us-business-woman').rev};
   });
-  ok('the Mixamo-rigged body loads at its set height with finger bones', rig.bones === 34 && rig.idx && Math.abs(rig.h - 1.7) < 0.02 && Math.abs(rig.minY) < 0.01 && rig.src >= 2, JSON.stringify(rig));
+  // 65 本の骨組み（Standard Skeleton）。皮に効くのは 52 本で、指は 5 本 × 3 関節 × 2 手
+  ok('the Mixamo-rigged body loads at its set height with all ten fingers boned', rig.bones === 52 && rig.fingers === 10 && Math.abs(rig.h - 1.7) < 0.02 && Math.abs(rig.minY) < 0.01 && rig.src >= 3, JSON.stringify(rig));
   const jointsOf = () => t.page.evaluate(() => {
     const sp = window.__sp, out = {};
     for (const it of sp.state().items.filter(i => i.type === 'person')){
@@ -736,7 +737,7 @@ await block('8', `the built-in person model`, async () => {
   }
   const finger = await t.page.evaluate(() => {
     const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman'), g = sp.group(it.id);
-    let sk, wrist, tip; const knuckles = []; g.traverse(n => { if (n.isSkinnedMesh) sk = n; if (!n.isBone) return; if (/LeftHand$/.test(n.name)) wrist = n; if (/LeftHandIndex3$/.test(n.name)) tip = n; if (/LeftHandIndex[12]$/.test(n.name)) knuckles.push(n); });
+    let sk, wrist, tip; const knuckles = []; g.traverse(n => { if (n.isSkinnedMesh) sk = n; if (!n.isBone) return; if (/LeftHand$/.test(n.name)) wrist = n; if (/LeftHandRing3$/.test(n.name)) tip = n; if (/LeftHandRing[12]$/.test(n.name)) knuckles.push(n); });
     const wp = b => b.getWorldPosition(new sp.THREE.Vector3()); const d0 = wp(wrist).distanceTo(wp(tip));
     for (const k of knuckles) k.rotation.x += 1.2;    // 第 1・第 2 関節を曲げる（曲げの軸はこのリグではローカル X）
     g.updateMatrixWorld(true); const d1 = wp(wrist).distanceTo(wp(tip));
@@ -746,7 +747,7 @@ await block('8', `the built-in person model`, async () => {
     g.updateMatrixWorld(true);
     return {d0: +d0.toFixed(3), d1: +d1.toFixed(3), skinned: n};
   });
-  ok('a finger bone curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 200, JSON.stringify(finger));
+  ok('a finger bone (the ring finger) curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 80, JSON.stringify(finger));   // 薬指の先は小さく、強く付いた頂点は 100 個ほど
   await t.page.evaluate(() => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = null; window.__sp.rebuild(); });
   await t.page.waitForTimeout(800);
 
