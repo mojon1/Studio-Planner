@@ -750,7 +750,7 @@ await block('8', `the built-in person model`, async () => {
     g.updateMatrixWorld(true);
     return {d0: +d0.toFixed(3), d1: +d1.toFixed(3), skinned: n};
   });
-  ok('a finger bone (the ring finger) curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 80, JSON.stringify(finger));   // 薬指の先は小さく、強く付いた頂点は 100 個ほど
+  ok('a finger bone (the ring finger) curls the finger and the skin is bound to it', finger.d1 < finger.d0 * 0.75 && finger.skinned > 30, JSON.stringify(finger));   // 薬指の先は小さく、強く付いた頂点は 60 個ほど（v1.44.0 で頂点をまとめてからは。前は 100）
   // プリセットの手（v1.43.0〜）: poses.json の hands（写真と同じ 11 個 × 2）が指の骨のある体に乗る。
   // 「歩く」は両手が拳、「立つ 3」は開いた手。手の向きと手のひらの向きが FBX の数字どおりになること
   const preset = await t.page.evaluate(() => {
@@ -764,6 +764,18 @@ await block('8', `the built-in person model`, async () => {
     return {shape, open, fist, dDot: +un(fr.d.clone()).dot(new V().fromArray(h.slice(5, 8))).toFixed(2), pDot: +un(fr.palm.clone()).dot(new V().fromArray(h.slice(8, 11))).toFixed(2)};
   });
   ok('every preset pose carries both hands (11 numbers each) in poses.json', preset.shape, JSON.stringify(preset));
+  // v1.44.0: rev のある体は全部 Mixamo のリグ。指の先の骨（各指の 3 番）が両手で 10 本あること（us-casual-man だけ小指が無く 8 本）
+  const rigs = {};
+  for (const m of await t.page.evaluate(() => window.__sp.people().filter(m => m.rev).map(m => m.id))){
+    await t.page.evaluate(id => { const sp = window.__sp, it = sp.state().items.find(i => i.model === 'us-business-woman' || i.model === window.__lastRig); window.__lastRig = id; it.model = id; sp.rebuild(); }, m);
+    await t.page.waitForFunction(id => { const sp = window.__sp, it = sp.state().items.find(i => i.model === id); let n = 0; sp.group(it?.id)?.traverse(o => { if (o.isBone && /^mixamorig/.test(o.name)) n++; }); return n >= 30; }, m, { timeout: 30000 }).catch(() => {});
+    rigs[m] = await t.page.evaluate(id => { const sp = window.__sp, it = sp.state().items.find(i => i.model === id); const tips = new Set(); let bones = 0;
+      sp.group(it.id).traverse(o => { if (!o.isBone) return; bones++; const k = o.name.match(/^mixamorig:?(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)3$/); if (k) tips.add(k[1] + k[2]); }); return {bones, tips: tips.size}; }, m);
+  }
+  const want = id => id === 'us-casual-man' ? 8 : 10;
+  ok('every replaced body (rev) loads as a Mixamo rig with its finger bones', Object.entries(rigs).length >= 13 && Object.entries(rigs).every(([id, r]) => r.bones >= 30 && r.tips === want(id)), JSON.stringify(rigs));
+  await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.model === window.__lastRig); it.model = 'us-business-woman'; sp.rebuild(); });
+  await t.page.waitForTimeout(1500);
   ok('the walking preset closes the fist on the finger-boned body and turns the palm as the FBX had it', preset.fist < preset.open * 0.8 && preset.dDot > 0.95 && preset.pDot > 0.95, JSON.stringify(preset));
   await t.page.evaluate(() => { for (const it of window.__sp.state().items) if (it.type === 'person') it.posture = null; window.__sp.rebuild(); });
   await t.page.waitForTimeout(800);
@@ -774,7 +786,7 @@ await block('8', `the built-in person model`, async () => {
   // where the file cannot be fetched the mannequin stays and the panel says why
   const g = await open('person-404', { width: 1280, height: 800 });
   // the model is fetched at load, so the block has to be in place before the reload
-  await g.page.route('**/models/*.glb', r => r.fulfill({status: 404}));
+  await g.page.route(/\/models\/[^/]+\.glb(\?|$)/, r => r.fulfill({status: 404}));   // ?r=<rev> が付く（v1.44.0 から全員）
   await g.page.reload();
   await g.page.waitForTimeout(2500);
   await g.page.click('#items .itemrow > button.name >> nth=1');
@@ -3726,9 +3738,10 @@ await block('47', `ディスプレイ`, async () => {
   await P.waitForTimeout(800);
   i = await it(); sc = await screen();
   ok('a video file becomes a playing VideoTexture', vid > 0 && sc?.hasMap && sc.video && !!i.key && i.name === 'clip.webm', JSON.stringify({vid, i, sc}));
-  const f0 = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(500);
+  // swiftshader は全部回しの終盤で 8 fps ほどまで落ちる（0.5 秒で 4 枚しか描けず落ちた）。1.5 秒で数える
+  const f0 = await S(() => window.__sp.renderer.info.render.frame); await P.waitForTimeout(1500);
   const f1 = await S(() => window.__sp.renderer.info.render.frame);
-  ok('and the view keeps redrawing while the video plays', f1 - f0 >= 5, `${f0} -> ${f1}`);
+  ok('and the view keeps redrawing while the video plays', f1 - f0 >= 8, `${f0} -> ${f1}`);
   // 音はミュートが既定。「ミュート」ボタン（押された状態＝ミュート）で出したり止めたり
   const vstate = () => S(() => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); const m = s.mediaFor(i); return {muted: m.video.muted, paused: m.video.paused, sound: !!i.sound}; });
   let vs = await vstate();

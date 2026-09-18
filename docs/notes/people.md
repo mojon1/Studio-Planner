@@ -85,11 +85,18 @@ node tools/shrink-glb.mjs 中間.glb models/asia-casual-girl.glb 1024 0.86
 小さすぎて誰か分からなかった（寺村さんの指摘）。モデルは身長 1 m に揃っているので、
 `b.max.y * 0.90` を注視点にして距離 1.0 で切り取れば、どの体でも同じ構図になる。
 
-### Mixamo のリグ（v1.40.0〜、まず us-business-woman 1 体）
+### Mixamo のリグ（v1.40.0〜 us-business-woman、v1.44.0 から大人 12 体と女の子）
 
 寺村さんの「指ボーンが無いのでポージングに制限がある。モデルは Tripo、リグは別の方法に」を受けて、
-**Tripo のメッシュに Mixamo で骨を付け直したモデル**を入れ始めた（Tripo には指ありの自動リグが無かった —
-寺村さんの確認）。最初の 1 体は `us-business-woman`。残りは順に差し替える。
+**Tripo のメッシュに Mixamo で骨を付け直したモデル**を入れた（Tripo には指ありの自動リグが無かった —
+寺村さんの確認）。最初の 1 体は `us-business-woman`（v1.40.0）。v1.44.0 で残りを差し替えた
+（寺村さんが Mixamo で作り直した FBX 13 本。Drive の `StudioPlanner/Mixamo` は 1 本 10 MB を超えるので
+接続から落とせず、チャットに添付してもらった）。**`PEOPLE_MODELS` の `rev` がある体が Mixamo のリグ。**
+- **asia-casual-boy だけ Tripo のリグのまま**（届いた FBX が人差し指だけの骨組みで、Mixamo の Standard
+  Skeleton ではなかった。作り直してもらえれば同じ手順で入る）。指の骨が無いので手は今までどおり動かない。
+- **us-casual-man は小指の骨が無い**（Thumb / Index / Middle / Ring の 4 本。Mixamo の自動リグが小指を
+  付けなかった）。`handFrame()` は小指の付け根が無ければ薬指で三角形を作るので手のひらの向きは出る。
+  小指だけ曲がらない。
 
 - 骨は Mixamo 名（`mixamorig:Hips` / `LeftUpLeg` / `LeftHandIndex1` …）。**アプリの正典はもともと Mixamo の名前**
   （`POSE_ORDER` / `poses.json`）なので、接頭辞（`mixamorig` ＋ `:` か `_`。GLTFExporter は `:` を落とす）を
@@ -110,6 +117,10 @@ node tools/shrink-glb.mjs 中間.glb models/asia-casual-girl.glb 1024 0.86
   （バインド行列と皮の関係を崩さないため）。出力に `(fixed: z-up scaled 1/99.95)` と出れば直っている。
   Mixamo でリグを付けたメッシュは A ポーズのまま（Mixamo は入れたメッシュの姿勢を素の姿勢にする）なので、
   素の姿勢は Tripo と同じ見た目。
+- **頂点はまとめて index を付ける（v1.44.0 から `fbx-to-glb.mjs` の中で）。** FBX の頂点は三角形ごとにばらけていて
+  （index 無し）、そのまま出すと 28k 頂点 1.8 MB、Mixamo 経由の asia-casual-man は **15 万頂点 8.6 MB** になった。
+  `mergeVertices()`（位置・法線・UV・骨の重みが全部同じものだけを 1 つに）で 3〜6 分の 1 になり、13 体とも
+  0.6〜2.2 MB（Tripo のころと同じくらい）。見た目は変わらない。us-business-woman も焼き直した（rev 4、0.9 MB）。
 - 手順: `node tools/fbx-to-glb.mjs 元.fbx 中間.glb` → `node tools/shrink-glb.mjs 中間.glb models/<id>.glb 1024 0.86` →
   `cd test && node ../tools/make-thumbs.mjs` → **`PEOPLE_MODELS` の `rev` を上げる**。Service Worker は `.glb` を
   キャッシュ優先で持つので、`rev` を上げないと古い体が端末に居座る。`personModel()` が `?r=<rev>` を付ける。

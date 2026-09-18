@@ -7,7 +7,7 @@
 //     勝手に取りに行かない。実際に使ったものだけを runtime に溜める
 //     （「オフラインに保存」ボタンは外した）。
 //  3. 版を上げるときは VERSION を変える。古い殻のキャッシュは activate で捨てる。
-const VERSION = 'v1.43.0';
+const VERSION = 'v1.44.0';
 // 同じドメインの /beta/ に試験版を出す。キャッシュはドメイン単位で共有されるので、殻の scope を名前に足して
 // 分ける。ルート（本番）は今までどおりの名前で、/beta/ は '@/beta/' が付く。捨てるのも自分の scope のぶんだけ
 const SCOPE = new URL(self.registration.scope).pathname;

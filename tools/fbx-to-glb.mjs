@@ -16,6 +16,7 @@ const html = `<script type="importmap">{"imports":{"three":"/three/build/three.m
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 window.__run = async (url) => {
   // **テクスチャは loadAsync では待たない。** FBX 本体が解決した時点では
   // 画像がまだ空で、そのまま GLTFExporter に渡すと
@@ -27,11 +28,17 @@ window.__run = async (url) => {
   await Promise.race([loaded, new Promise(r => setTimeout(r, 60000))]);
   // FBXLoader は Phong で組む。glTF は PBR なので、色とテクスチャだけ引き継いで
   // Standard に置き換える（Tripo のモデルは陰影がテクスチャに焼いてある）
-  const info = {bones:0, uv:true, maps:[]};
+  const info = {bones:0, uv:true, maps:[], verts:[0, 0]};
   o.traverse(n => {
     if (n.isBone) info.bones++;
     if (!n.isMesh) return;
     if (!n.geometry.attributes.uv) info.uv = false;
+    // FBX の頂点は三角形ごとにばらけている（index 無し）。同じ頂点をまとめて index を付けると
+    // 3〜6 倍小さくなる（Mixamo 経由の asia-casual-man は 15 万頂点 8.6 MB → まとめて 1/4）。
+    // 位置・法線・UV・骨の重みが全部同じものだけを 1 つにするので、見た目は変わらない
+    info.verts[0] += n.geometry.attributes.position.count;
+    if (!n.geometry.index) n.geometry = mergeVertices(n.geometry);
+    info.verts[1] += n.geometry.attributes.position.count;
     n.material = [].concat(n.material).map(m => {
       const s = new THREE.MeshStandardMaterial({name:m.name, map:m.map || null,
         color:0xffffff, metalness:0, roughness:0.9, side:m.side});
@@ -97,7 +104,7 @@ await p.waitForFunction(() => window.__ready, null, {timeout:60000});
 const info = await p.evaluate(u => window.__run(u), '/src/' + encodeURIComponent(NAME));
 fs.writeFileSync(dst, Buffer.from(info.glb));
 await b.close(); server.close();
-console.log(`bones ${info.bones}  uv ${info.uv}  texture ${info.maps.map(m => m.join('x')).join(', ') || 'なし'}`);
+console.log(`bones ${info.bones}  uv ${info.uv}  texture ${info.maps.map(m => m.join('x')).join(', ') || 'なし'}  verts ${info.verts[0]} -> ${info.verts[1]}`);
 console.log(`size ${info.size.join(' x ')} m  min ${info.min.join(', ')}${info.fixed ? '  (fixed: ' + info.fixed.trim() + ')' : ''}`);
 if (Math.abs(info.size[1] - 1) > 0.01) console.log('!! 身長が 1 m ではない。人物モデルは 1 m に揃えること');
 if (Math.abs(info.min[1]) > 0.005) console.log('!! 足が y=0 に載っていない');

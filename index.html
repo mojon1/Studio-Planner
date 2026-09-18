@@ -397,7 +397,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.43.0 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.44.0 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -1467,23 +1467,24 @@ function ball(x, y, z, r, m){ const s = shadowed(new THREE.Mesh(new THREE.Sphere
 // 置いたあと設定パネルの「服装」で着替える（寺村さんの指示）。誰を置くかは今までどおり
 // `+` で決まり、服装だけが後から変わる（地域も種別も変わらないので別人にはならない）
 const WEARS = [['casual','カジュアル'], ['business','スーツ']];
+// rev: ファイルを差し替えたら上げる。Service Worker は .glb をキャッシュ優先で持つので、これが無いと古い体が居座る。
+// rev のある体は Mixamo のリグ（指あり。v1.44.0 で大人 12 体と女の子を差し替えた。男の子だけ Tripo のリグのまま）
 const PEOPLE_MODELS = [
-  {id:'asia-casual-man',     kind:'man',   region:'asia', wear:'casual',   short:'男性'},
-  {id:'asia-business-man',   kind:'man',   region:'asia', wear:'business', short:'男性'},
-  {id:'asia-casual-woman',   kind:'woman', region:'asia', wear:'casual',   short:'女性'},
-  {id:'asia-business-woman', kind:'woman', region:'asia', wear:'business', short:'女性'},
-  {id:'af-casual-man',       kind:'man',   region:'af',   wear:'casual',   short:'男性'},
-  {id:'af-business-man',     kind:'man',   region:'af',   wear:'business', short:'男性'},
-  {id:'af-casual-woman',     kind:'woman', region:'af',   wear:'casual',   short:'女性'},
-  {id:'af-business-woman',   kind:'woman', region:'af',   wear:'business', short:'女性'},
-  {id:'us-casual-man',       kind:'man',   region:'us',   wear:'casual',   short:'男性'},
-  {id:'us-business-man',     kind:'man',   region:'us',   wear:'business', short:'男性'},
-  {id:'us-casual-woman',     kind:'woman', region:'us',   wear:'casual',   short:'女性'},
-  // rev: ファイルを差し替えたら上げる。Service Worker は .glb をキャッシュ優先で持つので、これが無いと古い体が居座る
-  {id:'us-business-woman',   kind:'woman', region:'us',   wear:'business', short:'女性', rev:3},   // v1.40.0 から Mixamo のリグ（指あり。rev 3 で 5 本指）
+  {id:'asia-casual-man',     kind:'man',   region:'asia', wear:'casual',   short:'男性', rev:1},
+  {id:'asia-business-man',   kind:'man',   region:'asia', wear:'business', short:'男性', rev:1},
+  {id:'asia-casual-woman',   kind:'woman', region:'asia', wear:'casual',   short:'女性', rev:1},
+  {id:'asia-business-woman', kind:'woman', region:'asia', wear:'business', short:'女性', rev:1},
+  {id:'af-casual-man',       kind:'man',   region:'af',   wear:'casual',   short:'男性', rev:1},
+  {id:'af-business-man',     kind:'man',   region:'af',   wear:'business', short:'男性', rev:1},
+  {id:'af-casual-woman',     kind:'woman', region:'af',   wear:'casual',   short:'女性', rev:1},
+  {id:'af-business-woman',   kind:'woman', region:'af',   wear:'business', short:'女性', rev:1},
+  {id:'us-casual-man',       kind:'man',   region:'us',   wear:'casual',   short:'男性', rev:1},   // 小指の骨が無い（Mixamo が付けなかった）
+  {id:'us-business-man',     kind:'man',   region:'us',   wear:'business', short:'男性', rev:1},
+  {id:'us-casual-woman',     kind:'woman', region:'us',   wear:'casual',   short:'女性', rev:1},
+  {id:'us-business-woman',   kind:'woman', region:'us',   wear:'business', short:'女性', rev:4},   // v1.40.0 から Mixamo のリグ（rev 3 で 5 本指、rev 4 で頂点をまとめて軽く）
   // 子どもは大人のあとにまとめる（4 列なので、地域ごとの行が崩れない）。スーツは無い
   {id:'asia-casual-boy',     kind:'boy',   region:'asia', wear:'casual',   short:'男の子'},
-  {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子'},
+  {id:'asia-casual-girl',    kind:'girl',  region:'asia', wear:'casual',   short:'女の子', rev:1},
 ];
 // `+` に並べる順。サムネイルは models/thumbs/prop-<type>.webp
 const PROPS = ['car','chair','table','box','koma','intre','display'];
@@ -1984,7 +1985,8 @@ const palmOfReal = h => new V3().fromArray(h.slice(8, 11));
 // 指先が動く向き）から出す。三角形の法線で決めると鏡写しのモデル（us-business-woman は左手が右手の形。
 // 実物と逆になって手のひらが裏返った — 寺村さんの指摘「手の向きが逆」）で裏返る
 function handFrame(boneOf, side){
-  const hand = boneOf[side + 'Hand'], ix = boneOf[side + 'HandIndex1'], ix2 = boneOf[side + 'HandIndex2'], pk = boneOf[side + 'HandPinky1'], md = boneOf[side + 'HandMiddle1'];
+  // 小指の骨が無いリグ（us-casual-man は Mixamo が小指を付けなかった）は薬指で三角形を作る。手のひらの側は変わらない
+  const hand = boneOf[side + 'Hand'], ix = boneOf[side + 'HandIndex1'], ix2 = boneOf[side + 'HandIndex2'], pk = boneOf[side + 'HandPinky1'] || boneOf[side + 'HandRing1'], md = boneOf[side + 'HandMiddle1'];
   if (!hand || !ix || !ix2 || !pk || !md) return null;
   const wq = o => o.getWorldQuaternion(new THREE.Quaternion()), wp = o => o.getWorldPosition(new V3());
   const w = wp(hand), d = wp(md).sub(w).normalize();
