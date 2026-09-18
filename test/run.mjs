@@ -773,7 +773,7 @@ await block('8', `the built-in person model`, async () => {
       sp.group(it.id).traverse(o => { if (!o.isBone) return; bones++; const k = o.name.match(/^mixamorig:?(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)3$/); if (k) tips.add(k[1] + k[2]); }); return {bones, tips: tips.size}; }, m);
   }
   const want = id => id === 'us-casual-man' ? 8 : 10;
-  ok('every replaced body (rev) loads as a Mixamo rig with its finger bones', Object.entries(rigs).length >= 13 && Object.entries(rigs).every(([id, r]) => r.bones >= 30 && r.tips === want(id)), JSON.stringify(rigs));
+  ok('every replaced body (rev) loads as a Mixamo rig with its finger bones', Object.entries(rigs).length >= 14 && Object.entries(rigs).every(([id, r]) => r.bones >= 30 && r.tips === want(id)), JSON.stringify(rigs));
   await t.page.evaluate(() => { const sp = window.__sp, it = sp.state().items.find(i => i.model === window.__lastRig); it.model = 'us-business-woman'; sp.rebuild(); });
   await t.page.waitForTimeout(1500);
   ok('the walking preset closes the fist on the finger-boned body and turns the palm as the FBX had it', preset.fist < preset.open * 0.8 && preset.dDot > 0.95 && preset.pDot > 0.95, JSON.stringify(preset));

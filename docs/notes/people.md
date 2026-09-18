@@ -85,15 +85,17 @@ node tools/shrink-glb.mjs 中間.glb models/asia-casual-girl.glb 1024 0.86
 小さすぎて誰か分からなかった（寺村さんの指摘）。モデルは身長 1 m に揃っているので、
 `b.max.y * 0.90` を注視点にして距離 1.0 で切り取れば、どの体でも同じ構図になる。
 
-### Mixamo のリグ（v1.40.0〜 us-business-woman、v1.44.0 から大人 12 体と女の子）
+### Mixamo のリグ（v1.40.0〜 us-business-woman、v1.44.0 から大人 12 体と女の子、v1.44.1 から男の子も）
 
 寺村さんの「指ボーンが無いのでポージングに制限がある。モデルは Tripo、リグは別の方法に」を受けて、
 **Tripo のメッシュに Mixamo で骨を付け直したモデル**を入れた（Tripo には指ありの自動リグが無かった —
 寺村さんの確認）。最初の 1 体は `us-business-woman`（v1.40.0）。v1.44.0 で残りを差し替えた
 （寺村さんが Mixamo で作り直した FBX 13 本。Drive の `StudioPlanner/Mixamo` は 1 本 10 MB を超えるので
 接続から落とせず、チャットに添付してもらった）。**`PEOPLE_MODELS` の `rev` がある体が Mixamo のリグ。**
-- **asia-casual-boy だけ Tripo のリグのまま**（届いた FBX が人差し指だけの骨組みで、Mixamo の Standard
-  Skeleton ではなかった。作り直してもらえれば同じ手順で入る）。指の骨が無いので手は今までどおり動かない。
+- **asia-casual-boy は v1.44.1 から**（最初に届いた FBX は人差し指だけの骨組みだった。Mixamo の自動リグは
+  メッシュの指を 5 本見つけられないと指の少ない骨組みに落とす — 子どもの小さな手で起きやすい。寺村さんが
+  Tripo から作り直して 65 本になった）。これで **14 体すべてが Mixamo のリグ**。Tripo のリグの体はもう無い
+  （`POSE_MAP` の Tripo 名は古い取り込みのために残す）。
 - **us-casual-man は小指の骨が無い**（Thumb / Index / Middle / Ring の 4 本。Mixamo の自動リグが小指を
   付けなかった）。`handFrame()` は小指の付け根が無ければ薬指で三角形を作るので手のひらの向きは出る。
   小指だけ曲がらない。
