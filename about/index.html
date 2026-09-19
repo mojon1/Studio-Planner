@@ -56,6 +56,12 @@ header nav a.go{background:var(--btn-on);color:var(--btn-on-ink);font-weight:500
 .btn{display:inline-block;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.primary:hover{filter:brightness(1.06)}
+.hero .shot{box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.hero .cap{max-width:680px;margin-top:22px}
+.hero .cap h2{font-size:1.4rem;margin:0 0 10px;letter-spacing:-.01em;line-height:1.4}
+.hero .cap p{color:var(--ink2)}
+.hero .cap p:last-child{margin-bottom:0}
+.videosec{padding-top:8px}
 .video{aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 12px 40px rgba(0,0,0,.18)}
 .video iframe{width:100%;height:100%;border:0;display:block}
 .shot{border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18);background:var(--viewport);border:1px solid var(--rule)}
@@ -100,8 +106,17 @@ footer .sp{margin-left:auto}
     <div class="cta">
       <a class="btn primary" href="../" data-en="Open Studio Planner">Studio Plannerを使う</a>
     </div>
-    <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/pjHt0Eg4Tx4?rel=0" title="Studio Planner 紹介動画" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+    <div class="shot"><img src="img/meeting.jpg" width="1536" height="1024" alt="打ち合わせの席。大きな画面と手元の iPad・スマホに同じプラン" data-en-alt="A meeting with the same plan on the big screen, an iPad and a phone"></div>
+    <div class="cap">
+      <h2 data-en="Make the meeting clearer.">打ち合わせを、もっと分かりやすく。</h2>
+      <p data-en="Share the layout, camera position and angle of view at the PPM or the shoot meeting.">PPMや撮影打ち合わせで、レイアウトやカメラ位置、画角を共有。</p>
+      <p data-en="What is hard to convey in words or on a floor plan becomes easy to see.">言葉や図面だけでは伝わりにくい撮影イメージを、分かりやすく確認できます。</p>
+    </div>
   </div>
+
+  <section class="videosec">
+    <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/pjHt0Eg4Tx4?rel=0" title="Studio Planner 紹介動画" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+  </section>
 
   <section class="feature">
     <div class="t">
@@ -123,15 +138,6 @@ footer .sp{margin-left:auto}
 
   <section class="feature">
     <div class="t">
-      <h2 data-en="Make the meeting clearer.">打ち合わせを、もっと分かりやすく。</h2>
-      <p data-en="Share the layout, camera position and angle of view at the PPM or the shoot meeting.">PPMや撮影打ち合わせで、レイアウトやカメラ位置、画角を共有。</p>
-      <p data-en="What is hard to convey in words or on a floor plan becomes easy to see.">言葉や図面だけでは伝わりにくい撮影イメージを、分かりやすく確認できます。</p>
-    </div>
-    <div class="shot"><img src="img/meeting.jpg" width="1536" height="1024" alt="打ち合わせの席。大きな画面と手元の iPad・スマホに同じプラン" data-en-alt="A meeting with the same plan on the big screen, an iPad and a phone"></div>
-  </section>
-
-  <section class="feature flip">
-    <div class="t">
       <h2 data-en="People and equipment too.">人物や機材も配置。</h2>
       <p data-en="Change a person's height and pose, and place lights, stands, cars and props.">人物の身長やポーズを変更したり、ライト、スタンド、車、小道具などを配置できます。</p>
       <p data-en="GLB and FBX 3D models can be brought in as well.">GLB / FBX形式の3Dモデルにも対応しています。</p>
@@ -139,7 +145,7 @@ footer .sp{margin-left:auto}
     <div class="shot"><img src="img/pose.jpg" width="1600" height="947" alt="人物のポーズを写真から指定しているところ" data-en-alt="Giving a person the pose from a photo"></div>
   </section>
 
-  <section class="feature">
+  <section class="feature flip">
     <div class="t">
       <h2 data-en="Bring the location home.">ロケ地も、持ち帰って検討。</h2>
       <p data-en="Load a location scanned with Scaniverse or similar and plan the shoot inside it.">Scaniverseなどでスキャンしたロケ地を読み込み、その中で撮影プランを検討できます。</p>
@@ -148,7 +154,7 @@ footer .sp{margin-left:auto}
     <div class="shot"><img src="img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location"></div>
   </section>
 
-  <section class="feature flip">
+  <section class="feature">
     <div class="t">
       <h2 data-en="From plan to handout.">撮影プランを、そのまま資料に。</h2>
       <p data-en="Export the plan as a document with the floor plan and the camera's view.">作成したプランは、図面やカメラ画角を含む資料として出力できます。</p>
@@ -157,7 +163,7 @@ footer .sp{margin-left:auto}
     <div class="shot light"><img src="img/sheet.jpg" width="1600" height="1263" alt="A4 の資料。図面とカメラ画角" data-en-alt="The A4 sheet with the floor plan and the camera's view"></div>
   </section>
 
-  <section class="feature mobile">
+  <section class="feature flip mobile">
     <div class="t">
       <h2 data-en="On a PC, a tablet or a phone.">PCでも、タブレットでも、スマートフォンでも。</h2>
       <p data-en="Studio Planner runs as it is on a PC, a tablet or a phone.">Studio Plannerは、PC・タブレット・スマートフォンからそのまま使えます。</p>
