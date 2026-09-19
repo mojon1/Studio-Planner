@@ -67,6 +67,15 @@ section p:last-child{margin-bottom:0}
 .feature.flip .shot{order:-1}
 .feature .t{max-width:460px}
 .feature .t p{font-size:.97rem}
+.feature .sub-shot{margin-top:18px;max-width:380px}
+.steps{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.steps figure{margin:0}
+.steps .shot{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center}
+.steps .shot img{width:100%;height:100%;object-fit:cover}
+.steps figcaption{font-size:.85rem;color:var(--ink2);margin-top:6px;line-height:1.5}
+.wide{margin-top:8px}
+.wide .shot{box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.wide .t{max-width:680px;margin-top:22px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:28px}
 .two h2{font-size:1.2rem}
 .mobile .shot{max-width:300px;margin:0 auto}
@@ -86,6 +95,7 @@ footer .sp{margin-left:auto}
   .feature,.two{grid-template-columns:1fr;gap:18px}
   .feature .shot,.feature.flip .shot{order:-1}
   .feature .t{max-width:none}
+  .feature .sub-shot{max-width:none}
   .hero{padding:32px 0 8px}
   .hero h1 br{display:none}
   section{padding:32px 0}
@@ -112,6 +122,14 @@ footer .sp{margin-left:auto}
     <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/pjHt0Eg4Tx4?rel=0" title="Studio Planner 紹介動画" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
   </div>
 
+  <section class="wide">
+    <div class="shot"><img src="img/meeting.jpg" width="1536" height="1024" alt="打合せの席。大きな画面に Studio Planner を映し、手元の iPad とスマホでも同じ配置を開いている" data-en-alt="A production meeting with Studio Planner on the big screen and the same plan open on an iPad and a phone"></div>
+    <div class="t">
+      <h2 data-en="Decide it together, at the table">打合せの席で、その場で決められます</h2>
+      <p data-en="Put it on the big screen and move things around while everyone watches. Because it runs in the browser, the same plan opens on each person's iPad or phone at the table, and the camera position or the lens can be changed right there instead of being redrawn afterwards.">大きな画面に映して、みんなが見ている前で動かせます。ブラウザで動くので、席にいる人の iPad やスマホでも同じ配置が開きます。カメラの位置やレンズをその場で変えられるので、あとで描き直す手間がありません。</p>
+    </div>
+  </section>
+
   <section class="feature">
     <div class="t">
       <h2 data-en="Build the studio and see if it all fits">スタジオを作って、入るかどうかを見る</h2>
@@ -134,9 +152,10 @@ footer .sp{margin-left:auto}
     <div class="t">
       <h2 data-en="People, with poses">人物を置いて、ポーズを付ける</h2>
       <p data-en="There are 14 people to choose from, adults and children, and you can set each one's height and clothing. Eleven poses cover standing, sitting and lying down, and the fingers move too. Put a chair or an apple box under someone and they sit on it.">人物は大人と子どもを合わせて 14 体あり、身長と服装を変えられます。ポーズは立つ・座る・寝るなど 11 種類で、指まで動きます。椅子や箱馬の上に置けば、そこに座ります。</p>
-      <p data-en="If none of the poses is right, take a photo of the pose you want. The person on screen takes the same pose. The photo is read on your device and never uploaded.">用意したポーズに無い姿勢は、写真を撮って指定できます。写した姿勢がそのまま画面の人物に乗ります。写真は端末の中で読むだけで、どこにも送られません。</p>
+      <p data-en="If none of the poses is right, take a photo of the pose you want. The person on screen takes the same pose, as in the picture on the right, where a dancer's photo has been put onto a woman in a suit. The photo is read on your device and never uploaded.">用意したポーズに無い姿勢は、写真を撮って指定できます。右の絵のように、ダンサーの写真がスーツの女性にそのまま乗ります。写真は端末の中で読むだけで、どこにも送られません。</p>
+      <div class="shot light sub-shot"><img src="img/people.jpg" width="1720" height="1000" alt="人物の一覧。+ から選ぶ" data-en-alt="The people list, opened from the + button"></div>
     </div>
-    <div class="shot light"><img src="img/people.jpg" width="1720" height="1000" alt="人物の一覧。+ から選ぶ" data-en-alt="The people list, opened from the + button"></div>
+    <div class="shot"><img src="img/pose.jpg" width="1600" height="947" alt="写真ポーズ指定。右のバレエの写真と同じポーズを、左のスーツの女性が取っている" data-en-alt="Pose from a photo: the woman in the suit on the left holds the same pose as the ballet photo on the right"></div>
   </section>
 
   <section class="feature flip">
@@ -148,27 +167,28 @@ footer .sp{margin-left:auto}
     <div class="shot"><img src="img/lights.jpg" width="1200" height="800" alt="3D の画面。スポットとソフトライトの光と影" data-en-alt="The 3D view with a spot and a soft light casting shadows"></div>
   </section>
 
-  <section class="two">
-    <div>
+  <section class="feature">
+    <div class="t">
       <h2 data-en="Plan inside a scan of the location">ロケ地のスキャンの中で組む</h2>
-      <p data-en="If you have a 3D Gaussian-splat scan of a location, drop it in. It comes in at real scale, and you can place people, cars and cameras inside it just as you would in a studio. Only how the scan is placed goes into the share link; the scan itself stays on your device.">ロケ地を 3D ガウシアンスプラットでスキャンしてあれば、そのファイルを取り込めます。実寸で入るので、スタジオと同じように中に人や車やカメラを置けます。共有リンクに入るのは置き方だけで、スキャンそのものは端末に残ります。</p>
+      <p data-en="Scan the location with a phone app such as Scaniverse, save it as a 3D Gaussian-splat file (.spz or .ply), and drop that file into Studio Planner. The scan comes in at real scale, so you can place people, cars and cameras inside it and look through the finder just as you would in a studio. Only how the scan is placed goes into the share link; the scan itself stays on your device.">ロケ地を Scaniverse などのスマホのアプリでスキャンして、3D ガウシアンスプラットのファイル（.spz か .ply）で保存し、そのファイルを Studio Planner に取り込みます。実寸で入るので、スタジオと同じように中に人や車やカメラを置いて、ファインダーで覗けます。共有リンクに入るのは置き方だけで、スキャンそのものは端末に残ります。</p>
+      <div class="steps">
+        <figure><div class="shot"><img src="img/scanning.jpg" width="1448" height="1086" alt="スマホで洋館をスキャンしているところ" data-en-alt="Scanning a house with a phone"></div><figcaption data-en="1. Scan the place with your phone.">1. スマホで現地をスキャンします。</figcaption></figure>
+        <figure><div class="shot"><img src="img/files.jpg" width="923" height="940" alt="iPhone のファイル App に並んだ .spz ファイル" data-en-alt=".spz files in the Files app on an iPhone"></div><figcaption data-en="2. Save it as .spz and open it in Studio Planner.">2. .spz で保存して、Studio Planner で開きます。</figcaption></figure>
+      </div>
     </div>
-    <div>
-      <h2 data-en="Several shots in one plan">1 つの図面に、複数のカット</h2>
-      <p data-en="Each shot keeps its own camera and blocking, and you switch between them with a tap. The sheet is printed per shot, so a day with five setups is five pages, all from one file.">カットごとにカメラと立ち位置を持てて、タップで切り替えられます。用紙はカット単位で出るので、5 カットの日なら 1 つのファイルから 5 枚が出ます。</p>
-    </div>
+    <div class="shot"><img src="img/scan.jpg" width="1600" height="1038" alt="洋館の 3DGS スキャンの中に車と男性とカメラを置いた画面。小窓にファインダーの絵" data-en-alt="A car, a man and a camera placed inside a Gaussian-splat scan of a house, with the finder in the small window"></div>
   </section>
 
-  <section class="feature">
+  <section class="feature flip">
     <div class="t">
       <h2 data-en="Hand it out as a sheet, a link or a QR code">用紙とリンクと QR で配る</h2>
       <p data-en="One A4 sheet per shot carries the plan, the side view, the viewfinder and the dimensions. It is printed from the browser, so there is nothing to install. Reframe the plan and the side view on the page as you like; only the finder stays fixed, so the printed frame is always what the camera will see.">A4 の用紙 1 枚に、上面図と側面図とファインダーの絵と寸法が入ります。印刷はブラウザから行うので、追加のソフトは要りません。上面図と側面図は用紙の中で好きに構図を直せますが、ファインダーだけは固定してあります。印刷した絵とカメラが撮る画角がずれないようにするためです。</p>
-      <p data-en="The share link holds the whole plan, so whoever opens it sees the same layout on their phone. A QR code of the link can go on the sheet or on the wall of the studio.">共有リンクには配置がまるごと入っているので、開いた人のスマホに同じ配置が出ます。リンクは QR コードにもできるので、用紙やスタジオの壁に貼っておけます。</p>
+      <p data-en="Each shot keeps its own camera and blocking, and the sheet is printed per shot, so a day with five setups is five pages from one file. The share link holds the whole plan, so whoever opens it sees the same layout on their phone. A QR code of the link can go on the sheet or on the wall of the studio.">カットごとにカメラと立ち位置を持てて、用紙もカット単位で出ます。5 カットの日なら 1 つのファイルから 5 枚です。共有リンクには配置がまるごと入っているので、開いた人のスマホに同じ配置が出ます。リンクは QR コードにもできるので、用紙やスタジオの壁に貼っておけます。</p>
     </div>
-    <div class="shot light"><img src="img/sheet.jpg" width="1200" height="800" alt="A4 の用紙。上面・側面・ファインダー・寸法" data-en-alt="The A4 sheet: plan, side view, viewfinder and dimensions"></div>
+    <div class="shot light"><img src="img/sheet.jpg" width="1600" height="1263" alt="A4 の用紙の画面。上面・側面・3D・ファインダーとカメラの数値、メモ欄" data-en-alt="The A4 sheet: plan, side view, 3D, finder, camera data and notes"></div>
   </section>
 
-  <section class="feature flip mobile">
+  <section class="feature mobile">
     <div class="t">
       <h2 data-en="It works on the phone in your pocket">ポケットのスマホで動きます</h2>
       <p data-en="Studio Planner is a web page, so it opens in Safari or Chrome on a phone, a tablet or a PC. Add it to the home screen and it opens like an app, and once it has been opened it keeps working without a signal.">Studio Planner は Web ページなので、スマホでもタブレットでも PC でも、Safari や Chrome で開くだけで使えます。ホーム画面に追加するとアプリのように開き、一度開いた端末なら電波の無い場所でも動きます。</p>

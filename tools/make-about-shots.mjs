@@ -1,5 +1,6 @@
 // about/img/*.jpg（LP の絵）をヘッドレスで焼く。   cd test && node ../tools/make-about-shots.mjs
-// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ファインダー・ライト・A4 の用紙・スマホと、+ の人物一覧の 6 枚。
+// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ファインダー・ライト・スマホと、+ の人物一覧の 5 枚。
+// meeting / sheet / scan / pose / scanning / files の 6 枚は寺村さんが用意した実物で、この道具は触らない。
 // 人物モデルは models/ から読むので HTTP で配る（file:// では動かない）。
 import { chromium } from 'playwright';
 import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http';
@@ -65,10 +66,7 @@ await view(p, 'cam'); await settle(p, 2000); await clipShot(p, 'finder.jpg', 120
 await view(p, 'pers'); await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(18); if (sp.orbit) { sp.orbit.theta = 0.9; sp.orbit.phi = 0.55; sp.orbit.radius = 7; } sp.render(); }); await settle(p, 2500);
 await clipShot(p, 'lights.jpg', 1200, 800);
 await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(25); sp.render(); });
-// A4 の用紙（横）。PDF の画面を開いて 1 ページ目を撮る
-await p.click('[data-tab="share"]'); await p.waitForTimeout(200);
-await p.click('#makepdf'); await p.waitForTimeout(6000);
-{ const pg = await p.$('#papers > *'); const buf = await pg.screenshot({ type: 'jpeg', quality: 84 }); fs.writeFileSync(path.join(OUT, 'sheet.jpg'), buf); console.log('sheet.jpg', (buf.length / 1024).toFixed(0) + ' KB'); }
+// 用紙（sheet.jpg）は寺村さんの実物のスクリーンショット。ここでは焼かない（上書きしないこと）
 await ctx.close();
 
 // --- スマホ（iPhone くらい） ---
