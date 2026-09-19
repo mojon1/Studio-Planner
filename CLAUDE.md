@@ -168,6 +168,12 @@ GitHub が新ドメインへ転送し、`#` 以降の共有データも引き継
 人物モデルが本当に出るかはここでしか確認できない（Artifact のプレビュー枠は
 外部ファイルを取りに行けない）。
 
+**訪問数は Cloudflare Web Analytics**（v1.44.2〜。寺村さんの Cloudflare アカウント → Analytics → Web analytics →
+`sp.taichi-teramura.com`）。`index.html` の `<head>` の beacon 1 行で、Cookie なし・訪問数と参照元だけ。本番は `/`、
+ベータは `/beta/` のパスで分かれる。GitHub Pages 自体に解析は無く、Wix は DNS だけなので他では見えない。
+**「まとめて書き出す」の 1 枚には入れない**（`makeBundle()` が目印のコメントごと取り除く。ブロック 27 と 28d）。
+テストは `static.cloudflareinsights.com` を空の JS に差し替えて、数えさせない。
+
 正典は **GitHub の `mojon1/Studio-Planner`（main）** と **公開中の Artifact** の 2 つ。
 この 2 つは簡単にずれる。過去に、別セッションが Artifact 側だけを大きく更新していて、
 リポジトリ側が UI ごと古いまま、という状態が起きた。

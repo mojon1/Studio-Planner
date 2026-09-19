@@ -16,6 +16,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<!-- 訪問数だけの計測（Cloudflare Web Analytics、Cookie なし。図面も写真も送らない）。本番は / 、ベータは /beta/ のパスで分かれる。
+     「まとめて書き出す」の 1 枚には入れない（makeBundle が下の 2 つのコメントごと取り除く）。圏外で取れなくても何も起きない -->
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "ab4721b8950d4323b684b77eca30274e"}'></script><!-- End Cloudflare Web Analytics -->
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.1.0/dist/spark.module.js"}}
 </script>
@@ -397,7 +400,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.44.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.44.2 © 2026 Taichi Teramura</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -6792,7 +6795,9 @@ async function makeBundle(){
       .replace(/<link rel="manifest"[^>]*>\s*/, '')
       .replace(/<link rel="apple-touch-icon"[^>]*>\s*/, '')
       .replace(/<link rel="icon"[^>]*>\s*/g, '')            // タブのアイコンも外部ファイル（1 枚の中では取れない）
-      .replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/, '');
+      .replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/, '')
+      .replace(/<!-- 訪問数だけの計測[\s\S]*?-->\s*/, '')       // 計測の説明と
+      .replace(/<!-- Cloudflare Web Analytics -->[\s\S]*?<!-- End Cloudflare Web Analytics -->\s*/, '');   // 計測そのもの（1 枚は通信しない約束）
     const mb = (out.length / 1024 / 1024).toFixed(1);
     await saveFile(projectName() + '.html', new Blob([out], {type:'text/html'}), 'text/html');
     if (missed.length) console.warn('bundle skipped', missed);

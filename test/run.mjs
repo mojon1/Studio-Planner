@@ -163,6 +163,7 @@ async function open(name, viewport, mobile = false, hash = '', extra = {}){
     if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: MIME[path.extname(f)] || 'text/javascript' }); else route.fulfill({ status: 404 });
   });
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
+  await page.route('https://static.cloudflareinsights.com/**', r => r.fulfill({ body: '', contentType: 'text/javascript' }));   // 訪問数の計測。テストからは数えさせない
   await page.goto('http://localhost:8765/' + hash);
   await page.waitForTimeout(1500);
   const add = async sel => { await page.click('#addfab'); await page.click(sel); await page.waitForTimeout(350); };
@@ -1956,6 +1957,7 @@ await block('27', `まとめて書き出す: one file that opens with no network
   });
   ok('the file opens from file:// on its own', !!got && got.bundled, JSON.stringify(got));
   ok('with no network at all', outbound.length === 0, outbound.join(' '));
+  ok('and the visit counter is not in the file', !/cloudflareinsights|data-cf-beacon/.test(fs.readFileSync(file, 'utf8')), 'beacon found in bundle');
   ok('the person model comes out of the file', got.skinned > 0, JSON.stringify(got.names));
   ok('the scan too, cropped as it was left', got.names.some(n => /SplatMesh/.test(n)) && got.crop?.y1 === 1.4,
      JSON.stringify({names: got.names, crop: got.crop}));
@@ -2193,6 +2195,9 @@ await block('28d', `コロフォン`, async () => {
   const st = await t.page.$eval('.colophon a', a => { const c = getComputedStyle(a); return {color: c.color, deco: c.textDecorationLine}; });
   ok('and it reads as a link: blue and always underlined', st.color === 'rgb(42, 98, 201)' && /underline/.test(st.deco), JSON.stringify(st));
   // コロフォンの版と sw.js の VERSION は同じでなければならない（やってはいけないこと 25。tools/bump.mjs が両方を上げる）
+  // 訪問数の計測（Cloudflare Web Analytics、v1.44.2〜）が本体に 1 つ入っていること。取り除く目印のコメントも一緒に
+  const idx = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  ok('the visit counter is in the app, once, between its markers', (idx.match(/data-cf-beacon/g) || []).length === 1 && /<!-- Cloudflare Web Analytics -->[^\n]*data-cf-beacon[^\n]*<!-- End Cloudflare Web Analytics -->/.test(idx), 'beacon markers');
   const swv = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/const VERSION = 'v(\d+\.\d+\.\d+)'/)?.[1];
   const colv = col.text.match(/v(\d+\.\d+\.\d+)/)?.[1];
   ok('the colophon version matches the service worker VERSION', !!colv && colv === swv, `${colv} vs ${swv}`);
@@ -2245,6 +2250,7 @@ await block('29', `書き出しボタンの名前、取り込みの上限、iPho
     if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
   });
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
+  await page.route('https://static.cloudflareinsights.com/**', r => r.fulfill({ body: '', contentType: 'text/javascript' }));   // 訪問数の計測。テストからは数えさせない
   await page.goto('http://localhost:8765/');
   await page.waitForTimeout(1500);
   ok('an iPhone is given no accept list, so .spz and .ply can be picked',
@@ -3815,6 +3821,7 @@ await block('48', `/beta/ は保存領域が本番と分かれる`, async () => 
     if (fs.existsSync(f)) route.fulfill({ body: fs.readFileSync(f), contentType: 'text/javascript' }); else route.fulfill({ status: 404 });
   });
   await r.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
+  await r.route('https://static.cloudflareinsights.com/**', route => route.fulfill({ body: '', contentType: 'text/javascript' }));
   await r.goto('http://localhost:8765/'); await r.waitForTimeout(1500);
   const root = await r.evaluate(() => [window.__sp.siteKey, window.__sp.idbName, window.__sp.isBeta, document.title.startsWith('BETA'),
     document.getElementById('gridbtn').classList.contains('on'), getComputedStyle(document.getElementById('betatag')).display]);
