@@ -1,6 +1,6 @@
 // about/img/*.jpg（LP の絵）をヘッドレスで焼く。   cd test && node ../tools/make-about-shots.mjs
-// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ファインダー・ライト・スマホと、+ の人物一覧の 5 枚。
-// meeting / sheet / scan / pose / scanning / files の 6 枚は寺村さんが用意した実物で、この道具は触らない。
+// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ファインダー・スマホの 3 枚。
+// meeting / sheet / scan / pose の 4 枚は寺村さんが用意した実物で、この道具は触らない。
 // 人物モデルは models/ から読むので HTTP で配る（file:// では動かない）。
 import { chromium } from 'playwright';
 import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http';
@@ -62,10 +62,6 @@ await view(p, 'pers'); await settle(p, 2500);
 await p.addStyleTag({ content: '#addfab,#pip{visibility:hidden!important}' });   // + と小窓は絵に入れない
 await view(p, 'plan'); await clipShot(p, 'plan.jpg', 1200, 800);
 await view(p, 'cam'); await settle(p, 2000); await clipShot(p, 'finder.jpg', 1200, 800);
-// ライトの絵: 3D で寄って、光と影が主役になる角度
-await view(p, 'pers'); await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(18); if (sp.orbit) { sp.orbit.theta = 0.9; sp.orbit.phi = 0.55; sp.orbit.radius = 7; } sp.render(); }); await settle(p, 2500);
-await clipShot(p, 'lights.jpg', 1200, 800);
-await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(25); sp.render(); });
 // 用紙（sheet.jpg）は寺村さんの実物のスクリーンショット。ここでは焼かない（上書きしないこと）
 await ctx.close();
 
@@ -83,10 +79,4 @@ await q.evaluate(() => { const sp = window.__sp; sp.rebuild(); sp.select(null); 
 await view(q, 'pers'); await settle(q, 2500);
 { const buf = await q.screenshot({ type: 'jpeg', quality: 84 }); fs.writeFileSync(path.join(OUT, 'mobile.jpg'), buf); console.log('mobile.jpg', (buf.length / 1024).toFixed(0) + ' KB'); }
 await m.close();
-// 人物の一覧: + を押したところ（14 体のサムネイル）。2 倍で撮る
-{ const c2 = await br.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 2, serviceWorkers: 'block', locale: 'ja-JP' });
-  const q = await c2.newPage(); await route(q); await q.goto('http://localhost:8790/'); await q.waitForTimeout(1500);
-  await q.click('#addfab'); await q.waitForTimeout(800);
-  const el = await q.$('#people'); const buf = await el.screenshot({ type: 'jpeg', quality: 86 }); fs.writeFileSync(path.join(OUT, 'people.jpg'), buf); console.log('people.jpg', (buf.length / 1024).toFixed(0) + ' KB');
-  await c2.close(); }
 await br.close(); srv.close();

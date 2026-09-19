@@ -211,8 +211,8 @@ tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実�
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
 about/index.html      LP（https://sp.taichi-teramura.com/about/）。1 枚の静的ページ。日本語と英語を data-en で持ち、?eng とブラウザの言語で切替。notes/about.md
-about/img/*.jpg       LP の絵 11 枚。5 枚は tools/make-about-shots.mjs で焼く（cd test && node ../tools/make-about-shots.mjs）。
-                      残り 6 枚（meeting/sheet/scan/pose/scanning/files）は寺村さんの実物で、道具は触らない
+about/img/*.jpg       LP の絵 7 枚。3 枚（plan/finder/mobile）は tools/make-about-shots.mjs で焼く（cd test && node ../tools/make-about-shots.mjs）。
+                      残り 4 枚（meeting/sheet/scan/pose）は寺村さんの実物で、道具は触らない
 test/run.mjs          ヘッドレスブラウザでの確認スクリプト（--only / --quick で部分実行）
 tools/bump.mjs        版を上げる（コロフォンと sw.js の VERSION を同時に）
 docs/notes/*.md       機能ごとのメモ（下の一覧）。規則と同じ効力
