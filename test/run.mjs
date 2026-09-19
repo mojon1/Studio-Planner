@@ -3849,7 +3849,7 @@ await block('49', `LP（/about/）`, async () => {
   const a = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
   ok('the LP opens under /about/ with its own title', /Studio Planner/.test(await a.page.title()) && (await a.page.$eval('html', h => h.lang)) === 'ja', await a.page.title());
   const imgs = await a.page.$$eval('img', ns => ns.map(i => [i.getAttribute('src'), i.naturalWidth]));
-  ok('every picture on the LP loads (hero, plan, finder, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
+  ok('every picture on the LP loads (plan, finder, people, lights, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
   const links = await a.page.$$eval('a[href="../"]', ns => ns.length);
   ok('the "open the app" buttons point at the app', links >= 3, String(links));
   const yt = await a.page.$eval('.video iframe', f => f.getAttribute('src'));

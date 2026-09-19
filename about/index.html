@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Studio Planner とは</title>
-<meta name="description" content="スタジオの広さ・立ち位置・カメラの画角を、ブラウザで 30 秒。登録もインストールも要らない、撮影の準備と打合せのための 3D。A4 の図面と共有リンクにして現場に配れる。">
+<meta name="description" content="撮影の準備と打合せのための 3D の道具。スタジオの寸法を打ち込んで人や機材を置くと、カメラに何が写るかが分かります。登録もインストールも要りません。A4 の用紙とリンクにして配れます。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Studio Planner とは">
-<meta property="og:description" content="スタジオの広さ・立ち位置・カメラの画角を、ブラウザで 30 秒。登録もインストールも不要。">
+<meta property="og:description" content="撮影の準備と打合せのための 3D の道具。登録もインストールも要りません。">
 <meta property="og:image" content="https://sp.taichi-teramura.com/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
@@ -35,9 +35,10 @@
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.75;font-size:16px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.85;font-size:16px;-webkit-text-size-adjust:100%}
 a{color:var(--link)}
 img{max-width:100%;height:auto;display:block}
+p{margin:0 0 1em}
 .wrap{max-width:1040px;margin:0 auto;padding:0 16px}
 header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
 header .wrap{display:flex;align-items:center;gap:12px;height:56px}
@@ -47,54 +48,47 @@ header nav{margin-left:auto;display:flex;gap:6px;align-items:center}
 header nav a{text-decoration:none;color:var(--ink2);font-size:.9rem;padding:6px 10px;border-radius:8px}
 header nav a:hover{background:var(--panel)}
 header nav a.go{background:var(--btn-on);color:var(--btn-on-ink);font-weight:500}
-.hero{padding:56px 0 28px}
-.hero h1{font-size:clamp(1.7rem,4.2vw,2.7rem);line-height:1.3;margin:0 0 14px;letter-spacing:-.01em}
-.hero p.lead{font-size:1.05rem;color:var(--ink2);max-width:640px;margin:0 0 22px}
-.cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 26px}
+.hero{padding:48px 0 12px}
+.hero h1{font-size:clamp(1.6rem,3.8vw,2.4rem);line-height:1.4;margin:0 0 16px;letter-spacing:-.01em}
+.hero p.lead{font-size:1.05rem;color:var(--ink2);max-width:680px;margin:0 0 22px}
+.cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 28px}
 .btn{display:inline-block;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.primary:hover{filter:brightness(1.06)}
-.shot{border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18);background:var(--viewport);border:1px solid var(--rule)}
-.badges{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
-.badges span{font-size:.82rem;padding:4px 10px;border-radius:999px;background:var(--accent-bg);color:var(--accent-ink);font-weight:500}
-section{padding:44px 0}
-section h2{font-size:1.45rem;margin:0 0 6px;letter-spacing:-.01em}
-section p.sub{color:var(--muted);margin:0 0 22px}
 .video{aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 12px 40px rgba(0,0,0,.18)}
 .video iframe{width:100%;height:100%;border:0;display:block}
-.three{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.card{background:var(--panel);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
-.card .shot{border-radius:0;border:0;box-shadow:none}
-.card .t{padding:14px 16px 16px}
-.card h3{margin:0 0 4px;font-size:1.02rem}
-.card p{margin:0;color:var(--ink2);font-size:.92rem}
-.who{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.who div{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
-.who b{display:block;margin-bottom:2px}
-.who span{color:var(--ink2);font-size:.9rem}
-ul.feat{columns:2;column-gap:28px;padding:0 0 0 1.2em;margin:0}
-ul.feat li{break-inside:avoid;margin:0 0 6px;color:var(--ink2)}
-ul.feat li b{color:var(--ink);font-weight:500}
-.promise{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 28px}
-.promise div{padding:12px 0;border-top:1px solid var(--rule)}
-.promise b{display:block}
-.promise span{color:var(--ink2);font-size:.92rem}
+.shot{border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18);background:var(--viewport);border:1px solid var(--rule)}
+.shot.light{background:var(--panel)}
+section{padding:40px 0}
+section h2{font-size:1.4rem;margin:0 0 12px;letter-spacing:-.01em;line-height:1.4}
+section p{color:var(--ink2)}
+section p:last-child{margin-bottom:0}
+.feature{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
+.feature.flip .shot{order:-1}
+.feature .t{max-width:460px}
+.feature .t p{font-size:.97rem}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.two h2{font-size:1.2rem}
+.mobile .shot{max-width:300px;margin:0 auto}
+.plain{max-width:680px}
 details{border-top:1px solid var(--rule);padding:12px 0}
 details:last-of-type{border-bottom:1px solid var(--rule)}
 summary{cursor:pointer;font-weight:500;list-style:none;display:flex;justify-content:space-between;gap:12px}
 summary::after{content:"+";color:var(--muted);flex:none}
 details[open] summary::after{content:"−"}
 details p{margin:8px 0 0;color:var(--ink2)}
-.mobile{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:center}
-.mobile .shot{max-width:320px;margin:0 auto}
-footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:20px}
+.last{text-align:center;padding:24px 0 40px}
+.last p{margin-bottom:18px}
+footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:8px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
 footer .sp{margin-left:auto}
 @media (max-width:760px){
-  .three,.who,.promise,.mobile{grid-template-columns:1fr}
-  ul.feat{columns:1}
-  header nav a.vid{display:none}
-  .hero{padding:36px 0 22px}
+  .feature,.two{grid-template-columns:1fr;gap:18px}
+  .feature .shot,.feature.flip .shot{order:-1}
+  .feature .t{max-width:none}
+  .hero{padding:32px 0 8px}
+  .hero h1 br{display:none}
+  section{padding:32px 0}
 }
 </style>
 </head>
@@ -103,7 +97,6 @@ footer .sp{margin-left:auto}
   <img src="../icon-192.png" alt="" width="28" height="28">
   <span class="name">Studio Planner</span>
   <nav>
-    <a class="vid" href="#video" data-en="Video">紹介動画</a>
     <a id="langsw" href="?eng" data-en="日本語">English</a>
     <a class="go" href="../" data-en="Open the app">使ってみる</a>
   </nav>
@@ -111,97 +104,100 @@ footer .sp{margin-left:auto}
 
 <main class="wrap">
   <div class="hero">
-    <h1 data-en="Studio size, blocking, and the lens. In your browser, in 30 seconds.">スタジオの広さ、立ち位置、カメラの画角。<br>ブラウザで、30 秒で。</h1>
-    <p class="lead" data-en="A 3D tool for planning shoots and talking them through. No account, no install. It gives you the one picture and the one floor plan a crew needs, as an A4 sheet and a link.">撮影の準備と打合せのための 3D。登録もインストールも要らない。現場に要る「一枚の絵」と「一枚の図面」を、A4 の用紙と共有リンクにする。</p>
+    <h1 data-en="Check the studio, the blocking and the lens before the shoot, right in the browser.">スタジオの広さと立ち位置とレンズの画角を、<br>撮影の前にブラウザで確かめられます。</h1>
+    <p class="lead" data-en="Studio Planner is a 3D tool for preparing a shoot and talking it through. Type in the studio size, place people and equipment, and you can see what the camera will get. It needs no account and no install. The result can be printed as an A4 sheet or sent as a link.">Studio Planner は、撮影の準備と打合せのための 3D の道具です。スタジオの寸法を打ち込んで人や機材を置くと、カメラに何が写るかがその場で分かります。登録もインストールも要りません。できた配置は A4 の用紙に印刷したり、リンクにして送ったりできます。</p>
     <div class="cta">
       <a class="btn primary" href="../" data-en="Open the app — free">使ってみる — 無料</a>
-      <a class="btn" href="#video" data-en="Watch the 2-minute video">紹介動画を見る</a>
     </div>
-    <div class="shot"><img src="img/hero.jpg" width="1600" height="1000" alt="Studio Planner の 3D 画面。スタジオに人物と車とライトを置いたところ" data-en-alt="The Studio Planner 3D view with people, a car and lights in a studio"></div>
-    <div class="badges">
-      <span data-en="Free">無料</span><span data-en="No sign-up">登録なし</span><span data-en="No install">インストールなし</span>
-      <span data-en="Phone, tablet, PC">スマホ・タブレット・PC</span><span data-en="Works offline">圏外でも開く</span><span data-en="Japanese / English">日本語 / English</span>
-    </div>
+    <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/pjHt0Eg4Tx4?rel=0" title="Studio Planner 紹介動画" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
   </div>
 
-  <section id="video">
-    <h2 data-en="See it in two minutes">2 分で分かる紹介動画</h2>
-    <p class="sub" data-en="What it does, from placing people to printing the sheet.">人物を置くところから、用紙を出すところまで。</p>
-    <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/pjHt0Eg4Tx4?rel=0" title="Studio Planner 紹介動画" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+  <section class="feature">
+    <div class="t">
+      <h2 data-en="Build the studio and see if it all fits">スタジオを作って、入るかどうかを見る</h2>
+      <p data-en="Type in the width, depth and height and the studio is there, cyc wall included. Anything you place in it is drawn at real size, so the top-down plan tells you straight away whether the car fits, how far the camera can pull back, and how much room is left for lights.">幅と奥行と高さを打ち込むと、ホリゾント付きのスタジオができます。そこに置いたものはすべて実寸で描かれるので、車が入るか、カメラはどこまで引けるか、ライトの場所は残るかが上面の図面ですぐに分かります。</p>
+      <p data-en="Dimensions are drawn on the plan as you go. Grab a corner to resize the studio or a backdrop, and the numbers follow.">寸法は図面の上に自動で描かれます。スタジオや背景布は角をつまんで大きさを変えられ、数字もそれに合わせて変わります。</p>
+    </div>
+    <div class="shot"><img src="img/plan.jpg" width="1200" height="800" alt="上面の図面。寸法のリボンと撮影範囲" data-en-alt="Top-down plan with dimensions and the camera's field of view"></div>
   </section>
 
-  <section>
-    <h2 data-en="Three answers a crew needs">現場が知りたい 3 つの答え</h2>
-    <p class="sub" data-en="Does it fit, what does the camera see, and what do we hand out.">入るのか、カメラに何が写るのか、何を配るのか。</p>
-    <div class="three">
-      <div class="card"><div class="shot"><img src="img/plan.jpg" width="1200" height="800" alt="上面の図面。寸法のリボンと撮影範囲" data-en-alt="Top-down plan with dimensions and the camera's field of view"></div>
-        <div class="t"><h3 data-en="Does it fit?">入るのか</h3><p data-en="Studio size, cyc walls, and everything to scale on a top-down plan with dimensions. Drag the corners to resize.">スタジオの寸法とホリゾント。人・車・機材が実寸で図面に載り、寸法が付く。角をつまめば大きさも変わる。</p></div></div>
-      <div class="card"><div class="shot"><img src="img/finder.jpg" width="1200" height="800" alt="ファインダー。センサーと焦点距離どおりの画角" data-en-alt="The viewfinder, framed by sensor format and focal length"></div>
-        <div class="t"><h3 data-en="What does the camera see?">カメラに何が写るのか</h3><p data-en="Pick a sensor format and a focal length and look through the camera. Mirrors and backdrops behave like the real thing.">センサーのフォーマットと焦点距離を選んで、カメラの目で見る。鏡の映り込みも背景布も本物どおり。</p></div></div>
-      <div class="card"><div class="shot"><img src="img/sheet.jpg" width="1200" height="800" alt="A4 の用紙。上面・側面・ファインダー・寸法" data-en-alt="The A4 sheet: plan, side view, viewfinder and dimensions"></div>
-        <div class="t"><h3 data-en="What do we hand out?">何を配るのか</h3><p data-en="One A4 sheet per shot, printed from the browser. Or a link, or a QR code, and the whole plan opens on any phone.">カットごとに A4 一枚。ブラウザから印刷。リンクか QR を配れば、どのスマホでも同じ配置が開く。</p></div></div>
+  <section class="feature flip">
+    <div class="t">
+      <h2 data-en="Look through the camera">カメラの目で見る</h2>
+      <p data-en="Choose a sensor format and a focal length, and the viewfinder shows exactly that angle of view. Move the camera, tilt it, or raise it, and the picture changes with it. Mirrors reflect what is really there and backdrops are cropped where the camera sees them.">センサーのフォーマットと焦点距離を選ぶと、ファインダーにその画角がそのまま出ます。カメラを動かしたり、上下に振ったり、高さを変えたりすると、絵もそれに合わせて変わります。鏡には実際にそこにあるものが映り、背景布はカメラから見える範囲で切れます。</p>
+      <p data-en="You can keep several cameras in one plan and switch between them. The picture in the finder is what goes onto the printed sheet.">カメラは 1 つの図面に何台でも置けて、切り替えて見られます。ファインダーの絵は、そのまま印刷用の用紙に載ります。</p>
+    </div>
+    <div class="shot"><img src="img/finder.jpg" width="1200" height="800" alt="ファインダー。センサーと焦点距離どおりの画角" data-en-alt="The viewfinder, framed by sensor format and focal length"></div>
+  </section>
+
+  <section class="feature">
+    <div class="t">
+      <h2 data-en="People, with poses">人物を置いて、ポーズを付ける</h2>
+      <p data-en="There are 14 people to choose from, adults and children, and you can set each one's height and clothing. Eleven poses cover standing, sitting and lying down, and the fingers move too. Put a chair or an apple box under someone and they sit on it.">人物は大人と子どもを合わせて 14 体あり、身長と服装を変えられます。ポーズは立つ・座る・寝るなど 11 種類で、指まで動きます。椅子や箱馬の上に置けば、そこに座ります。</p>
+      <p data-en="If none of the poses is right, take a photo of the pose you want. The person on screen takes the same pose. The photo is read on your device and never uploaded.">用意したポーズに無い姿勢は、写真を撮って指定できます。写した姿勢がそのまま画面の人物に乗ります。写真は端末の中で読むだけで、どこにも送られません。</p>
+    </div>
+    <div class="shot light"><img src="img/people.jpg" width="1720" height="1000" alt="人物の一覧。+ から選ぶ" data-en-alt="The people list, opened from the + button"></div>
+  </section>
+
+  <section class="feature flip">
+    <div class="t">
+      <h2 data-en="Lights and props">ライトと小道具</h2>
+      <p data-en="Lights come in five types and can go on a stand, a boom or the floor. Set the tilt, the spread and the color. On the plan they are drawn as symbols; in the 3D view they cast light and shadows, so you can see where the light falls before anyone rigs it.">ライトは 5 つの型があり、スタンド・ブーム・床置きのどれかで置けます。向きと広がりと色を決めると、図面には記号として、3D の画面には光と影として描かれます。誰かが吊る前に、どこに光が当たるかを見ておけます。</p>
+      <p data-en="Cars, chairs, tables, apple boxes, scaffolding, flats, mirrors and LED displays are built in. Your own GLB or FBX models can be dropped in as well, and their size is read from the file.">車、椅子、テーブル、箱馬、イントレ、カポック、鏡、ディスプレイが最初から入っています。手持ちの GLB や FBX のモデルも取り込めて、大きさはファイルから読み取ります。</p>
+    </div>
+    <div class="shot"><img src="img/lights.jpg" width="1200" height="800" alt="3D の画面。スポットとソフトライトの光と影" data-en-alt="The 3D view with a spot and a soft light casting shadows"></div>
+  </section>
+
+  <section class="two">
+    <div>
+      <h2 data-en="Plan inside a scan of the location">ロケ地のスキャンの中で組む</h2>
+      <p data-en="If you have a 3D Gaussian-splat scan of a location, drop it in. It comes in at real scale, and you can place people, cars and cameras inside it just as you would in a studio. Only how the scan is placed goes into the share link; the scan itself stays on your device.">ロケ地を 3D ガウシアンスプラットでスキャンしてあれば、そのファイルを取り込めます。実寸で入るので、スタジオと同じように中に人や車やカメラを置けます。共有リンクに入るのは置き方だけで、スキャンそのものは端末に残ります。</p>
+    </div>
+    <div>
+      <h2 data-en="Several shots in one plan">1 つの図面に、複数のカット</h2>
+      <p data-en="Each shot keeps its own camera and blocking, and you switch between them with a tap. The sheet is printed per shot, so a day with five setups is five pages, all from one file.">カットごとにカメラと立ち位置を持てて、タップで切り替えられます。用紙はカット単位で出るので、5 カットの日なら 1 つのファイルから 5 枚が出ます。</p>
     </div>
   </section>
 
-  <section>
-    <h2 data-en="Made for the people on set, not for CG staff">CG スタッフではなく、現場の人のために</h2>
-    <p class="sub" data-en="Everyone should get their answer in 30 seconds, without a manual.">説明書なしで、誰でも 30 秒で答えが出るように。</p>
-    <div class="who">
-      <div><b data-en="Production manager">プロダクションマネージャー</b><span data-en="Is this studio big enough? Send the plan before booking.">このスタジオで足りるか。予約の前に図面を送る。</span></div>
-      <div><b data-en="Camera">カメラマン</b><span data-en="Lens and camera position, checked in the finder, agreed in advance.">レンズと立ち位置を、ファインダーで先に決めておく。</span></div>
-      <div><b data-en="Lighting">照明</b><span data-en="Where the lights go and what they hit. Symbols on the plan, light in the picture.">ライトの位置と向き。図面では記号、絵では光。</span></div>
-      <div><b data-en="Director">ディレクター</b><span data-en="Try the blocking with posed people before anyone is on the floor.">誰も入る前に、ポーズ付きの人物で段取りを試す。</span></div>
+  <section class="feature">
+    <div class="t">
+      <h2 data-en="Hand it out as a sheet, a link or a QR code">用紙とリンクと QR で配る</h2>
+      <p data-en="One A4 sheet per shot carries the plan, the side view, the viewfinder and the dimensions. It is printed from the browser, so there is nothing to install. Reframe the plan and the side view on the page as you like; only the finder stays fixed, so the printed frame is always what the camera will see.">A4 の用紙 1 枚に、上面図と側面図とファインダーの絵と寸法が入ります。印刷はブラウザから行うので、追加のソフトは要りません。上面図と側面図は用紙の中で好きに構図を直せますが、ファインダーだけは固定してあります。印刷した絵とカメラが撮る画角がずれないようにするためです。</p>
+      <p data-en="The share link holds the whole plan, so whoever opens it sees the same layout on their phone. A QR code of the link can go on the sheet or on the wall of the studio.">共有リンクには配置がまるごと入っているので、開いた人のスマホに同じ配置が出ます。リンクは QR コードにもできるので、用紙やスタジオの壁に貼っておけます。</p>
     </div>
+    <div class="shot light"><img src="img/sheet.jpg" width="1200" height="800" alt="A4 の用紙。上面・側面・ファインダー・寸法" data-en-alt="The A4 sheet: plan, side view, viewfinder and dimensions"></div>
   </section>
 
-  <section>
-    <h2 data-en="What's in it">できること</h2>
-    <p class="sub" data-en="Everything runs in the browser. Your data stays on your device.">ぜんぶブラウザの中で動く。データは端末の中に残る。</p>
-    <ul class="feat">
-      <li><b data-en="14 people with poses">人物 14 体とポーズ</b> — <span data-en="adults and children, standing, sitting, lying; fingers included">大人と子ども、立つ・座る・寝る、指まで動く</span></li>
-      <li><b data-en="Pose from a photo">写真からポーズ</b> — <span data-en="shoot a photo and the person takes that pose; nothing leaves the phone">写した姿勢がそのまま乗る。写真はどこにも送らない</span></li>
-      <li><b data-en="Cars, props, gear">車・小道具・機材</b> — <span data-en="cars, chairs, tables, apple boxes, scaffolding, flats, displays">車、椅子、テーブル、箱馬、イントレ、カポック、ディスプレイ</span></li>
-      <li><b data-en="Lights">ライト</b> — <span data-en="five types, stands and booms, tilt, spread, color; shadows in the picture">5 つの型、スタンドとブーム、チルト・広がり・色、絵には影</span></li>
-      <li><b data-en="Mirrors and backdrops">鏡と背景布</b> — <span data-en="real reflections in the finder, cyc with a curve">映り込みが本物どおり、R 付きのホリゾント</span></li>
-      <li><b data-en="Location scans (3DGS)">ロケ地のスキャン（3DGS）</b> — <span data-en="drop a Gaussian-splat scan in at real scale and plan inside it">ガウシアンスプラットのスキャンを実寸で置いて、その中で組む</span></li>
-      <li><b data-en="Your own 3D models">自分の 3D モデル</b> — <span data-en="GLB and FBX, sized automatically">GLB と FBX。寸法は自動</span></li>
-      <li><b data-en="Shots">カット</b> — <span data-en="several setups in one plan, one sheet each">1 つの図面に複数のカット、用紙はカットごと</span></li>
-      <li><b data-en="Share by link or QR">リンクと QR で共有</b> — <span data-en="the whole plan lives in the URL; no server, no account">配置は URL の中。サーバーもアカウントも無い</span></li>
-      <li><b data-en="Offline">オフライン</b> — <span data-en="opens without signal once you've opened it; or export one self-contained HTML">一度開いた端末は圏外でも開く。1 枚の HTML にも書き出せる</span></li>
-      <li><b data-en="Undo, lock, duplicate">取り消し・ロック・複製</b> — <span data-en="and a ruler to measure anything">それと、何でも測れる定規</span></li>
-      <li><b data-en="English">英語表示</b> — <span data-en="switches with the browser language">ブラウザの言語で自動</span></li>
-    </ul>
-  </section>
-
-  <section>
-    <div class="mobile">
-      <div>
-        <h2 data-en="On the phone in your pocket">ポケットのスマホで</h2>
-        <p class="sub" data-en="Add it to the home screen and it opens like an app. Pinch, drag, long-press. Every plan you were sent opens from the link.">ホーム画面に置けばアプリのように開く。つまむ、引く、長押し。送られた図面はリンクから開く。</p>
-        <p data-en="Studio Planner is built for the phone first: the panel folds away, the handles are sized for fingers, and the finder shows exactly what the sensor sees.">パネルは畳めて、つまみは指の大きさ。ファインダーはセンサーどおりの絵を出す。</p>
-      </div>
-      <div class="shot"><img src="img/mobile.jpg" width="780" height="1400" alt="スマホでの表示" data-en-alt="Studio Planner on a phone"></div>
+  <section class="feature flip mobile">
+    <div class="t">
+      <h2 data-en="It works on the phone in your pocket">ポケットのスマホで動きます</h2>
+      <p data-en="Studio Planner is a web page, so it opens in Safari or Chrome on a phone, a tablet or a PC. Add it to the home screen and it opens like an app, and once it has been opened it keeps working without a signal.">Studio Planner は Web ページなので、スマホでもタブレットでも PC でも、Safari や Chrome で開くだけで使えます。ホーム画面に追加するとアプリのように開き、一度開いた端末なら電波の無い場所でも動きます。</p>
+      <p data-en="The controls are made for fingers: pinch to zoom, drag to move, long-press for the menu. The settings panel folds away so the drawing gets the whole screen.">操作は指を前提にしてあります。つまんで拡大し、引いて動かし、長押しでメニューが出ます。設定のパネルは畳めるので、図面に画面をいっぱいに使えます。</p>
     </div>
+    <div class="shot"><img src="img/mobile.jpg" width="780" height="1400" alt="スマホでの表示" data-en-alt="Studio Planner on a phone"></div>
   </section>
 
   <section>
-    <h2 data-en="What we promise">約束していること</h2>
-    <div class="promise">
-      <div><b data-en="No account, ever">アカウントは作らない</b><span data-en="Sign-up is where crews give up. There is nothing to sign up for.">登録の壁がいちばんの離脱。だから無い。</span></div>
-      <div><b data-en="Free">無料</b><span data-en="Open source (MIT). The people models are the author's own.">オープンソース（MIT）。人物モデルは作者自身のもの。</span></div>
-      <div><b data-en="Your data stays with you">データは手元に残る</b><span data-en="Plans, photos and imported models never leave the device. Only visit counts are measured, without cookies.">図面・写真・取り込んだモデルは端末から出ない。計るのは訪問数だけ、Cookie も使わない。</span></div>
-      <div><b data-en="No camera model lists">機種名のリストを持たない</b><span data-en="Sensors are formats, not models. Formats don't change for decades, so nothing goes stale.">センサーはフォーマットで持つ。規格は数十年変わらないから、古くならない。</span></div>
+    <h2 data-en="Price and data">料金とデータの扱い</h2>
+    <div class="plain">
+      <p data-en="Studio Planner is free, and the code is open source under the MIT license. There is no account to create and no server that stores your plans. Everything you make stays in your browser and in the links you send. Photos used for poses and 3D files you import never leave the device.">Studio Planner は無料で、コードは MIT ライセンスで公開しています。アカウントは無く、図面を預かるサーバーもありません。作ったものはブラウザの中と、送ったリンクの中にだけあります。ポーズ用の写真や取り込んだ 3D ファイルも端末の外には出ません。</p>
+      <p data-en="The only thing measured is the number of visits, without cookies.">計っているのは訪問数だけで、Cookie は使っていません。</p>
     </div>
   </section>
 
   <section>
     <h2 data-en="Questions">よくある質問</h2>
-    <details><summary data-en="Does it work on iPhone and iPad?">iPhone や iPad で動きますか</summary><p data-en="Yes, in Safari. Add it to the home screen for the full-screen app. Android and PC browsers work too.">Safari で動きます。ホーム画面に追加すると全画面で開きます。Android と PC のブラウザも同じです。</p></details>
-    <details><summary data-en="Where is my plan saved?">図面はどこに保存されますか</summary><p data-en="In your browser, on your device. The share link carries the whole plan, so keep the link and you keep the plan. There is no server to lose it on.">ブラウザの中、その端末の中です。共有リンクに配置がまるごと入っているので、リンクを持っていれば図面を持っていることになります。無くすサーバーがありません。</p></details>
-    <details><summary data-en="Are photos for poses uploaded anywhere?">ポーズ用の写真はどこかに送られますか</summary><p data-en="No. Pose detection runs inside the browser. The photo is read once and thrown away; only joint positions are kept.">送られません。姿勢の検出はブラウザの中で動きます。写真は一度読んで捨て、残るのは関節の位置だけです。</p></details>
-    <details><summary data-en="How accurate is the lens?">レンズの画角はどのくらい正確ですか</summary><p data-en="Geometrically exact for the sensor format and focal length you choose. It doesn't simulate specific camera bodies; it doesn't need to.">選んだフォーマットと焦点距離に対して幾何学的に正確です。特定の機種は真似しません。その必要が無いからです。</p></details>
-    <details><summary data-en="Can I bring in my own studio or location?">自分のスタジオやロケ地を入れられますか</summary><p data-en="Yes: type the dimensions, import a 3D model, or drop in a 3D Gaussian-splat scan from your phone.">寸法を打ち込むか、3D モデルを取り込むか、スマホで撮った 3D ガウシアンスプラットのスキャンを置くかの 3 つです。</p></details>
+    <details><summary data-en="Which cameras are supported?">対応しているカメラは何ですか</summary><p data-en="Any camera. Instead of a list of camera models, you pick the sensor format (full frame, Super 35, Micro Four Thirds and so on) and type the focal length. Formats have not changed in decades, so the list never goes stale.">どのカメラでも使えます。機種名のリストは持たず、センサーのフォーマット（フルサイズ、Super 35、マイクロフォーサーズなど）を選んで焦点距離を打ち込みます。フォーマットは何十年も変わっていないので、古くなることがありません。</p></details>
+    <details><summary data-en="Where is my plan saved?">図面はどこに保存されますか</summary><p data-en="In the browser on the device you used, and in the share link. If you keep the link, you keep the plan. You can also save it as a file.">使った端末のブラウザの中と、共有リンクの中です。リンクを残しておけば図面も残ります。ファイルとして保存することもできます。</p></details>
+    <details><summary data-en="Can I use my own studio?">自分のスタジオを入れられますか</summary><p data-en="Yes. Type in the dimensions, import a 3D model of it, or bring in a Gaussian-splat scan taken with a phone.">入れられます。寸法を打ち込むか、スタジオの 3D モデルを取り込むか、スマホで撮ったガウシアンスプラットのスキャンを置くかです。</p></details>
+    <details><summary data-en="Does it calculate exposure or light levels?">光量は計算できますか</summary><p data-en="No. Lights show position, direction and spread, which is what a plan needs. It is not a lighting simulator.">できません。ライトが持っているのは位置と向きと広がりで、打合せの図面に要るのはそこまでだと考えています。照明のシミュレーターではありません。</p></details>
+    <details><summary data-en="Is there an English version?">英語で使えますか</summary><p data-en="Yes. The app follows the browser language, and you can force English by adding ?eng to the address.">使えます。ブラウザの言語に合わせて切り替わり、アドレスに ?eng を付けると英語に固定できます。</p></details>
   </section>
+
+  <div class="last">
+    <p data-en="It runs in the browser, so the quickest way to see what it does is to open it.">ブラウザで動くので、開いてみるのがいちばん早いです。</p>
+    <a class="btn primary" href="../" data-en="Open the app — free">使ってみる — 無料</a>
+  </div>
 </main>
 
 <footer><div class="wrap">
@@ -218,7 +214,7 @@ footer .sp{margin-left:auto}
   if (!en) return;
   document.documentElement.lang = 'en';
   document.title = 'About Studio Planner';
-  document.querySelector('meta[name="description"]').content = 'Studio size, blocking and the lens, in your browser, in 30 seconds. No account, no install. A 3D tool for planning shoots, giving you an A4 sheet and a link.';
+  document.querySelector('meta[name="description"]').content = 'A 3D tool for preparing a shoot and talking it through. Type in the studio size, place people and equipment, and see what the camera will get. No account, no install. Print an A4 sheet or send a link.';
   for (const e of document.querySelectorAll('[data-en]')){ if (e.querySelector('[data-en]')) continue; e.textContent = e.dataset.en; }
   for (const e of document.querySelectorAll('[data-en-alt]')) e.alt = e.dataset.enAlt;
   const sw = document.getElementById('langsw'); sw.href = '?lang=ja'; sw.textContent = '日本語';
