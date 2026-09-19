@@ -210,6 +210,8 @@ models/poses.json     11 ポーズぶんの関節位置と手（指の曲げ・�
 tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実験。下の「ポーズ」参照
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
+about/index.html      LP（https://sp.taichi-teramura.com/about/）。1 枚の静的ページ。日本語と英語を data-en で持ち、?eng とブラウザの言語で切替。notes/about.md
+about/img/*.jpg       LP の絵 5 枚。tools/make-about-shots.mjs で焼く（cd test && node ../tools/make-about-shots.mjs）
 test/run.mjs          ヘッドレスブラウザでの確認スクリプト（--only / --quick で部分実行）
 tools/bump.mjs        版を上げる（コロフォンと sw.js の VERSION を同時に）
 docs/notes/*.md       機能ごとのメモ（下の一覧）。規則と同じ効力
@@ -236,6 +238,7 @@ CLAUDE.md には「やってはいけないこと」と、どこに何がある�
 | `docs/notes/share.md` | カット・用紙・共有・書き出し・オフライン — カット、用紙の項目は用紙の画面に置く、共有タブはボタンだけ、3D データ書き出し（GLB）、アンドゥ、QR コード、オフライン、まとめて書き出す（1 枚の HTML） |
 | `docs/notes/tests.md` | テストが確かめていることの一覧 |
 | `docs/notes/pose-research.md` | 写真ポーズ指定の品質を上げるための調査（未実装。指の骨、手の検出、2 枚撮り、3D 復元モデルの現状） |
+| `docs/notes/about.md` | LP（/about/）— 置き場所、中身、絵の焼き方、英語、アプリからのリンク |
 | `docs/notes/ar-research.md` | ロケハン用 AR（現地に人物・車を置く）の調査。見送り。Safari は WebXR の AR 未対応、App Clip 方式、競合アプリの一覧 |
 
 ## テスト

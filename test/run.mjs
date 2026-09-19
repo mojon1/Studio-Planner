@@ -120,7 +120,8 @@ const MIME = {'.html':'text/html; charset=utf-8', '.glb':'model/gltf-binary', '.
 const server = http.createServer((req, res) => {
   let u = req.url.split('?')[0].split('#')[0];   // ?eng のような検索文字列は落とす
   if (u.startsWith('/beta/')) u = u.slice(5);       // /beta/ は本番と同じ物を別の置き場で出す（保存領域が分かれることを見る）
-  const p = path.join(ROOT, u === '/' ? 'index.html' : u);
+  let p = path.join(ROOT, u === '/' ? 'index.html' : u);
+  if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');   // /about/ のような置き場
   if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, {'content-type': MIME[path.extname(p)] || 'text/javascript'});
   res.end(fs.readFileSync(p));
@@ -3831,6 +3832,53 @@ await block('48', `/beta/ は保存領域が本番と分かれる`, async () => 
   ok('the service worker names its caches after its scope and only sweeps its own', /self\.registration\.scope/.test(sw) && /const mine = k =>/.test(sw) && /if \(mine\(k\) && k !== SHELL\)/.test(sw));
   ok('beta runs clean', b.errors.length === 0, b.errors.join(' | '));
   await b.ctx.close();
+});
+
+// --- 49. LP（/about/） ---------------------------------------------------------
+await block('49', `LP（/about/）`, async () => {
+  const JP = /[぀-ヿ一-鿿：、。（）「」・〜]/;
+  const mk = async (url, viewport, locale) => {
+    const ctx = await browser.newContext({ viewport, locale, serviceWorkers: 'block' }); const page = await ctx.newPage(); const errors = [];
+    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+    await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
+    await page.route('https://static.cloudflareinsights.com/**', r => r.fulfill({ body: '', contentType: 'text/javascript' }));
+    await page.route('https://www.youtube-nocookie.com/**', r => r.fulfill({ body: '<html></html>', contentType: 'text/html' }));
+    await page.goto(url); await page.waitForTimeout(800); return { ctx, page, errors };
+  };
+  const a = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
+  ok('the LP opens under /about/ with its own title', /Studio Planner/.test(await a.page.title()) && (await a.page.$eval('html', h => h.lang)) === 'ja', await a.page.title());
+  const imgs = await a.page.$$eval('img', ns => ns.map(i => [i.getAttribute('src'), i.naturalWidth]));
+  ok('every picture on the LP loads (hero, plan, finder, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
+  const links = await a.page.$$eval('a[href="../"]', ns => ns.length);
+  ok('the "open the app" buttons point at the app', links >= 3, String(links));
+  const yt = await a.page.$eval('.video iframe', f => f.getAttribute('src'));
+  ok('the intro video is the same YouTube video as in the app, embedded without cookies', /youtube-nocookie\.com\/embed\/pjHt0Eg4Tx4/.test(yt), yt);
+  ok('the LP carries the visit counter too', (await a.page.$$eval('script[data-cf-beacon]', s => s.length)) === 1);
+  ok('LP runs clean', a.errors.length === 0, a.errors.join(' | '));
+  await a.ctx.close();
+  // 英語: ?eng で日本語が残らない（言語の切替リンクの「日本語」だけは残る）
+  const e = await mk('http://localhost:8765/about/?eng', { width: 1280, height: 900 }, 'ja-JP');
+  const jp = await e.page.evaluate(JP => { const re = new RegExp(JP), out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (w.nextNode()){ const n = w.currentNode; if (n.parentElement.closest('#langsw, script, style')) continue; if (re.test(n.textContent)) out.push(n.textContent.trim().slice(0, 40)); } return out; }, JP.source);
+  ok('with ?eng the LP is English through and through', jp.length === 0 && (await e.page.$eval('html', h => h.lang)) === 'en' && /About/.test(await e.page.title()), jp.join(' | '));
+  ok('and its app links carry ?eng', (await e.page.$$eval('a[href="../?eng"]', ns => ns.length)) >= 3);
+  await e.ctx.close();
+  // 英語のブラウザなら何も付けなくても英語
+  const n = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'en-US');
+  ok('an English browser gets the English LP', (await n.page.$eval('html', h => h.lang)) === 'en');
+  await n.ctx.close();
+  // スマホ幅で横にはみ出さない
+  const m = await mk('http://localhost:8765/about/', { width: 390, height: 800 }, 'ja-JP');
+  const sw = await m.page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+  ok('at phone width nothing overflows sideways', sw[0] <= sw[1], JSON.stringify(sw));
+  await m.ctx.close();
+  // アプリ側から LP へ（共有タブのコロフォンの下）
+  const t = await open('about-link', { width: 1200, height: 800 });
+  await t.tab('share');
+  const al = await t.page.$eval('#aboutlink', a => ({ href: a.getAttribute('href'), text: a.textContent, inCol: !!a.closest('.colophon') }));
+  ok('the app links to the LP from the share tab, outside the colophon line', al.href === 'about/' && al.text === 'Studio Planner について' && !al.inCol, JSON.stringify(al));
+  await t.ctx.close();
 });
 
 await browser.close(); server.close();

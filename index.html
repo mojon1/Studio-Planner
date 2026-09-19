@@ -117,6 +117,8 @@ h2:first-child{margin-top:0}
 .colophon a{color:var(--link);text-decoration:underline;text-underline-offset:2px}
 .colophon a:hover{filter:brightness(1.15)}
 /* 紹介動画（YouTube）。共有タブのいちばん下。ボタン（.btn）ではなくリンクなので、出口の並びには数えない */
+.aboutlink{margin:6px 0 0;font-size:.72rem;text-align:center}
+.aboutlink a{color:var(--link);text-decoration:underline;text-underline-offset:2px}
 .ytlink{display:flex;justify-content:center;margin:14px 0 0;opacity:.8}
 .ytlink svg{width:32px;height:22px;flex:none}
 .ytlink:hover{opacity:1}
@@ -400,7 +402,8 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.44.2 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.45.0 © 2026 Taichi Teramura</a></p>
+        <p class="aboutlink"><a id="aboutlink" href="about/" target="_blank" rel="noopener">Studio Planner について</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
       </div>
     </div>
@@ -576,7 +579,7 @@ const EN = {
   'PDF にする':'Make PDF','PDF に保存':'Save as PDF','PDF資料作成':'PDF sheet','このカットだけ':'This shot only',
   'ソフトボックス':'Softbox','ロックしました':'Locked','共有QRコード':'Share QR code','図の位置を戻す':'Reset views',
   '外部3Dデータ':'External 3D data','URL から取れませんでした。ブラウザが直接取りに行けない（CORS の許可が無い）置き場からは読めません。一度ダウンロードして「外部3Dデータ」から取り込んでください':'Could not fetch the URL. The host must allow direct browser access (CORS). Download the file and import it with “External 3D data” instead','平 15 cm':'Flat 15 cm','横 30 cm':'Side 30 cm','縦 45 cm':'Upright 45 cm',
-  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','紹介動画（YouTube）':'Intro video (YouTube)','このカットを削除':'Delete this shot',
+  '撮影機材と背景':'Gear & backdrops','書き出した画像':'Exported image','HTML書き出し':'Export HTML','紹介動画（YouTube）':'Intro video (YouTube)','Studio Planner について':'About Studio Planner','このカットを削除':'Delete this shot',
   '取り込んだモデル':'Imported model','名前をつけて保存':'Save as','表示を中心に戻す':'Recenter view','○○ CM 30秒':'Project name',
   'この配置を編集する':'Edit this layout','オブジェクトを追加':'Add object','ドラッグで並べ替え':'Drag to reorder',
   'ロックを外しました':'Unlocked','別ウィンドウで開く':'Open in a new window','マイクロフォーサーズ':'Micro Four Thirds',
@@ -779,6 +782,8 @@ const a1 = v => Math.round((+v || 0) * 10) / 10;      // 角度は小数第 1 �
 // 自分の中に持っている。開いた先はたいてい file://（ダブルクリック）なので、
 // **取りに行く先はすべてこの中に向ける**。
 const BUNDLE = window.__SPBUNDLE || null;
+// LP（about/）へのリンク。1 枚の HTML や file:// の中には about/ が無いので、公開先の絶対 URL に
+if (BUNDLE || location.protocol === 'file:') document.getElementById('aboutlink').href = 'https://sp.taichi-teramura.com/about/' + (LANG === 'en' ? '?eng' : '');
 // **共有リンクは必ず Web で開ける URL にする。** まとめて書き出した 1 枚は
 // file:// で開くので、そのまま `location` から組むと `file:///C:/…` のリンクになり、
 // 受け取った人はどうやっても開けない。1 枚を作るときに「作った元の URL」を

@@ -11,6 +11,7 @@ CG スタッフではなく、プロダクションマネージャー・カメ�
 ![Studio Planner](ogp.png)
 
 - 紹介動画（YouTube）: https://youtu.be/pjHt0Eg4Tx4
+- Studio Planner とは（LP）: https://sp.taichi-teramura.com/about/
 - 開発用プレビュー（人物モデルは出ません）: https://claude.ai/code/artifact/85c9a190-9e05-4b34-b66b-d4692507d6f9
 
 ## できること
