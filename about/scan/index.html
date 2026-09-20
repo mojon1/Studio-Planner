@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ロケ地のスキャンを Studio Planner で使う</title>
+<title>ロケ地を3Dスキャンして Studio Planner で使用しよう</title>
 <meta name="description" content="Scaniverseでロケ地をスキャンして、Studio Plannerに読み込むまでの手順。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="ロケ地のスキャンを Studio Planner で使う">
+<meta property="og:title" content="ロケ地を3Dスキャンして Studio Planner で使用しよう">
 <meta property="og:description" content="Scaniverseでスキャンして、Studio Plannerに読み込むまでの手順。">
 <meta property="og:image" content="https://sp.taichi-teramura.com/ogp.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -90,10 +90,11 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 .step{display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:start;padding:36px 0;border-top:1px solid var(--rule)}
 .step .t{max-width:460px}
 .step .t h2{margin-top:6px}
+.step .t h3{font-size:1.02rem;margin:18px 0 4px}
+.hero .shot{box-shadow:0 12px 40px rgba(0,0,0,.18);margin-top:8px}
 .step .t p{font-size:.97rem}
 .step .shot{max-width:420px;justify-self:center}
 .step .shot img{width:100%}
-.step .shot.phone{max-width:300px}
 .stores{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
 .stores a{display:inline-block;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-size:.95rem}
 .hint{background:var(--accent-bg);color:var(--accent-ink);border-radius:14px;padding:18px 22px;margin:8px 0 24px}
@@ -119,14 +120,16 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 <main class="wrap">
   <div class="hero">
     <p class="back"><a href="../" data-en="&larr; About Studio Planner">&larr; Studio Plannerについて</a></p>
-    <h1 data-en="Use a scan of the location in Studio Planner.">ロケ地のスキャンを、Studio Plannerで使う。</h1>
-    <p class="lead" data-en="How to scan a location with Scaniverse and open it in Studio Planner.">Scaniverseでロケ地をスキャンして、Studio Plannerに読み込むまでの手順です。</p>
+    <h1 data-en="Scan the location in 3D and use it in Studio Planner.">ロケ地を3DスキャンしてStudioPlannerで使用しよう。</h1>
+    <div class="shot"><img src="../img/scanning.jpg" width="1448" height="1086" alt="スマホで洋館をスキャンしているところ" data-en-alt="Scanning a house with a phone"></div>
   </div>
 
   <section class="step">
     <div class="t">
       <h2 data-en="What is Scaniverse?">Scaniverseとは</h2>
-      <p data-en="A free 3D scanning app by Niantic. It scans with just your phone; no extra hardware is needed.">Nianticの無料の3Dスキャンアプリです。スマホだけでスキャンできます。</p>
+      <p data-en="A popular 3D scanning app that is free to use.">無料で使用できる人気の3Dスキャンアプリ。</p>
+      <p data-en="With just a phone you can scan the shape of a room or a place and save it.">スマホだけで部屋などの形状を手軽に3Dスキャンして保存できます。</p>
+      <p data-en="Studio Planner loads the 3D data scanned with Scaniverse as it is, so you can check the layout plan inside it.">StudioPlannerではScaniverseでスキャンした3Dデータをそのまま取り込んで、レイアウトプランを確認する事が可能です。</p>
       <div class="stores">
         <a href="https://apps.apple.com/jp/app/scaniverse-3d-scanner/id1541433223" target="_blank" rel="noopener">App Store</a>
         <a href="https://play.google.com/store/apps/details?id=com.nianticlabs.scaniverse" target="_blank" rel="noopener">Google Play</a>
@@ -137,35 +140,25 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 
   <section class="step">
     <div class="t">
-      <h2 data-en="1. Choose the &ldquo;Splat&rdquo; scan mode">1. スキャンモードは「Splat」</h2>
-      <p data-en="When you start a scan in Scaniverse, pick &ldquo;Splat&rdquo; as the mode, not &ldquo;Mesh&rdquo;.">Scaniverseでスキャンを始めるとき、モードは「メッシュ」ではなく「Splat」を選びます。</p>
-    </div>
-    <div class="shot"><img src="img/mode.jpg" width="1179" height="1060" alt="Scaniverse のスキャンモード。Splat とメッシュ" data-en-alt="Scaniverse scan modes: Splat and Mesh"></div>
-  </section>
-
-  <section class="step">
-    <div class="t">
-      <h2 data-en="2. Save the scan to your phone">2. スキャンをスマホに保存</h2>
+      <h2 data-en="Step 1: Scan the location with Scaniverse.">Step1：Scaniverseでロケ地をスキャン。</h2>
+      <h3 data-en="Choose the &ldquo;Splat&rdquo; scan mode">スキャンモードは「Splat」</h3>
+      <p data-en="When you start a scan, pick &ldquo;Splat&rdquo; as the mode, not &ldquo;Mesh&rdquo;.">スキャンを始めるとき、モードは「メッシュ」ではなく「Splat」を選びます。</p>
+      <h3 data-en="Save the scan to your phone">スキャンをスマホに保存</h3>
       <p data-en="When the scan is done, open Share, then Export model, then SPZ.">スキャンが終わったら、「共有」→「モデルのエクスポート」→「SPZ」。</p>
       <p data-en="Save it on the phone itself (in the Files app).">保存先は、スマホ本体（ファイルApp）にします。</p>
     </div>
-    <div class="shot"><img src="img/share.jpg" width="1179" height="1257" alt="Scaniverse の共有メニュー。モデルのエクスポート" data-en-alt="Scaniverse share menu with Export model"><img src="img/export.jpg" width="1179" height="1253" alt="モデルのエクスポート。SPZ と PLY" data-en-alt="Export model: SPZ and PLY" style="margin-top:14px"></div>
+    <div class="shot"><img src="img/mode.jpg" width="1179" height="1060" alt="Scaniverse のスキャンモード。Splat とメッシュ" data-en-alt="Scaniverse scan modes: Splat and Mesh"><img src="img/share.jpg" width="1179" height="1257" alt="Scaniverse の共有メニュー。モデルのエクスポート" data-en-alt="Scaniverse share menu with Export model" style="margin-top:14px"><img src="img/export.jpg" width="1179" height="1253" alt="モデルのエクスポート。SPZ と PLY" data-en-alt="Export model: SPZ and PLY" style="margin-top:14px"></div>
   </section>
 
   <section class="step">
     <div class="t">
-      <h2 data-en="3. Open it in Studio Planner">3. Studio Plannerで読み込む</h2>
+      <h2 data-en="Step 2: Load it into Studio Planner and use it.">Step2：StudioPlannerで取り込んで使う。</h2>
+      <h3 data-en="Load the SPZ file">SPZファイルを読み込む</h3>
       <p data-en="Tap &ldquo;+&rdquo;, then &ldquo;External 3D data&rdquo;, and choose the SPZ file you saved.">「＋」→「外部3Dデータ」から、保存したSPZファイルを選びます。</p>
-    </div>
-    <div class="shot phone"><img src="img/import.jpg" width="900" height="1952" alt="Studio Planner のオブジェクトを追加。外部3Dデータ" data-en-alt="Studio Planner's add-object list with External 3D data"></div>
-  </section>
-
-  <section class="step">
-    <div class="t">
-      <h2 data-en="4. Line up the scan">4. 位置を合わせる</h2>
+      <h3 data-en="Line up the scan">位置を合わせる</h3>
       <p data-en="Adjust the position and direction of the scan you loaded. Then place people, cars and cameras inside it.">読み込んだスキャンの位置と向きを調整します。あとは人物や車、カメラを置くだけです。</p>
     </div>
-    <div class="shot"><img src="../img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location"></div>
+    <div class="shot"><img src="img/import.jpg" width="900" height="1952" alt="Studio Planner のオブジェクトを追加。外部3Dデータ" data-en-alt="Studio Planner's add-object list with External 3D data" style="max-width:300px;margin:0 auto;display:block"><img src="../img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location" style="margin-top:14px"></div>
   </section>
 
   <div class="hint">
@@ -189,7 +182,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
   const en = q.has('eng') || lang === 'en' || (lang !== 'ja' && !(navigator.language || '').toLowerCase().startsWith('ja'));
   if (!en) return;
   document.documentElement.lang = 'en';
-  document.title = 'Use a location scan in Studio Planner';
+  document.title = 'Scan the location in 3D and use it in Studio Planner';
   document.querySelector('meta[name="description"]').content = 'How to scan a location with Scaniverse and open it in Studio Planner.';
   for (const e of document.querySelectorAll('[data-en]')){ if (e.querySelector('[data-en]')) continue; e.textContent = e.dataset.en; }
   for (const e of document.querySelectorAll('[data-en-alt]')) e.alt = e.dataset.enAlt;

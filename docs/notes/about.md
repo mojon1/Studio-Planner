@@ -52,9 +52,13 @@ QR が全部指しているので動かせない。同じリポジトリなの�
 
 寺村さんの指示。「ロケ地も、持ち帰って検討。」の本文の下に「詳しく見る →」（`a[href="scan/"]`、`?eng` のときは `scan/?eng`）。
 `about/scan/index.html` は LP と同じ `<head>`（色・書体・beacon・英語の仕組み）で、中身は
-Scaniverse の説明（Niantic の無料アプリ、スマホだけ）と App Store / Google Play / 公式サイトへのリンク →
-1. スキャンモードは「Splat」 → 2. 共有 → モデルのエクスポート → SPZ、保存先はスマホ本体 → 3. Studio Planner の
-「＋」→「外部3Dデータ」→ 4. 位置を合わせる → ヒント（Scaniverse のトリミングで要る部分だけにしてから書き出す）→ ボタン。
+題「ロケ地を3DスキャンしてStudioPlannerで使用しよう。」→ LP のスキャン風景の写真（`../img/scanning.jpg`）→
+Scaniverse の説明（寺村さんの 3 行）と App Store / Google Play / 公式サイトへのリンク →
+**Step1：Scaniverseでロケ地をスキャン。**（モードは Splat、共有 → モデルのエクスポート → SPZ、保存先はスマホ本体）→
+**Step2：StudioPlannerで取り込んで使う。**（「＋」→「外部3Dデータ」、位置を合わせる）→
+ヒント（Scaniverse のトリミングで要る部分だけにしてから書き出す）→ ボタン（v1.45.12、寺村さんの構成）。
 絵は `about/scan/img/`（mode / share / export = Scaniverse の画面、寺村さんの実物。import = アプリの「オブジェクトを追加」）と `../img/scan.jpg`。文は寺村さんの箇条書きをそのまま短い文にした。
 **ストアのリンク（`id1541433223`、`com.nianticlabs.scaniverse`）はこの環境からは開けず未確認。** 寺村さんに実機で踏んでもらう。
+**ストアの公式バナー画像**（App Store の「App Storeからダウンロード」、Google Play の「Google Play で手に入れよう」）は
+この環境から取れないので、今は文字のボタン。寺村さんから画像が届いたら `about/scan/img/` に置いて差し替える。
 ブロック 49 が、LP からのリンク・絵・ストアと戻りのリンク・`?eng` で日本語が残らないことを見ている。
