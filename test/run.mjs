@@ -3850,7 +3850,7 @@ await block('49', `LP（/about/）`, async () => {
   const a = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
   ok('the LP opens under /about/ with its own title', /Studio Planner/.test(await a.page.title()) && (await a.page.$eval('html', h => h.lang)) === 'ja', await a.page.title());
   const imgs = await a.page.$$eval('img', ns => ns.map(i => [i.getAttribute('src'), i.naturalWidth]));
-  ok('every picture on the LP loads (plan, backdrop, led, meeting, lights, pose, scan, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
+  ok('every picture on the LP loads (plan, backdrop, led, meeting, props, pose, scan, scanning, sheet, pc, tablet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
   const links = await a.page.$$eval('a[href="../"]', ns => ns.length);
   ok('exactly the two orange "open the app" buttons point at the app (no header / footer link)', links === 2, String(links));
   ok('both buttons carry the "(completely free)" note', await a.page.$$eval('a[href="../"] small', ns => ns.length === 2 && ns.every(n => n.textContent.includes('無料'))));

@@ -72,15 +72,14 @@ section p{color:var(--ink2)}
 section p:last-child{margin-bottom:0}
 .feature{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
 .feature.flip .shot{order:-1}
-.slides{position:relative;aspect-ratio:1600/1080}
+.slides{position:relative;aspect-ratio:var(--ar,1600/1080)}
 .slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .9s ease}
 .slides img.on{opacity:1}
 .feature .t{max-width:460px}
 .feature .t p{font-size:.97rem}
-.mobile .shot{max-width:300px;margin:0 auto}
 .last{text-align:center;padding:24px 0 40px}
 footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:8px}
-footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
+footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:center;text-align:center}
 @media (max-width:760px){
   .feature{grid-template-columns:1fr;gap:18px}
   .feature .shot,.feature.flip .shot{order:-1}
@@ -146,7 +145,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
       <p data-en="Change a person's height and pose, and place lights, stands, cars and props.">人物の身長やポーズを変更したり、ライト、スタンド、車、小道具などを配置できます。</p>
       <p data-en="GLB and FBX 3D models can be brought in as well.">GLB / FBX形式の3Dモデルにも対応しています。</p>
     </div>
-    <div class="shot"><img src="img/lights.jpg" width="1200" height="800" alt="3D の画面。人物と車とライトを置いたところ" data-en-alt="The 3D view with people, a car and lights"></div>
+    <div class="shot"><img src="img/props.jpg" width="1600" height="1038" alt="3D の画面。人物 8 人と車、背景布、LED ディスプレイ、イントレ、テーブル、椅子、箱馬を置いたところ" data-en-alt="The 3D view with eight people, a car, a backdrop, an LED display, scaffolding, tables, a chair and apple boxes"></div>
   </section>
 
   <section class="feature flip">
@@ -164,7 +163,10 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
       <p data-en="Load a location scanned with Scaniverse or similar and plan the shoot inside it.">Scaniverseなどでスキャンしたロケ地を読み込み、その中で撮影プランを検討できます。</p>
       <p data-en="After the scout, try camera positions and lenses and look for the angle.">ロケハン後に、カメラ位置やレンズを変えながらアングルを探すこともできます。</p>
     </div>
-    <div class="shot"><img src="img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location"></div>
+    <div class="shot slides">
+      <img src="img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location">
+      <img src="img/scanning.jpg" width="1448" height="1086" alt="スマホで洋館をスキャンしているところ" data-en-alt="Scanning a house with a phone">
+    </div>
   </section>
 
   <section class="feature flip">
@@ -176,13 +178,17 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
     <div class="shot light"><img src="img/sheet.jpg" width="1600" height="1263" alt="A4 の資料。図面とカメラ画角" data-en-alt="The A4 sheet with the floor plan and the camera's view"></div>
   </section>
 
-  <section class="feature mobile">
+  <section class="feature">
     <div class="t">
       <h2 data-en="On a PC, a tablet or a phone.">PCでも、タブレットでも、スマートフォンでも。</h2>
       <p data-en="Studio Planner runs as it is on a PC, a tablet or a phone.">Studio Plannerは、PC・タブレット・スマートフォンからそのまま使えます。</p>
       <p data-en="Nothing to install, no account needed.">インストールもアカウントも不要です。</p>
     </div>
-    <div class="shot"><img src="img/mobile.jpg" width="780" height="1400" alt="スマートフォンでの表示" data-en-alt="Studio Planner on a phone"></div>
+    <div class="shot slides" style="--ar:4/3">
+      <img src="img/pc.jpg" width="1448" height="1086" alt="ノート PC で Studio Planner を開いているところ" data-en-alt="Studio Planner on a laptop">
+      <img src="img/tablet.jpg" width="1448" height="1086" alt="タブレットで Studio Planner を開いているところ" data-en-alt="Studio Planner on a tablet">
+      <img src="img/phone.jpg" width="1448" height="1086" alt="スマートフォンで Studio Planner を開いているところ" data-en-alt="Studio Planner on a phone">
+    </div>
   </section>
 
   <div class="last">

@@ -1,6 +1,6 @@
 // about/img/*.jpg（LP の絵）をヘッドレスで焼く。   cd test && node ../tools/make-about-shots.mjs
-// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ライト・スマホの 3 枚。
-// meeting / sheet / scan / pose / backdrop / led の 6 枚は寺村さんが用意した実物で、この道具は触らない。
+// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面（plan.jpg）の 1 枚だけ。
+// meeting / sheet / scan / scanning / pose / props / backdrop / led / pc / tablet / phone の 11 枚は寺村さんが用意した実物で、この道具は触らない。
 // 人物モデルは models/ から読むので HTTP で配る（file:// では動かない）。
 import { chromium } from 'playwright';
 import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http';
@@ -61,24 +61,7 @@ await p.evaluate(() => { const sp = window.__sp; sp.rebuild(); sp.select(null); 
 await view(p, 'pers'); await settle(p, 2500);
 await p.addStyleTag({ content: '#addfab,#pip{visibility:hidden!important}' });   // + と小窓は絵に入れない
 await view(p, 'plan'); await clipShot(p, 'plan.jpg', 1200, 800);
-// ライトの絵: 3D で寄って、光と影が主役になる角度
-await view(p, 'pers'); await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(18); if (sp.orbit) { sp.orbit.theta = 0.9; sp.orbit.phi = 0.55; sp.orbit.radius = 7; } sp.render(); }); await settle(p, 2500);
-await clipShot(p, 'lights.jpg', 1200, 800);
 // 用紙（sheet.jpg）は寺村さんの実物のスクリーンショット。ここでは焼かない（上書きしないこと）
 await ctx.close();
 
-// --- スマホ（iPhone くらい） ---
-const m = await br.newContext({ viewport: { width: 390, height: 700 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block', locale: 'ja-JP',
-  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
-const q = await m.newPage(); await route(q);
-q.on('pageerror', e => console.log('PAGEERROR', e.message));
-await q.goto('http://localhost:8790/'); await q.waitForTimeout(1500);
-await q.evaluate(() => { const sp = window.__sp; sp.select(sp.state().items.find(i => i.type === 'person')?.id); });
-await q.waitForFunction(() => !!window.__sp.poses(), null, { timeout: 15000 }).catch(() => {});
-await q.evaluate(compose);
-await q.waitForFunction(loaded, null, { timeout: 90000 });
-await q.evaluate(() => { const sp = window.__sp; sp.rebuild(); sp.select(null); });
-await view(q, 'pers'); await settle(q, 2500);
-{ const buf = await q.screenshot({ type: 'jpeg', quality: 84 }); fs.writeFileSync(path.join(OUT, 'mobile.jpg'), buf); console.log('mobile.jpg', (buf.length / 1024).toFixed(0) + ' KB'); }
-await m.close();
 await br.close(); srv.close();
