@@ -93,8 +93,9 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 .step .t h3{font-size:1.02rem;margin:18px 0 4px}
 .hero .shot{box-shadow:0 12px 40px rgba(0,0,0,.18);margin-top:8px}
 .step .t p{font-size:.97rem}
-.step .shot{max-width:420px;justify-self:center}
+.step .shots{display:grid;gap:14px;width:100%;max-width:420px;justify-self:center}
 .step .shot img{width:100%}
+.step .shot.phone{max-width:300px;margin:0 auto;width:100%}
 .stores{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
 .stores a{display:inline-block;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-size:.95rem}
 .hint{background:var(--accent-bg);color:var(--accent-ink);border-radius:14px;padding:18px 22px;margin:8px 0 24px}
@@ -103,7 +104,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 .back{margin:0 0 6px;font-size:.92rem}
 @media (max-width:760px){
   .step{grid-template-columns:1fr;gap:16px;padding:28px 0}
-  .step .shot{order:-1}
+  .step .shots{order:-1}
   .step .t{max-width:none}
 }
 </style>
@@ -147,7 +148,11 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
       <p data-en="When the scan is done, open Share, then Export model, then SPZ.">スキャンが終わったら、「共有」→「モデルのエクスポート」→「SPZ」。</p>
       <p data-en="Save it on the phone itself (in the Files app).">保存先は、スマホ本体（ファイルApp）にします。</p>
     </div>
-    <div class="shot"><img src="img/mode.jpg" width="1179" height="1060" alt="Scaniverse のスキャンモード。Splat とメッシュ" data-en-alt="Scaniverse scan modes: Splat and Mesh"><img src="img/share.jpg" width="1179" height="1257" alt="Scaniverse の共有メニュー。モデルのエクスポート" data-en-alt="Scaniverse share menu with Export model" style="margin-top:14px"><img src="img/export.jpg" width="1179" height="1253" alt="モデルのエクスポート。SPZ と PLY" data-en-alt="Export model: SPZ and PLY" style="margin-top:14px"></div>
+    <div class="shots">
+      <div class="shot"><img src="img/mode.jpg" width="1179" height="1060" alt="Scaniverse のスキャンモード。Splat とメッシュ" data-en-alt="Scaniverse scan modes: Splat and Mesh"></div>
+      <div class="shot"><img src="img/share.jpg" width="1179" height="1257" alt="Scaniverse の共有メニュー。モデルのエクスポート" data-en-alt="Scaniverse share menu with Export model"></div>
+      <div class="shot"><img src="img/export.jpg" width="1179" height="1253" alt="モデルのエクスポート。SPZ と PLY" data-en-alt="Export model: SPZ and PLY"></div>
+    </div>
   </section>
 
   <section class="step">
@@ -158,7 +163,10 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
       <h3 data-en="Line up the scan">位置を合わせる</h3>
       <p data-en="Adjust the position and direction of the scan you loaded. Then place people, cars and cameras inside it.">読み込んだスキャンの位置と向きを調整します。あとは人物や車、カメラを置くだけです。</p>
     </div>
-    <div class="shot"><img src="img/import.jpg" width="900" height="1952" alt="Studio Planner のオブジェクトを追加。外部3Dデータ" data-en-alt="Studio Planner's add-object list with External 3D data" style="max-width:300px;margin:0 auto;display:block"><img src="../img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location" style="margin-top:14px"></div>
+    <div class="shots">
+      <div class="shot phone"><img src="img/import.jpg" width="900" height="1952" alt="Studio Planner のオブジェクトを追加。外部3Dデータ" data-en-alt="Studio Planner's add-object list with External 3D data"></div>
+      <div class="shot"><img src="../img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location"></div>
+    </div>
   </section>
 
   <div class="hint">
