@@ -3880,6 +3880,20 @@ await block('49', `LP（/about/）`, async () => {
   const sw = await m.page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
   ok('at phone width nothing overflows sideways', sw[0] <= sw[1], JSON.stringify(sw));
   await m.ctx.close();
+  // 「詳しく見る」→ /about/scan/（Scaniverse の手順）
+  const lp2 = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
+  ok('the location section links to the scan how-to', await lp2.page.$$eval('a[href="scan/"]', ns => ns.length) === 1);
+  await lp2.ctx.close();
+  const sc = await mk('http://localhost:8765/about/scan/', { width: 1280, height: 900 }, 'ja-JP');
+  const scImgs = await sc.page.$$eval('img', ims => ims.map(i => [i.getAttribute('src'), i.naturalWidth]));
+  ok('the scan how-to opens with all its pictures (mode, share, export, import, scan)', scImgs.length >= 6 && scImgs.every(([, w]) => w > 0), JSON.stringify(scImgs));
+  ok('the scan how-to links to the app stores and back to the LP', await sc.page.$$eval('a', as => as.some(x => x.href.includes('apps.apple.com')) && as.some(x => x.href.includes('play.google.com')) && as.some(x => x.getAttribute('href') === '../') && as.filter(x => x.getAttribute('href') === '../../').length === 1));
+  await sc.ctx.close();
+  const sce = await mk('http://localhost:8765/about/scan/?eng', { width: 1280, height: 900 }, 'ja-JP');
+  const scJa = await sce.page.evaluate(() => { const t = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())){ if (n.parentElement.closest('#langsw, script, style')) continue; if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.textContent)) t.push(n.textContent.trim()); } return t; });
+  ok('with ?eng the scan how-to is English through and through', scJa.length === 0, JSON.stringify(scJa));
+  ok('and its links carry ?eng', await sce.page.$$eval('a[href="../../?eng"], a[href="../?eng"]', ns => ns.length) === 2);
+  await sce.ctx.close();
   // アプリ側から LP へ（共有タブのコロフォンの下）
   const t = await open('about-link', { width: 1200, height: 800 });
   await t.tab('share');

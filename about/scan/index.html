@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ロケ地のスキャンを Studio Planner で使う</title>
+<meta name="description" content="Scaniverseでロケ地をスキャンして、Studio Plannerに読み込むまでの手順。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ロケ地のスキャンを Studio Planner で使う">
+<meta property="og:description" content="Scaniverseでスキャンして、Studio Plannerに読み込むまでの手順。">
+<meta property="og:image" content="https://sp.taichi-teramura.com/ogp.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" sizes="32x32" href="../../favicon-32.png">
+<link rel="apple-touch-icon" href="../../icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<!-- 訪問数だけの計測（アプリと同じ Cloudflare Web Analytics。Cookie なし）。path が /about/scan/ になる -->
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "ab4721b8950d4323b684b77eca30274e"}'></script><!-- End Cloudflare Web Analytics -->
+<style>
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --ink:#1d2027; --ink2:#4d5364; --muted:#858c9c; --rule:#d8dbe2;
+  --accent:#c2711f; --accent-bg:#fbeedd; --accent-ink:#8f5010; --link:#2a62c9; --viewport:#2a2d34;
+  --btn-on:#1d2027; --btn-on-ink:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171b; --panel:#1f2228; --ink:#eceef2; --ink2:#c0c5cf; --muted:#858c9c; --rule:#353942;
+    --accent:#e29a44; --accent-bg:#3a2a17; --accent-ink:#f2b76b; --link:#7fb0ff; --viewport:#0f1114;
+    --btn-on:#eceef2; --btn-on-ink:#15171b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171b; --panel:#1f2228; --ink:#eceef2; --ink2:#c0c5cf; --muted:#858c9c; --rule:#353942;
+  --accent:#e29a44; --accent-bg:#3a2a17; --accent-ink:#f2b76b; --link:#7fb0ff; --viewport:#0f1114;
+  --btn-on:#eceef2; --btn-on-ink:#15171b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.85;font-size:16px;-webkit-text-size-adjust:100%}
+a{color:var(--link)}
+img{max-width:100%;height:auto;display:block}
+p{margin:0 0 1em}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+header .wrap{display:flex;align-items:center;gap:12px;height:56px}
+header img{width:28px;height:28px;border-radius:7px}
+header .name{font-weight:700;letter-spacing:.01em}
+header nav{margin-left:auto;display:flex;gap:6px;align-items:center}
+header nav a{text-decoration:none;color:var(--ink2);font-size:.9rem;padding:6px 10px;border-radius:8px}
+header nav a:hover{background:var(--panel)}
+.hero{padding:48px 0 12px}
+.hero h1{font-size:clamp(1.6rem,3.8vw,2.4rem);line-height:1.4;margin:0 0 16px;letter-spacing:-.01em}
+.hero p.lead{font-size:1.05rem;color:var(--ink2);max-width:680px;margin:0 0 8px}
+.hero p.lead + .cta{margin-top:22px}
+.cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 28px}
+.btn{display:inline-block;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;text-align:center}
+.btn small{display:block;font-size:.72rem;font-weight:500;opacity:.9;margin-top:2px;line-height:1.3}
+.btn.primary:hover{filter:brightness(1.06)}
+.hero .shot{box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.hero .cap{max-width:680px;margin-top:22px}
+.hero .cap h2{font-size:1.4rem;margin:0 0 10px;letter-spacing:-.01em;line-height:1.4}
+.hero .cap p{color:var(--ink2)}
+.hero .cap p:last-child{margin-bottom:0}
+.videosec{padding-top:8px}
+.video{aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.video iframe{width:100%;height:100%;border:0;display:block}
+.shot{border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.18);background:var(--viewport);border:1px solid var(--rule)}
+.shot.light{background:var(--panel)}
+section{padding:40px 0}
+section h2{font-size:1.4rem;margin:0 0 12px;letter-spacing:-.01em;line-height:1.4}
+section p{color:var(--ink2)}
+section p:last-child{margin-bottom:0}
+.feature{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
+.feature.flip .shot{order:-1}
+.slides{position:relative;aspect-ratio:var(--ar,1600/1080)}
+.slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .9s ease}
+.slides img.on{opacity:1}
+.feature .t{max-width:460px}
+.feature .t p{font-size:.97rem}
+.last{text-align:center;padding:24px 0 40px}
+footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:8px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:center;text-align:center}
+@media (max-width:760px){
+  .feature{grid-template-columns:1fr;gap:18px}
+  .feature .shot,.feature.flip .shot{order:-1}
+  .feature .t{max-width:none}
+  .hero{padding:32px 0 8px}
+  section{padding:32px 0}
+}
+.step{display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:start;padding:36px 0;border-top:1px solid var(--rule)}
+.step .t{max-width:460px}
+.step .t h2{margin-top:6px}
+.step .t p{font-size:.97rem}
+.step .shot{max-width:420px;justify-self:center}
+.step .shot img{width:100%}
+.step .shot.phone{max-width:300px}
+.stores{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
+.stores a{display:inline-block;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-size:.95rem}
+.hint{background:var(--accent-bg);color:var(--accent-ink);border-radius:14px;padding:18px 22px;margin:8px 0 24px}
+.hint h2{font-size:1.1rem;margin:0 0 6px;color:var(--accent-ink)}
+.hint p{color:var(--accent-ink);margin:0}
+.back{margin:0 0 6px;font-size:.92rem}
+@media (max-width:760px){
+  .step{grid-template-columns:1fr;gap:16px;padding:28px 0}
+  .step .shot{order:-1}
+  .step .t{max-width:none}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <img src="../../icon-192.png" alt="" width="28" height="28">
+  <span class="name">Studio Planner</span>
+  <nav>
+    <a id="langsw" href="?eng" data-en="日本語">English</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <div class="hero">
+    <p class="back"><a href="../" data-en="&larr; About Studio Planner">&larr; Studio Plannerについて</a></p>
+    <h1 data-en="Use a scan of the location in Studio Planner.">ロケ地のスキャンを、Studio Plannerで使う。</h1>
+    <p class="lead" data-en="How to scan a location with Scaniverse and open it in Studio Planner.">Scaniverseでロケ地をスキャンして、Studio Plannerに読み込むまでの手順です。</p>
+  </div>
+
+  <section class="step">
+    <div class="t">
+      <h2 data-en="What is Scaniverse?">Scaniverseとは</h2>
+      <p data-en="A free 3D scanning app by Niantic. It scans with just your phone; no extra hardware is needed.">Nianticの無料の3Dスキャンアプリです。スマホだけでスキャンできます。</p>
+      <div class="stores">
+        <a href="https://apps.apple.com/jp/app/scaniverse-3d-scanner/id1541433223" target="_blank" rel="noopener">App Store</a>
+        <a href="https://play.google.com/store/apps/details?id=com.nianticlabs.scaniverse" target="_blank" rel="noopener">Google Play</a>
+        <a href="https://scaniverse.com/" target="_blank" rel="noopener" data-en="Official site">公式サイト</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="t">
+      <h2 data-en="1. Choose the &ldquo;Splat&rdquo; scan mode">1. スキャンモードは「Splat」</h2>
+      <p data-en="When you start a scan in Scaniverse, pick &ldquo;Splat&rdquo; as the mode, not &ldquo;Mesh&rdquo;.">Scaniverseでスキャンを始めるとき、モードは「メッシュ」ではなく「Splat」を選びます。</p>
+    </div>
+    <div class="shot"><img src="img/mode.jpg" width="1179" height="1060" alt="Scaniverse のスキャンモード。Splat とメッシュ" data-en-alt="Scaniverse scan modes: Splat and Mesh"></div>
+  </section>
+
+  <section class="step">
+    <div class="t">
+      <h2 data-en="2. Save the scan to your phone">2. スキャンをスマホに保存</h2>
+      <p data-en="When the scan is done, open Share, then Export model, then SPZ.">スキャンが終わったら、「共有」→「モデルのエクスポート」→「SPZ」。</p>
+      <p data-en="Save it on the phone itself (in the Files app).">保存先は、スマホ本体（ファイルApp）にします。</p>
+    </div>
+    <div class="shot"><img src="img/share.jpg" width="1179" height="1257" alt="Scaniverse の共有メニュー。モデルのエクスポート" data-en-alt="Scaniverse share menu with Export model"><img src="img/export.jpg" width="1179" height="1253" alt="モデルのエクスポート。SPZ と PLY" data-en-alt="Export model: SPZ and PLY" style="margin-top:14px"></div>
+  </section>
+
+  <section class="step">
+    <div class="t">
+      <h2 data-en="3. Open it in Studio Planner">3. Studio Plannerで読み込む</h2>
+      <p data-en="Tap &ldquo;+&rdquo;, then &ldquo;External 3D data&rdquo;, and choose the SPZ file you saved.">「＋」→「外部3Dデータ」から、保存したSPZファイルを選びます。</p>
+    </div>
+    <div class="shot phone"><img src="img/import.jpg" width="900" height="1952" alt="Studio Planner のオブジェクトを追加。外部3Dデータ" data-en-alt="Studio Planner's add-object list with External 3D data"></div>
+  </section>
+
+  <section class="step">
+    <div class="t">
+      <h2 data-en="4. Line up the scan">4. 位置を合わせる</h2>
+      <p data-en="Adjust the position and direction of the scan you loaded. Then place people, cars and cameras inside it.">読み込んだスキャンの位置と向きを調整します。あとは人物や車、カメラを置くだけです。</p>
+    </div>
+    <div class="shot"><img src="../img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location"></div>
+  </section>
+
+  <div class="hint">
+    <h2 data-en="Tip">ヒント</h2>
+    <p data-en="Use Scaniverse's crop tool to trim the scan down to the part you need before exporting. Lining it up in Studio Planner gets much easier.">スキャンデータは、Scaniverseのトリミング機能で必要な部分だけに切り取ってから書き出すと、Studio Plannerでの位置調整が楽になります。</p>
+  </div>
+
+  <div class="last">
+    <a class="btn primary" href="../../"><span data-en="Open Studio Planner">Studio Plannerを使う</span><small data-en="(completely free)">（完全無料）</small></a>
+  </div>
+</main>
+
+<footer><div class="wrap">
+  <span>Studio Planner © 2026 <a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">Taichi Teramura</a></span>
+</div></footer>
+
+<script>
+// 英語表示は LP と同じ流儀
+(() => {
+  const q = new URLSearchParams(location.search), lang = q.get('lang');
+  const en = q.has('eng') || lang === 'en' || (lang !== 'ja' && !(navigator.language || '').toLowerCase().startsWith('ja'));
+  if (!en) return;
+  document.documentElement.lang = 'en';
+  document.title = 'Use a location scan in Studio Planner';
+  document.querySelector('meta[name="description"]').content = 'How to scan a location with Scaniverse and open it in Studio Planner.';
+  for (const e of document.querySelectorAll('[data-en]')){ if (e.querySelector('[data-en]')) continue; e.textContent = e.dataset.en; }
+  for (const e of document.querySelectorAll('[data-en-alt]')) e.alt = e.dataset.enAlt;
+  const sw = document.getElementById('langsw'); sw.href = '?lang=ja'; sw.textContent = '日本語';
+  for (const a of document.querySelectorAll('a[href="../../"]')) a.href = '../../?eng';
+  for (const a of document.querySelectorAll('a[href="../"]')) a.href = '../?eng';
+})();
+</script>
+</body>
+</html>

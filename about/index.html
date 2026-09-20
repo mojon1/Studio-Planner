@@ -77,6 +77,9 @@ section p:last-child{margin-bottom:0}
 .slides img.on{opacity:1}
 .feature .t{max-width:460px}
 .feature .t p{font-size:.97rem}
+.feature .t p.more{margin-top:-4px}
+.feature .t p.more a{font-weight:700;text-decoration:none}
+.feature .t p.more a:hover{text-decoration:underline}
 .last{text-align:center;padding:24px 0 40px}
 footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:8px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:center;text-align:center}
@@ -162,6 +165,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
       <h2 data-en="Bring the location home.">ロケ地も、持ち帰って検討。</h2>
       <p data-en="Load a location scanned with Scaniverse or similar and plan the shoot inside it.">Scaniverseなどでスキャンしたロケ地を読み込み、その中で撮影プランを検討できます。</p>
       <p data-en="After the scout, try camera positions and lenses and look for the angle.">ロケハン後に、カメラ位置やレンズを変えながらアングルを探すこともできます。</p>
+      <p class="more"><a href="scan/" data-en="How to scan a location &rarr;">詳しく見る &rarr;</a></p>
     </div>
     <div class="shot slides">
       <img src="img/scan.jpg" width="1600" height="1038" alt="スキャンしたロケ地の中に車と人物とカメラを置いた画面" data-en-alt="A car, a person and a camera placed inside a scanned location">
@@ -219,6 +223,7 @@ for (const box of document.querySelectorAll('.slides')){
   const sw = document.getElementById('langsw'); sw.href = '?lang=ja'; sw.textContent = '日本語';
   document.querySelector('.video iframe').title = 'Studio Planner intro video';
   for (const a of document.querySelectorAll('a[href="../"]')) a.href = '../?eng';
+  for (const a of document.querySelectorAll('a[href="scan/"]')) a.href = 'scan/?eng';
 })();
 </script>
 </body>

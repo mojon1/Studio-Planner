@@ -211,6 +211,7 @@ tools/retarget-prototype.mjs  別リグのポーズを Tripo リグへ移す実�
 docs/pose-check/      その結果の絵と、元にした FBX
 README.md             使い方と公開方法
 about/index.html      LP（https://sp.taichi-teramura.com/about/）。1 枚の静的ページ。日本語と英語を data-en で持ち、?eng とブラウザの言語で切替。notes/about.md
+about/scan/index.html ロケ地のスキャンの手順（Scaniverse → SPZ → 外部3Dデータ）。LP の「詳しく見る」から。絵は about/scan/img/
 about/img/*.jpg       LP の絵 12 枚。plan.jpg だけ tools/make-about-shots.mjs で焼く（cd test && node ../tools/make-about-shots.mjs）。
                       残り 11 枚は寺村さんの実物で、道具は触らない。**LP だけの直しは全体テストを回さず、ブロック 49 と 28d だけ**（notes/about.md）
 test/run.mjs          ヘッドレスブラウザでの確認スクリプト（--only / --quick で部分実行）
