@@ -3708,6 +3708,33 @@ await block('47', `ディスプレイ`, async () => {
   i = await it(); sc = await screen();
   ok('a picked image lands on the screen and the height follows its aspect (3.2 x 2.4)', sc?.hasMap && sc.iw === 320 && i.h === 2.4 && !!i.key && i.name === 'display-test.png', JSON.stringify({i, sc}));
   ok('the panel names the image and offers fit', /display-test\.png（320 × 240）/.test(await P.textContent('#selbody')) && !!(await P.$('#selbody [data-media-fit]')));
+  // 表示（寺村さんの指示）: 拡大縮小と縦横の位置。100% 未満の余白と、ずらして空いた所は黒。
+  // 正面ビューで画面の上の点を投影して、その画素を読む（画像は赤い縁に白い真ん中）
+  ok('the panel has zoom and horizontal / vertical sliders for the picture', (await P.$$eval('#selbody [data-range]', r => r.map(x => x.dataset.range).filter(k => ['zoom','ox','oy'].includes(k)).join(','))) === 'zoom,ox,oy');
+  // 正面ビューでは既定の男性が画面の真ん前に立つので、この確認のあいだは隠す。カメラも（画角の帯が色を変える）
+  await S(() => { const s = window.__sp, st = s.state(); for (const o of st.items) if (o.type === 'person' || o.type === 'camera') o.hidden = true; s.rebuild(); });
+  await S(() => window.__sp.select(null));   // 選んだままだと真ん中に十字の矢印が描かれる
+  await P.click('[data-view="front"]'); await P.waitForTimeout(500);
+  const at = (fx, fy) => S(([fx, fy]) => { const s = window.__sp, i = s.state().items.find(x => x.type === 'display'); let f = null;
+    s.group(i.id).traverse(n => { if (n.userData.screen) f = n; });
+    const v = new s.THREE.Vector3(fx * i.w, fy * i.h, 0.1); f.localToWorld(v); v.project(s.camera());
+    const c = document.querySelector('#gl'), g = c.getContext('webgl2') || c.getContext('webgl'), px = new Uint8Array(4);
+    g.readPixels(Math.round((v.x + 1) / 2 * c.width), Math.round((v.y + 1) / 2 * c.height), 1, 1, g.RGBA, g.UNSIGNED_BYTE, px); return [...px].slice(0, 3); }, [fx, fy]);
+  const white = c => c[0] > 200 && c[1] > 200 && c[2] > 200, red = c => c[0] > 150 && c[1] < 90 && c[2] < 90, black = c => c[0] < 25 && c[1] < 25 && c[2] < 25;
+  let c0 = await at(0, 0), c1 = await at(0.45, 0);
+  ok('at 100% the centre is the white middle of the picture and the edge is its red border', white(c0) && red(c1), JSON.stringify({c0, c1}));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'zoom', 50); }); await P.waitForTimeout(400);
+  c0 = await at(0, 0); c1 = await at(0.45, 0);
+  ok('at 50% the centre still shows the picture and the margin outside it is black', white(c0) && black(c1), JSON.stringify({c0, c1}));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'ox', 40); }); await P.waitForTimeout(400);
+  c0 = await at(0, 0); const c2 = await at(0.4, 0);
+  ok('shifting the picture 40% right moves its white middle there and leaves black behind', white(c2) && black(c0), JSON.stringify({c0, c2}));
+  ok('zoom and offset ride the share link', /"zoom":50/.test(await S(() => JSON.stringify(window.__sp.state()))) && /"ox":40/.test(await S(() => JSON.stringify(window.__sp.state()))));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.resetProp(o, 'zoom'); s.resetProp(o, 'ox'); }); await P.waitForTimeout(400);
+  c0 = await at(0, 0); c1 = await at(0.45, 0);
+  ok('reset brings both back to 100% / 0%', white(c0) && red(c1), JSON.stringify({c0, c1}));
+  await S(() => { const s = window.__sp, st = s.state(); for (const o of st.items) if (o.type === 'person' || o.type === 'camera') o.hidden = false; s.rebuild(); s.select(st.items.find(x => x.type === 'display').id); });
+  await P.click('[data-view="pers"]'); await P.waitForTimeout(400);
   // 開き直しても IndexedDB から戻る
   await P.reload(); await P.waitForTimeout(2000);
   i = await it(); sc = await screen();
