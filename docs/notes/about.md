@@ -53,7 +53,7 @@ QR が全部指しているので動かせない。同じリポジトリなの�
 寺村さんの指示。「ロケ地も、持ち帰って検討。」の本文の下に「詳しく見る →」（`a[href="scan/"]`、`?eng` のときは `scan/?eng`）。
 `about/scan/index.html` は LP と同じ `<head>`（色・書体・beacon・英語の仕組み）で、中身は
 題「ロケ地を3DスキャンしてStudioPlannerで使用しよう。」→ LP のスキャン風景の写真（`../img/scanning.jpg`）→
-Scaniverse の説明（寺村さんの 3 行）と App Store / Google Play / 公式サイトへのリンク →
+Scaniverse の説明（寺村さんの 3 行）と App Store / Google Play のバッジ（公式サイトへのリンクは無し。v1.45.14 で外した）→
 **Step1：Scaniverseでロケ地をスキャン。**（モードは Splat、共有 → モデルのエクスポート → SPZ、保存先はスマホ本体）→
 **Step2：StudioPlannerで取り込んで使う。**（「＋」→「外部3Dデータ」、位置を合わせる）→
 ヒント（Scaniverse のトリミングで要る部分だけにしてから書き出す）→ ボタン（v1.45.12、寺村さんの構成）。
