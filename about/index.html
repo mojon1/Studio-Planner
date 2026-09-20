@@ -47,14 +47,14 @@ header .name{font-weight:700;letter-spacing:.01em}
 header nav{margin-left:auto;display:flex;gap:6px;align-items:center}
 header nav a{text-decoration:none;color:var(--ink2);font-size:.9rem;padding:6px 10px;border-radius:8px}
 header nav a:hover{background:var(--panel)}
-header nav a.go{background:var(--btn-on);color:var(--btn-on-ink);font-weight:500}
 .hero{padding:48px 0 12px}
 .hero h1{font-size:clamp(1.6rem,3.8vw,2.4rem);line-height:1.4;margin:0 0 16px;letter-spacing:-.01em}
 .hero p.lead{font-size:1.05rem;color:var(--ink2);max-width:680px;margin:0 0 8px}
 .hero p.lead + .cta{margin-top:22px}
 .cta{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 28px}
 .btn{display:inline-block;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;text-align:center}
+.btn small{display:block;font-size:.72rem;font-weight:500;opacity:.9;margin-top:2px;line-height:1.3}
 .btn.primary:hover{filter:brightness(1.06)}
 .hero .shot{box-shadow:0 12px 40px rgba(0,0,0,.18)}
 .hero .cap{max-width:680px;margin-top:22px}
@@ -72,13 +72,15 @@ section p{color:var(--ink2)}
 section p:last-child{margin-bottom:0}
 .feature{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
 .feature.flip .shot{order:-1}
+.slides{position:relative;aspect-ratio:1600/1080}
+.slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .9s ease}
+.slides img.on{opacity:1}
 .feature .t{max-width:460px}
 .feature .t p{font-size:.97rem}
 .mobile .shot{max-width:300px;margin:0 auto}
 .last{text-align:center;padding:24px 0 40px}
 footer{padding:36px 0 48px;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);margin-top:8px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
-footer .sp{margin-left:auto}
 @media (max-width:760px){
   .feature{grid-template-columns:1fr;gap:18px}
   .feature .shot,.feature.flip .shot{order:-1}
@@ -94,7 +96,6 @@ footer .sp{margin-left:auto}
   <span class="name">Studio Planner</span>
   <nav>
     <a id="langsw" href="?eng" data-en="日本語">English</a>
-    <a class="go" href="../" data-en="Open Studio Planner">Studio Plannerを使う</a>
   </nav>
 </div></header>
 
@@ -104,7 +105,7 @@ footer .sp{margin-left:auto}
     <p class="lead" data-en="Studio Planner is a website for checking the &ldquo;will this work?&rdquo; questions before a shoot.">Studio Plannerは、撮影前の「これ大丈夫？」を簡単に確認できるサイトです。</p>
     <p class="lead" data-en="Studio size, where people and equipment go, and the camera's angle of view, all at real scale.">スタジオの広さ、人物や機材の配置、カメラ画角まで、実寸ベースで確認できます。</p>
     <div class="cta">
-      <a class="btn primary" href="../" data-en="Open Studio Planner">Studio Plannerを使う</a>
+      <a class="btn primary" href="../"><span data-en="Open Studio Planner">Studio Plannerを使う</span><small data-en="(completely free)">（完全無料）</small></a>
     </div>
     <div class="shot"><img src="img/meeting.jpg" width="1536" height="1024" alt="打ち合わせの席。大きな画面と手元の iPad・スマホに同じプラン" data-en-alt="A meeting with the same plan on the big screen, an iPad and a phone"></div>
     <div class="cap">
@@ -133,7 +134,10 @@ footer .sp{margin-left:auto}
       <p data-en="Backdrops, cyc walls, mirrors and LED walls are at real scale too.">背景布やホリゾント、鏡、LEDウォールのサイズも実寸で確認。</p>
       <p data-en="Look through the camera's actual angle of view and see how wide and how tall the backdrop has to be.">実際のカメラ画角を見ながら、必要な背景の幅や高さを確認できます。</p>
     </div>
-    <div class="shot"><img src="img/finder.jpg" width="1200" height="800" alt="ファインダー。カメラ画角の中の背景布" data-en-alt="The viewfinder, showing the backdrop inside the camera's angle of view"></div>
+    <div class="shot slides">
+      <img src="img/backdrop.jpg" width="1600" height="1095" alt="背景布と床鏡のセットアップ。布幅・布高・床鏡幅の寸法とカメラ画角" data-en-alt="A backdrop and floor mirror setup with their dimensions and the camera's angle of view">
+      <img src="img/led.jpg" width="1600" height="1053" alt="曲面 LED パネルのセットアップ。画面幅・画面高とカメラ画角" data-en-alt="A curved LED wall setup with its width and height and the camera's angle of view">
+    </div>
   </section>
 
   <section class="feature">
@@ -182,17 +186,20 @@ footer .sp{margin-left:auto}
   </section>
 
   <div class="last">
-    <a class="btn primary" href="../" data-en="Open Studio Planner">Studio Plannerを使う</a>
+    <a class="btn primary" href="../"><span data-en="Open Studio Planner">Studio Plannerを使う</span><small data-en="(completely free)">（完全無料）</small></a>
   </div>
 </main>
 
 <footer><div class="wrap">
   <span>Studio Planner © 2026 <a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">Taichi Teramura</a></span>
-  <a href="https://github.com/mojon1/Studio-Planner" target="_blank" rel="noopener">GitHub</a>
-  <a class="sp" href="../" data-en="Open Studio Planner">Studio Plannerを使う</a>
 </div></footer>
 
 <script>
+// 1 つの節に絵が 2 枚以上あるときは、並べずに 1 つの枠の中で自動で切り替える（.slides。寺村さんの指示）
+for (const box of document.querySelectorAll('.slides')){
+  const imgs = [...box.querySelectorAll('img')]; let i = 0; imgs[0].classList.add('on');
+  if (imgs.length > 1) setInterval(() => { imgs[i].classList.remove('on'); i = (i + 1) % imgs.length; imgs[i].classList.add('on'); }, 3500);
+}
 // 英語表示はアプリと同じ流儀: ブラウザが日本語でなければ英語、?eng で強制、?lang=ja で日本語
 (() => {
   const q = new URLSearchParams(location.search), lang = q.get('lang');

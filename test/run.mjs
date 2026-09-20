@@ -3007,7 +3007,8 @@ await block('37', `英語表示`, async () => {
   ok('list rows are English (Studio / Man 1 / Camera)', rows.join('|') === 'Studio|Man 1|Camera', rows.join('|'));
   ok('the top-right readout is English', /^Studio 10 × 8 × H 4\.5 m/.test(await p.$eval('#info', e => e.textContent.trim())), await p.$eval('#info', e => e.textContent.trim()));
   // 人物・カメラ・ライト・背景布の設定パネルと、追加の一覧
-  await p.evaluate(() => { const sp = window.__sp; sp.select(sp.state().items.find(i => i.type === 'person').id, true); }); await p.waitForTimeout(300);
+  await p.evaluate(() => { const sp = window.__sp; sp.select(sp.state().items.find(i => i.type === 'person').id, true); });
+  await p.waitForSelector('#selbody .poses button small', { timeout: 15000 }).catch(() => {});   // poses.json は非同期に読むので、並ぶまで待つ（固定の 300 ms では取りこぼした）
   const poses = await p.$$eval('#selbody .poses button small', b => b.map(x => x.textContent.trim()));
   ok('pose names are English', poses.includes('Sit on floor') && poses.includes('Lie on back') && poses[poses.length - 1] === 'Pose from photo', poses.join('|'));
   let left = await jpIn(p, '#panel');
@@ -3849,9 +3850,15 @@ await block('49', `LP（/about/）`, async () => {
   const a = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
   ok('the LP opens under /about/ with its own title', /Studio Planner/.test(await a.page.title()) && (await a.page.$eval('html', h => h.lang)) === 'ja', await a.page.title());
   const imgs = await a.page.$$eval('img', ns => ns.map(i => [i.getAttribute('src'), i.naturalWidth]));
-  ok('every picture on the LP loads (plan, finder, meeting, lights, pose, scan, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
+  ok('every picture on the LP loads (plan, backdrop, led, meeting, lights, pose, scan, sheet, phone, icon)', imgs.length >= 6 && imgs.every(([, w]) => w > 0), JSON.stringify(imgs));
   const links = await a.page.$$eval('a[href="../"]', ns => ns.length);
-  ok('the "open the app" buttons point at the app', links >= 3, String(links));
+  ok('exactly the two orange "open the app" buttons point at the app (no header / footer link)', links === 2, String(links));
+  ok('both buttons carry the "(completely free)" note', await a.page.$$eval('a[href="../"] small', ns => ns.length === 2 && ns.every(n => n.textContent.includes('無料'))));
+  ok('no GitHub link on the LP', await a.page.$$eval('a[href*="github.com"]', ns => ns.length) === 0);
+  { const first = await a.page.$eval('.slides', b => [...b.querySelectorAll('img')].findIndex(i => i.classList.contains('on')));
+    await a.page.waitForTimeout(4200);
+    const second = await a.page.$eval('.slides', b => [...b.querySelectorAll('img')].findIndex(i => i.classList.contains('on')));
+    ok('a section with two pictures shows them one at a time and switches on its own', first === 0 && second === 1, first + ' -> ' + second); }
   const yt = await a.page.$eval('.video iframe', f => f.getAttribute('src'));
   ok('the intro video is the same YouTube video as in the app, embedded without cookies', /youtube-nocookie\.com\/embed\/pjHt0Eg4Tx4/.test(yt), yt);
   ok('the LP carries the visit counter too', (await a.page.$$eval('script[data-cf-beacon]', s => s.length)) === 1);
@@ -3862,7 +3869,7 @@ await block('49', `LP（/about/）`, async () => {
   const jp = await e.page.evaluate(JP => { const re = new RegExp(JP), out = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (w.nextNode()){ const n = w.currentNode; if (n.parentElement.closest('#langsw, script, style')) continue; if (re.test(n.textContent)) out.push(n.textContent.trim().slice(0, 40)); } return out; }, JP.source);
   ok('with ?eng the LP is English through and through', jp.length === 0 && (await e.page.$eval('html', h => h.lang)) === 'en' && /About/.test(await e.page.title()), jp.join(' | '));
-  ok('and its app links carry ?eng', (await e.page.$$eval('a[href="../?eng"]', ns => ns.length)) >= 3);
+  ok('and its app links carry ?eng', (await e.page.$$eval('a[href="../?eng"]', ns => ns.length)) === 2);
   await e.ctx.close();
   // 英語のブラウザなら何も付けなくても英語
   const n = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'en-US');

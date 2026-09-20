@@ -1,6 +1,6 @@
 // about/img/*.jpg（LP の絵）をヘッドレスで焼く。   cd test && node ../tools/make-about-shots.mjs
-// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ファインダー・ライト・スマホの 4 枚。
-// meeting / sheet / scan / pose の 4 枚は寺村さんが用意した実物で、この道具は触らない。
+// 同じ配置（人 3・車・ライト 2・背景布・カメラ）を組んで、上面・ライト・スマホの 3 枚。
+// meeting / sheet / scan / pose / backdrop / led の 6 枚は寺村さんが用意した実物で、この道具は触らない。
 // 人物モデルは models/ から読むので HTTP で配る（file:// では動かない）。
 import { chromium } from 'playwright';
 import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http';
@@ -61,7 +61,6 @@ await p.evaluate(() => { const sp = window.__sp; sp.rebuild(); sp.select(null); 
 await view(p, 'pers'); await settle(p, 2500);
 await p.addStyleTag({ content: '#addfab,#pip{visibility:hidden!important}' });   // + と小窓は絵に入れない
 await view(p, 'plan'); await clipShot(p, 'plan.jpg', 1200, 800);
-await view(p, 'cam'); await settle(p, 2000); await clipShot(p, 'finder.jpg', 1200, 800);
 // ライトの絵: 3D で寄って、光と影が主役になる角度
 await view(p, 'pers'); await p.evaluate(() => { const sp = window.__sp; sp.setAmbient(18); if (sp.orbit) { sp.orbit.theta = 0.9; sp.orbit.phi = 0.55; sp.orbit.radius = 7; } sp.render(); }); await settle(p, 2500);
 await clipShot(p, 'lights.jpg', 1200, 800);
