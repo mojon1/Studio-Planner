@@ -96,7 +96,9 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 .step .shots{display:grid;gap:14px;width:100%;max-width:420px;justify-self:center}
 .step .shot img{width:100%}
 .step .shot.phone{max-width:300px;margin:0 auto;width:100%}
-.stores{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 0}
+.stores{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 0;align-items:center}
+.stores a.badge{padding:0;border:0;background:none;line-height:0}
+.stores a.badge img{height:40px;width:auto;display:block}
 .stores a{display:inline-block;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-size:.95rem}
 .hint{background:var(--accent-bg);color:var(--accent-ink);border-radius:14px;padding:18px 22px;margin:8px 0 24px}
 .hint h2{font-size:1.1rem;margin:0 0 6px;color:var(--accent-ink)}
@@ -132,8 +134,8 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
       <p data-en="With just a phone you can scan the shape of a room or a place and save it.">スマホだけで部屋などの形状を手軽に3Dスキャンして保存できます。</p>
       <p data-en="Studio Planner loads the 3D data scanned with Scaniverse as it is, so you can check the layout plan inside it.">StudioPlannerではScaniverseでスキャンした3Dデータをそのまま取り込んで、レイアウトプランを確認する事が可能です。</p>
       <div class="stores">
-        <a href="https://apps.apple.com/jp/app/scaniverse-3d-scanner/id1541433223" target="_blank" rel="noopener">App Store</a>
-        <a href="https://play.google.com/store/apps/details?id=com.nianticlabs.scaniverse" target="_blank" rel="noopener">Google Play</a>
+        <a class="badge" href="https://apps.apple.com/jp/app/scaniverse-3d-scanner/id1541433223" target="_blank" rel="noopener"><img src="img/app-store.svg" width="135" height="40" alt="Download on the App Store"></a>
+        <a class="badge" href="https://play.google.com/store/apps/details?id=com.nianticlabs.scaniverse" target="_blank" rel="noopener"><img src="img/google-play.svg" width="135" height="40" alt="Get it on Google Play"></a>
         <a href="https://scaniverse.com/" target="_blank" rel="noopener" data-en="Official site">公式サイト</a>
       </div>
     </div>

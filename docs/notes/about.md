@@ -59,6 +59,6 @@ Scaniverse の説明（寺村さんの 3 行）と App Store / Google Play / 公
 ヒント（Scaniverse のトリミングで要る部分だけにしてから書き出す）→ ボタン（v1.45.12、寺村さんの構成）。
 絵は `about/scan/img/`（mode / share / export = Scaniverse の画面、寺村さんの実物。import = アプリの「オブジェクトを追加」）と `../img/scan.jpg`。文は寺村さんの箇条書きをそのまま短い文にした。
 **ストアのリンク（`id1541433223`、`com.nianticlabs.scaniverse`）はこの環境からは開けず未確認。** 寺村さんに実機で踏んでもらう。
-**ストアの公式バナー画像**（App Store の「App Storeからダウンロード」、Google Play の「Google Play で手に入れよう」）は
-この環境から取れないので、今は文字のボタン。寺村さんから画像が届いたら `about/scan/img/` に置いて差し替える。
+**ストアの公式バナー**は寺村さんが用意した SVG（`about/scan/img/app-store.svg`、`google-play.svg`。英語版、高さ 40 px）。
+Apple と Google の配布物なので描き直さない・色を変えない。
 ブロック 49 が、LP からのリンク・絵・ストアと戻りのリンク・`?eng` で日本語が残らないことを見ている。
