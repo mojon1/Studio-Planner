@@ -180,11 +180,11 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 
   <section class="feature">
     <div class="t">
-      <h2 data-en="On a PC, a tablet or a phone.">PCでも、タブレットでも、スマートフォンでも。</h2>
-      <p data-en="Studio Planner runs as it is on a PC, a tablet or a phone.">Studio Plannerは、PC・タブレット・スマートフォンからそのまま使えます。</p>
+      <h2 data-en="On a PC, a tablet or a phone.">PCでも、タブレットでも、スマホでも。</h2>
+      <p data-en="Open the web page and it is ready to use.">Webにアクセスするだけで、すぐ使えます。</p>
       <p data-en="Nothing to install, no account needed.">インストールもアカウントも不要です。</p>
     </div>
-    <div class="shot slides" style="--ar:4/3">
+    <div class="shot slides" style="--ar:4/3" data-interval="2800">
       <img src="img/pc.jpg" width="1448" height="1086" alt="ノート PC で Studio Planner を開いているところ" data-en-alt="Studio Planner on a laptop">
       <img src="img/tablet.jpg" width="1448" height="1086" alt="タブレットで Studio Planner を開いているところ" data-en-alt="Studio Planner on a tablet">
       <img src="img/phone.jpg" width="1448" height="1086" alt="スマートフォンで Studio Planner を開いているところ" data-en-alt="Studio Planner on a phone">
@@ -204,7 +204,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 // 1 つの節に絵が 2 枚以上あるときは、並べずに 1 つの枠の中で自動で切り替える（.slides。寺村さんの指示）
 for (const box of document.querySelectorAll('.slides')){
   const imgs = [...box.querySelectorAll('img')]; let i = 0; imgs[0].classList.add('on');
-  if (imgs.length > 1) setInterval(() => { imgs[i].classList.remove('on'); i = (i + 1) % imgs.length; imgs[i].classList.add('on'); }, 3500);
+  if (imgs.length > 1) setInterval(() => { imgs[i].classList.remove('on'); i = (i + 1) % imgs.length; imgs[i].classList.add('on'); }, +box.dataset.interval || 3500);   // 間隔は data-interval（ms）で変えられる
 }
 // 英語表示はアプリと同じ流儀: ブラウザが日本語でなければ英語、?eng で強制、?lang=ja で日本語
 (() => {
