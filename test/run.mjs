@@ -3819,8 +3819,36 @@ await block('47', `ディスプレイ`, async () => {
   await P.click('#selbody [data-set="curve"][data-val="curve"]'); await P.waitForTimeout(400);
   let fz = await faceZ();
   ok('curved: the ends come forward by the sagitta (r 5 m, w 3.2 m -> 0.25 m) and the chord is shorter than the width', fz.zmax - fz.zmin > 0.24 && fz.zmax - fz.zmin < 0.27 && fz.xmax < 1.6 && fz.xmax > 1.5, JSON.stringify(fz));
-  ok('the panel reads chord, depth and angle', /弦 3\.15 m・奥行 0\.25 m・37°/.test(await P.textContent('#selbody')), (await P.textContent('#selbody')).match(/弦[^\n]*/)?.[0]);
-  ok('no corner handles on a curved screen', (await S(() => window.__sp.handles().children.filter(k => k.isMesh).length)) === 0);
+  // 操作は弦幅と奥行（v1.47.0）。弧長・半径・角度は読み値
+  const sl = await P.$$eval('#selbody [data-range]', r => Object.fromEntries(r.map(x => [x.dataset.range, +x.value])));
+  ok('the curved panel offers chord and depth sliders instead of width and radius', sl.chord === 3.15 && sl.depth === 0.25 && sl.w === undefined && sl.radius === undefined, JSON.stringify(sl));
+  ok('and reads arc length, radius and angle', /弧長 3\.2 m・半径 5 m・37°/.test(await P.textContent('#selbody')), (await P.textContent('#selbody')).match(/弧長[^\n]*/)?.[0]);
+  const cvOf = () => S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); const c = s.curveInfo(o); return {w:o.w, r:o.radius, chord:+c.chord.toFixed(2), depth:+c.depth.toFixed(2), deg:Math.round(c.deg), x:o.x, z:o.z}; });
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 6); }); await P.waitForTimeout(200);
+  let cvv = await cvOf();
+  ok('widening the chord to 6 m keeps the depth and recomputes arc and radius', cvv.chord === 6 && cvv.depth === 0.25 && Math.abs(cvv.r - 18.125) < 0.01 && cvv.w > 6 && cvv.w < 6.1, JSON.stringify(cvv));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'depth', 4); }); await P.waitForTimeout(200);
+  cvv = await cvOf();
+  ok('a depth beyond the radius goes past 180°', cvv.chord === 6 && cvv.depth === 4 && cvv.deg >= 212 && cvv.deg <= 213, JSON.stringify(cvv));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'depth', 99); }); await P.waitForTimeout(200);
+  cvv = await cvOf();
+  ok('and the depth is capped at 300°', cvv.deg === 300 && cvv.depth === 11.2, JSON.stringify(cvv));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 3.15); s.setProp(o, 'depth', 0.25); }); await P.waitForTimeout(300);
+  // つまみ: 両端の下 2 つ（弦幅）、上 2 つ（弦幅と高さ）、弦の真ん中（奥行）
+  ok('a curved screen shows five handles', (await S(() => window.__sp.handles().children.filter(k => k.isMesh).length)) === 5);
+  const hpos = i => S(i => { const s = window.__sp; const v = s.handles().children.filter(k => k.isMesh)[i].position.clone().project(s.camera()); const rr = document.getElementById('view').getBoundingClientRect(); return {x: rr.left + (v.x+1)/2*rr.width, y: rr.top + (1-v.y)/2*rr.height}; }, i);
+  await P.click('#viewbtns [data-view="plan"]'); await P.waitForTimeout(300);
+  const before = await cvOf();
+  let hp = await hpos(4);                     // 奥行のつまみ。上面図で手前へ引く
+  await P.mouse.move(hp.x, hp.y); await P.mouse.down(); await P.mouse.move(hp.x, hp.y + 30); await P.mouse.move(hp.x, hp.y + 60); await P.mouse.up(); await P.waitForTimeout(300);
+  cvv = await cvOf();
+  ok('dragging the middle handle changes the depth and leaves the position alone', cvv.depth > before.depth + 0.2 && cvv.chord === before.chord && cvv.x === before.x && cvv.z === before.z, JSON.stringify({before, after:cvv}));
+  hp = await hpos(0);                         // 右端のつまみ。右へ引く
+  await P.mouse.move(hp.x, hp.y); await P.mouse.down(); await P.mouse.move(hp.x + 40, hp.y); await P.mouse.move(hp.x + 80, hp.y); await P.mouse.up(); await P.waitForTimeout(300);
+  const after = await cvOf();
+  ok('dragging an end handle widens the chord, keeps the depth, and leaves the other end where it was', after.chord > cvv.chord + 0.3 && Math.abs(after.depth - cvv.depth) < 0.02 && Math.abs((after.x - after.chord / 2) - (cvv.x - cvv.chord / 2)) < 0.03, JSON.stringify({cvv, after}));
+  await P.click('#viewbtns [data-view="pers"]'); await P.waitForTimeout(300);
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 3.15); s.setProp(o, 'depth', 0.25); }); await P.waitForTimeout(300);
   ok('the image is still on the curved screen', (await screen())?.hasMap === true);
   await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'radius', 2); }); await P.waitForTimeout(300);
   fz = await faceZ();
