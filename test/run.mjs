@@ -3822,10 +3822,19 @@ await block('47', `ディスプレイ`, async () => {
   // 操作は弦幅と奥行（v1.47.0）。弧長・半径・角度は読み値
   const sl = await P.$$eval('#selbody [data-range]', r => Object.fromEntries(r.map(x => [x.dataset.range, +x.value])));
   ok('the curved panel offers chord and depth sliders instead of width and radius', sl.chord === 3.15 && sl.depth === 0.25 && sl.w === undefined && sl.radius === undefined, JSON.stringify(sl));
-  ok('and reads arc length, radius and angle', /弧長 3\.2 m・半径 5 m・37°/.test(await P.textContent('#selbody')), (await P.textContent('#selbody')).match(/弧長[^\n]*/)?.[0]);
+  // 弧長と角度は数値で打てる（v1.47.1）。半径は読み値
+  const nums = await P.$$eval('#selbody [data-num]', r => Object.fromEntries(r.map(x => [x.dataset.num, +x.value])));
+  ok('and offers arc length and angle as typed numbers, with the radius read out', nums.arc === 3.2 && nums.deg === 37 && /半径 5 m/.test(await P.textContent('#selbody')), JSON.stringify(nums));
   const cvOf = () => S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); const c = s.curveInfo(o); return {w:o.w, r:o.radius, chord:+c.chord.toFixed(2), depth:+c.depth.toFixed(2), deg:Math.round(c.deg), x:o.x, z:o.z}; });
-  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 6); }); await P.waitForTimeout(200);
+  await P.fill('#selbody [data-num="arc"]', '6.4'); await P.dispatchEvent('#selbody [data-num="arc"]', 'change'); await P.waitForTimeout(200);
   let cvv = await cvOf();
+  ok('typing an arc length keeps the angle, so the radius doubles', cvv.w === 6.4 && cvv.deg === 37 && Math.abs(cvv.r - 10) < 0.01, JSON.stringify(cvv));
+  await P.fill('#selbody [data-num="deg"]', '90'); await P.dispatchEvent('#selbody [data-num="deg"]', 'change'); await P.waitForTimeout(200);
+  cvv = await cvOf();
+  ok('typing an angle keeps the arc length and bends it', cvv.w === 6.4 && cvv.deg === 90 && Math.abs(cvv.r - 4.074) < 0.01 && Math.abs(cvv.chord - 5.76) < 0.02, JSON.stringify(cvv));
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 3.15); s.setProp(o, 'depth', 0.25); }); await P.waitForTimeout(200);
+  await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'chord', 6); }); await P.waitForTimeout(200);
+  cvv = await cvOf();
   ok('widening the chord to 6 m keeps the depth and recomputes arc and radius', cvv.chord === 6 && cvv.depth === 0.25 && Math.abs(cvv.r - 18.125) < 0.01 && cvv.w > 6 && cvv.w < 6.1, JSON.stringify(cvv));
   await S(() => { const s = window.__sp, o = s.state().items.find(x => x.type === 'display'); s.setProp(o, 'depth', 4); }); await P.waitForTimeout(200);
   cvv = await cvOf();
