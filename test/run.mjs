@@ -2422,6 +2422,39 @@ window.__ready = true;
   ok('the tripod goes in, the camera body does not',
      nodeNames.some(n => n.startsWith('カメラ 三脚'))
      && raw.nodes.filter(n => n.camera !== undefined).length === 1, nodeNames.filter(n => n.includes('カメラ')).join(' | '));
+  // 人物の皮は「今のポーズで焼いて、そのポーズで骨に貼り直した」形で出す（v1.46.2。C4D で
+  // 人物がぐちゃぐちゃになった）。読み手が逆バインド行列を使っても、無視して今の骨で貼り直しても
+  // 同じ絵になる条件: 骨のワールド × 逆バインドが単位行列、skin の根が Hips、皮のノードがワールドで
+  // 単位行列、読み返した皮の頂点がアプリの皮と同じ場所（ポーズを付けた体で）
+  const baked = await t.page.evaluate(async () => {
+    const sp = window.__sp, THREE = sp.THREE, p = sp.state().items.find(i => i.type === 'person');
+    p.posture = 'dance'; sp.rebuild();
+    const sample = root => { const out = []; root.updateMatrixWorld(true); root.traverse(n => { if (!n.isSkinnedMesh || !n.visible) return;
+      const pos = n.geometry.attributes.position, v = new THREE.Vector3(), pts = [];
+      for (let i = 0; i < pos.count; i += Math.max(1, Math.floor(pos.count / 300))){ v.fromBufferAttribute(pos, i); n.applyBoneTransform(i, v); v.applyMatrix4(n.matrixWorld); pts.push([v.x, v.y, v.z]); }
+      out.push(pts); }); return out; };
+    const before = sample(sp.scene);
+    const buf = (await sp.glb()).buf, same = sample(sp.scene);
+    const j = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, new DataView(buf).getUint32(12, true))));
+    const roots = (j.skins || []).map(sk => j.nodes[sk.skeleton]?.name);
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const g = await new Promise((ok, ng) => new GLTFLoader().parse(buf, '', ok, ng));
+    g.scene.updateMatrixWorld(true);
+    const after = sample(g.scene);
+    let max = 0, identity = true, nodeI = true;
+    g.scene.traverse(n => { if (!n.isSkinnedMesh) return;
+      const m = new THREE.Matrix4();
+      n.skeleton.bones.forEach((b, i) => { m.multiplyMatrices(b.matrixWorld, n.skeleton.boneInverses[i]); if (m.elements.some((e, k) => Math.abs(e - (k % 5 === 0 ? 1 : 0)) > 1e-4)) identity = false; });
+      if (n.matrixWorld.elements.some((e, k) => Math.abs(e - (k % 5 === 0 ? 1 : 0)) > 1e-4)) nodeI = false; });
+    before.forEach((pts, k) => pts.forEach((q, i) => { const a = after[k]?.[i]; max = Math.max(max, a ? Math.hypot(q[0]-a[0], q[1]-a[1], q[2]-a[2]) : 9); }));
+    const back = before.every((pts, k) => pts.every((q, i) => Math.hypot(q[0]-same[k][i][0], q[1]-same[k][i][1], q[2]-same[k][i][2]) < 1e-6));
+    return { skins: before.length, roots, identity, nodeI, max: +max.toFixed(5), back };
+  });
+  ok('the skin is bound at the exported pose (joint world × inverse bind = identity)', baked.skins >= 1 && baked.identity, JSON.stringify(baked));
+  ok('the skin root is the hip, not a finger', baked.roots.every(r => /Hips$/.test(r || '')), baked.roots.join(','));
+  ok('the skinned node sits at the world origin (its transform is ignored by the spec anyway)', baked.nodeI);
+  ok('and the read-back skin lands exactly where the app draws the posed body', baked.max < 1e-3, `max ${baked.max} m`);
+  ok('while the body on screen is untouched afterwards', baked.back);
   const gr = await open('glb-read', { width: 600, height: 400 });
   await gr.page.goto('http://localhost:8765/test/out/glb-reader.html');
   await gr.page.waitForFunction(() => window.__ready, null, {timeout:30000});

@@ -402,7 +402,7 @@ label.f2 textarea{resize:vertical;line-height:1.5}
         <div class="row"><button class="btn" id="glb">3Dデータ書き出し（GLB）</button></div>
         <div class="row" id="bundlerow"><button class="btn" id="bundlebtn">HTML書き出し</button></div>
         <p class="hint" id="bundlestat">外部3Dデータと人物・車のモデルをすべて含めたHTMLファイルとして書き出します。オフライン環境のPCで開く事が可能です。</p>
-        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.46.1 © 2026 Taichi Teramura</a></p>
+        <p class="colophon"><a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener" title="www.taichi-teramura.com">Studio Planner v1.46.2 © 2026 Taichi Teramura</a></p>
         <p class="aboutlink"><a id="aboutlink" href="about/" target="_blank" rel="noopener">Studio Planner について</a></p>
         <p class="aboutlink"><a id="disclaimlink" href="about/disclaimer/" target="_blank" rel="noopener">免責事項</a></p>
         <a class="ytlink" href="https://youtu.be/pjHt0Eg4Tx4" target="_blank" rel="noopener" title="紹介動画（YouTube）" aria-label="紹介動画（YouTube）"><svg viewBox="0 0 28 20" aria-hidden="true"><path fill="#f00" d="M27.4 3.1a3.5 3.5 0 0 0-2.5-2.5C22.7 0 14 0 14 0S5.3 0 3.1.6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9a3.5 3.5 0 0 0 2.5 2.5c2.2.6 10.9.6 10.9.6s8.7 0 10.9-.6a3.5 3.5 0 0 0 2.5-2.5c.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/><path fill="#fff" d="M11.2 14.3 18.4 10l-7.2-4.3z"/></svg></a>
@@ -6294,6 +6294,52 @@ function exportHide(){
   });
   return () => { for (const f of back.reverse()) f(); };
 }
+// **人物の皮は「今のポーズで焼いて、そのポーズで骨に貼り直した」皮に差し替えて出す。**
+// three の書き出しは、素の姿勢で貼った皮（元の逆バインド行列）と、回した後の骨をそのまま出す。
+// three で読み返せば元どおりだが、C4D はこの組み合わせを読み違え、人物がぐちゃぐちゃになった
+// （寺村さんの実機。v1.46.2）。読み手が逆バインド行列を使っても、無視して「今の骨の位置」で
+// 貼り直しても同じ絵になるように、頂点をワールド座標で焼き、骨の逆行列を今の姿勢の逆にして
+// 出す。骨の順も根（Hips）を先頭に並べ直す（skin の skeleton が指の骨を指していた）。
+// 骨は残るので、向こうでポーズを続けて触れる。**書き出しのあいだだけ**で、終わったら元に戻す
+function exportBake(){
+  const back = [];
+  const list = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse(n => { if (n.isSkinnedMesh && n.visible && n.geometry.attributes.skinIndex) list.push(n); });
+  const I = new THREE.Matrix4();
+  for (const sm of list){
+    const geo = sm.geometry, pos = geo.attributes.position, nor = geo.attributes.normal;
+    const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight, bones = sm.skeleton.bones;
+    // 根の骨を先頭に（親が骨でない骨）。skinIndex は新しい並びに振り直す
+    const set = new Set(bones), order = [...bones].sort((a, b) => (set.has(a.parent) ? 1 : 0) - (set.has(b.parent) ? 1 : 0));
+    const remap = new Map(order.map((b, i) => [b, i]));
+    const g2 = geo.clone(), p2 = g2.attributes.position, n2 = g2.attributes.normal, i2 = g2.attributes.skinIndex;
+    // 頂点はシェーダと同じ式で焼く: world = meshWorld · bindInv · Σ w·boneMatrix · bind · v
+    sm.skeleton.update();
+    const bm = sm.skeleton.boneMatrices, acc = new THREE.Matrix4(), full = new THREE.Matrix4(), v = new THREE.Vector3();
+    const pre = new THREE.Matrix4().multiplyMatrices(sm.matrixWorld, sm.bindMatrixInverse);
+    for (let i = 0; i < pos.count; i++){
+      acc.set(0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0);
+      const idx = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)], wt = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
+      for (let k = 0; k < 4; k++){ const w = wt[k]; if (!w) continue; const o = idx[k] * 16; for (let e = 0; e < 16; e++) acc.elements[e] += w * bm[o + e]; }
+      full.multiplyMatrices(pre, acc).multiply(sm.bindMatrix);
+      v.fromBufferAttribute(pos, i).applyMatrix4(full); p2.setXYZ(i, v.x, v.y, v.z);
+      if (nor){ v.fromBufferAttribute(nor, i).transformDirection(full); n2.setXYZ(i, v.x, v.y, v.z); }
+      i2.setXYZW(i, remap.get(bones[idx[0]]), remap.get(bones[idx[1]]), remap.get(bones[idx[2]]), remap.get(bones[idx[3]]));
+    }
+    p2.needsUpdate = true; if (nor) n2.needsUpdate = true; i2.needsUpdate = true;
+    g2.computeBoundingBox(); g2.computeBoundingSphere();
+    // 骨はそのまま（今の姿勢）。逆バインドは今のワールドの逆。皮のノードはワールドで単位行列に置く
+    const inv = order.map(b => b.matrixWorld.clone().invert());
+    const baked = new THREE.SkinnedMesh(g2, sm.material);
+    baked.bind(new THREE.Skeleton(order, inv), I);
+    baked.applyMatrix4(sm.parent.matrixWorld.clone().invert());
+    baked.name = sm.name; baked.frustumCulled = false;
+    sm.parent.add(baked); sm.visible = false;
+    back.push(() => { sm.visible = true; sm.parent.remove(baked); g2.dispose(); });
+  }
+  return () => { for (const f of back.reverse()) f(); };
+}
 // **名前を付けてから書き出す。** 付けないと向こうのツリーが「Node」「Mesh」ばかりに
 // なって、どれが何か分からない（寺村さんの指摘）。glTF はノードに名前を持てるので、
 // 仕様どおりのやり方。アプリ側は名前を読まないので、**書き出しのあいだだけ**付けて戻す
@@ -6349,6 +6395,7 @@ async function buildGLB(){
   const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
   capturing = true;                                  // 消しているあいだ rAF に描かせない
   const restore = exportHide();                      // ← 先に消してから
+  const unbake = exportBake();                       //   人物の皮を今のポーズで焼き直し
   const named = exportName();                        //   名前を付ける（消したものは飛ばす）
   const cams = exportCams();
   for (const c of cams) scene.add(c);
@@ -6360,7 +6407,7 @@ async function buildGLB(){
             splats: state.items.filter(i => i.type === 'splat' && !i.hidden).length};
   } finally {
     for (const c of cams) scene.remove(c);
-    named(); restore(); capturing = false; needRender = true;
+    named(); unbake(); restore(); capturing = false; needRender = true;
   }
 }
 
