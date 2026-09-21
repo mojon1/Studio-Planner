@@ -3296,20 +3296,34 @@ await block('42', `定規と、3DGS の軸・傾き・高さ`, async () => {
   ok('the ruler is offered in the gear list', (await P.$$eval('#gearlist [data-add]', b => b.map(x => x.dataset.add))).includes('ruler'));
   ok('and has a thumbnail', await P.$eval('#gearlist [data-add="ruler"] img', i => i.naturalWidth) > 0);
   await P.click('[data-add="ruler"]'); await P.waitForTimeout(400);
-  ok('placing a ruler asks for the start point', /始点/.test(await P.$eval('#toast', e => e.textContent)));
+  // 案内は画面の上の帯（トーストは気づかれなかった）。2 回タップし終えるまで定規は置かない（v1.46.3）
+  const guide = () => P.$eval('#rulerguide', e => ({hidden: e.hidden, text: e.textContent}));
+  const pending = () => S(() => { const r = window.__sp.rulerTap(); return r && {step: r.step, a: r.a && r.a.toArray().map(v => +v.toFixed(2)), na: r.na && r.na.toArray().map(v => +v.toFixed(2))}; });
+  const nRulers = () => S(() => window.__sp.state().items.filter(i => i.type === 'ruler').length);
+  ok('placing a ruler asks for the start point in a banner, not a toast', !(await guide()).hidden && /始点/.test((await guide()).text), JSON.stringify(await guide()));
+  ok('and no ruler is in the scene yet', await nRulers() === 0);
   await S(() => { const s = window.__sp; s.orbit.radius = 7; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
   const p1 = await screenOf([1, 0, 1]), p2 = await screenOf([-1.5, 0, -0.5]);
   await P.mouse.click(p1.x, p1.y); await P.waitForTimeout(400);
-  let r = await ruler();
-  ok('the first tap sets the start on the floor', Math.abs(r.x - 1) < 0.05 && Math.abs(r.z - 1) < 0.05 && r.a[1] === 0, JSON.stringify(r));
-  ok('and asks for the end', /終点/.test(await P.$eval('#toast', e => e.textContent)));
+  let pd = await pending();
+  ok('the first tap keeps the start on the floor, still without a ruler', pd && pd.step === 1 && Math.abs(pd.a[0] - 1) < 0.05 && Math.abs(pd.a[2] - 1) < 0.05 && pd.a[1] === 0 && await nRulers() === 0, JSON.stringify(pd));
+  ok('with an upward ring at the start', pd.na.join() === '0,1,0' && await S(() => window.__sp.scene.children.some(g => g.children.some(c => c.userData.snap))));
+  ok('and asks for the end', /終点/.test((await guide()).text));
   await P.mouse.click(p2.x, p2.y); await P.waitForTimeout(400);
-  r = await ruler();
+  let r = await ruler();
   const len = Math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1], r.b[2] - r.a[2]);
-  ok('the second tap sets the end', Math.abs(r.x + r.b[0] + 1.5) < 0.06 && Math.abs(r.z + r.b[2] + 0.5) < 0.06, JSON.stringify(r));
+  ok('the second tap places the ruler between the two points', r.n === 1 && Math.abs(r.x - 1) < 0.05 && Math.abs(r.z - 1) < 0.05 && Math.abs(r.x + r.b[0] + 1.5) < 0.06 && Math.abs(r.z + r.b[2] + 0.5) < 0.06, JSON.stringify(r));
+  ok('and the banner goes away', (await guide()).hidden && await pending() === null);
   const L = await P.$$eval('#labels span', s => s.map(x => x.textContent));
   ok('the length is written on the view', L.some(x => new RegExp(`定規[^\\d]*${len.toFixed(2)} m`).test(x)), L.join(' | '));
   ok('the ruler shows two end handles', await S(() => window.__sp.handles().children.filter(k => k.isMesh).length) === 2);
+  // 端の同心円（寺村さんの指示）。選んでいるあいだだけ、面の法線を向いて
+  const rings = () => S(() => window.__sp.handles().children.filter(k => k.userData.snap).map(g => ({n: g.children.length, up: new window.__sp.THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion).toArray().map(v => +v.toFixed(2))})));
+  const rg = await rings();
+  ok('and concentric rings at both ends, facing up on the floor', rg.length === 2 && rg.every(g => g.n === 3 && g.up.join() === '0,1,0'), JSON.stringify(rg));
+  await S(() => window.__sp.select(null)); await P.waitForTimeout(200);
+  ok('which vanish when the ruler is deselected', (await rings()).length === 0);
+  await S(() => { const s = window.__sp; s.select(s.state().items.find(i => i.type === 'ruler').id); }); await P.waitForTimeout(200);
   // 端をドラッグ
   const hb = await S(() => { const s = window.__sp; const v = s.handles().children.filter(k => k.isMesh)[1].position.clone().project(s.camera()); const rr = document.getElementById('view').getBoundingClientRect(); return {x: rr.left + (v.x+1)/2*rr.width, y: rr.top + (1-v.y)/2*rr.height}; });
   await P.mouse.move(hb.x, hb.y); await P.mouse.down(); await P.mouse.move(hb.x + 40, hb.y - 20); await P.mouse.move(hb.x + 80, hb.y - 40); await P.mouse.up(); await P.waitForTimeout(300);
@@ -3331,12 +3345,31 @@ await block('42', `定規と、3DGS の軸・傾き・高さ`, async () => {
   // 3D ビューで、視点の外側にある薄い壁の裏には吸い付かない（床に落ちる）
   await S(() => { const s = window.__sp; s.orbit.theta = Math.PI / 2; s.orbit.phi = 1.2; s.orbit.radius = 9; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
   await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
-  const sw = await S(() => window.__sp.state().studio.w);
+  const sw = await S(() => window.__sp.state().studio.w), sd = await S(() => window.__sp.state().studio.d);
   const pw = await screenOf([sw / 2, 1.0, 0.3]);
   await P.mouse.click(pw.x, pw.y); await P.waitForTimeout(300);
-  r = await ruler();
-  ok('a tap through a faded wall lands on the floor, not on the wall\'s back', r.n === 2 && r.a[1] === 0 && r.x < sw / 2 - 0.5, JSON.stringify(r));
-  await P.keyboard.press('Escape');
+  pd = await pending();
+  ok('a tap through a faded wall lands on the floor, not on the wall\'s back', pd.step === 1 && pd.a[1] === 0 && pd.a[0] < sw / 2 - 0.5, JSON.stringify(pd));
+  await P.keyboard.press('Escape'); await P.waitForTimeout(100);
+  ok('Escape cancels the placement and leaves no ruler behind', await pending() === null && (await guide()).hidden && await nRulers() === 1);
+  // 部屋の中から見た壁には全部当たる（床・左壁・左のホリゾントは面の巻き方が外向きで、v1.46.2 まで
+  // 「裏面」として飛ばされていた — 寺村さんの指摘「壁を認識しない」）。法線は部屋の内側を向く
+  const wallHit = async (from, to) => S(([from, to]) => { const s = window.__sp, T = s.THREE;
+    const cam = s.camera(); cam.position.set(...from); cam.lookAt(new T.Vector3(...to)); cam.updateMatrixWorld(true);
+    const v = new T.Vector3(...to).project(cam); const rr = document.getElementById('view').getBoundingClientRect();
+    const h = s.surfaceHitN((v.x + 1) / 2 * rr.width, (1 - v.y) / 2 * rr.height, 0);
+    return h && {p: h.p.toArray().map(x => +x.toFixed(2)), n: h.n.toArray().map(x => +x.toFixed(2))}; }, [from, to]);
+  const wl = await wallHit([0, 1.5, 0], [-sw / 2, 1.5, 0]), wr = await wallHit([0, 1.5, 0], [sw / 2, 1.5, 0]), wb = await wallHit([2, 1.5, 2], [2, 1.5, -sd / 2]);   // x = 0 だと既定の人物を貫く
+  const wf = await wallHit([0, 2, 0], [0.5, 0, 0.5]), wc = await wallHit([0, 1.5, 0], [-sw / 2 + 0.2, 0.3, 1]);
+  ok('the left wall takes the ruler, with an inward normal', wl && Math.abs(wl.p[0] + sw / 2) < 0.01 && wl.n.join() === '1,0,0', JSON.stringify(wl));
+  ok('so does the right wall', wr && Math.abs(wr.p[0] - sw / 2) < 0.01 && wr.n.join() === '-1,0,0', JSON.stringify(wr));
+  ok('and the back wall', wb && Math.abs(wb.p[2] + sd / 2) < 0.01 && wb.n.join() === '0,0,1', JSON.stringify(wb));
+  ok('the floor answers with an upward normal', wf && wf.p[1] === 0 && wf.n.join() === '0,1,0', JSON.stringify(wf));
+  ok('and the left cove faces into the room', wc && wc.p[0] < -sw / 2 + 0.3 && wc.n[0] > 0.5 && wc.n[1] > 0.5, JSON.stringify(wc));
+  // 帯の「中止」でも抜ける（スマホには Esc が無い）
+  await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
+  await P.click('#rulercancel'); await P.waitForTimeout(100);
+  ok('the banner\'s cancel button ends the placement too', await pending() === null && (await guide()).hidden && await nRulers() === 1);
   await S(() => { const s = window.__sp; s.orbit.theta = 0.7; s.orbit.phi = 1.0; s.orbit.radius = 7; s.orbit.target.set(0, 0.5, 0); s.render(); }); await P.waitForTimeout(300);
   // 箱の天面をタップすると、その高さに乗る
   await t.add('[data-add="box"]');
@@ -3344,13 +3377,19 @@ await block('42', `定規と、3DGS の軸・傾き・高さ`, async () => {
   await P.click('#addfab'); await P.click('[data-add="ruler"]'); await P.waitForTimeout(300);
   const pb = await screenOf([-2, 0.8, 0]);
   await P.mouse.click(pb.x, pb.y); await P.waitForTimeout(300);
+  pd = await pending();
+  ok('a tap on a box lands on its top', pd.step === 1 && Math.abs(pd.a[1] - 0.8) < 0.01 && Math.abs(pd.a[0] + 2) < 0.05 && pd.na.join() === '0,1,0', JSON.stringify(pd));
+  // 2 点目を壁に打つと、その端の輪は壁の法線を向く
+  const pw2 = await screenOf([-2, 1.2, -sd / 2]);
+  await P.mouse.click(pw2.x, pw2.y); await P.waitForTimeout(400);
   r = await ruler();
-  ok('a tap on a box lands on its top', r.n === 3 && Math.abs(r.a[1] - 0.8) < 0.01 && Math.abs(r.x + 2) < 0.05, JSON.stringify(r));
-  await P.keyboard.press('Escape');
+  const rg2 = await rings();
+  ok('the end on the back wall gets a ring facing into the room', r.n === 2 && Math.abs(r.z + r.b[2] + sd / 2) < 0.02 && rg2.length === 2 && rg2[1].up.join() === '0,0,1' && rg2[0].up.join() === '0,1,0', JSON.stringify({r, rg2}));
+  ok('and the normals go into the state', await S(() => { const it = window.__sp.state().items.filter(i => i.type === 'ruler').pop(); return it.na.join() === '0,1,0' && it.nb.join() === '0,0,1'; }));
   ok('the ruler stays out of the GLB export', await S(async () => { const s = window.__sp; const glb = (await s.glb()).buf; const j = JSON.parse(new TextDecoder().decode(new Uint8Array(glb, 20, new DataView(glb).getUint32(12, true)))); return !(j.nodes || []).some(n => /定規/.test(n.name || '')); }));
   const link = await S(() => location.hash);
   await P.goto('http://localhost:8765/' + link); await P.waitForTimeout(1200);
-  ok('rulers survive the share link', (await ruler()).n === 3);
+  ok('rulers survive the share link, normals included', (await ruler()).n === 2 && await S(() => { const it = window.__sp.state().items.filter(i => i.type === 'ruler').pop(); return it.nb.join() === '0,0,1'; }));
   // --- 3DGS: ワールド軸まわりの傾き、中心のオフセット、高さ
   const ply = `${OUT}/scan-ruler.ply`; fs.writeFileSync(ply, makeColourSplatPLY());
   await P.setInputFiles('#file', ply);
@@ -3423,8 +3462,8 @@ await block('42', `定規と、3DGS の軸・傾き・高さ`, async () => {
   await P.waitForTimeout(400);
   const ps = await screenOf(st);
   await P.mouse.click(ps.x, ps.y); await P.waitForTimeout(600);
-  r = await ruler();
-  ok('a tap on the scan lands on a splat, above the floor', r.a[1] > 0.05, JSON.stringify(r));
+  pd = await pending();
+  ok('a tap on the scan lands on a splat, above the floor', pd && pd.a[1] > 0.05, JSON.stringify(pd));
   await P.keyboard.press('Escape');
   ok('ruler run clean', t.errors.length === 0, t.errors.join(' | '));
   await t.ctx.close();
