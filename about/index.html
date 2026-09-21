@@ -202,6 +202,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify
 
 <footer><div class="wrap">
   <span>Studio Planner © 2026 <a href="https://www.taichi-teramura.com/" target="_blank" rel="noopener">Taichi Teramura</a></span>
+  <a href="disclaimer/" data-en="Disclaimer">免責事項</a>
 </div></footer>
 
 <script>
@@ -224,6 +225,7 @@ for (const box of document.querySelectorAll('.slides')){
   document.querySelector('.video iframe').title = 'Studio Planner intro video';
   for (const a of document.querySelectorAll('a[href="../"]')) a.href = '../?eng';
   for (const a of document.querySelectorAll('a[href="scan/"]')) a.href = 'scan/?eng';
+  for (const a of document.querySelectorAll('a[href="disclaimer/"]')) a.href = 'disclaimer/?eng';
 })();
 </script>
 </body>

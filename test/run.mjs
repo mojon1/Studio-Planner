@@ -3883,9 +3883,9 @@ await block('49', `LP（/about/）`, async () => {
   ok('both buttons carry the "(completely free)" note', await a.page.$$eval('a[href="../"] small', ns => ns.length === 2 && ns.every(n => n.textContent.includes('無料'))));
   ok('no GitHub link on the LP', await a.page.$$eval('a[href*="github.com"]', ns => ns.length) === 0);
   { const first = await a.page.$eval('.slides', b => [...b.querySelectorAll('img')].findIndex(i => i.classList.contains('on')));
-    await a.page.waitForTimeout(4200);
+    await a.page.waitForTimeout(5200);   // 3.5 秒ごと。機械が重いときのために少し余裕を持つ
     const second = await a.page.$eval('.slides', b => [...b.querySelectorAll('img')].findIndex(i => i.classList.contains('on')));
-    ok('a section with two pictures shows them one at a time and switches on its own', first === 0 && second === 1, first + ' -> ' + second); }
+    ok('a section with two pictures shows them one at a time and switches on its own', first === 0 && second >= 1, first + ' -> ' + second); }
   const yt = await a.page.$eval('.video iframe', f => f.getAttribute('src'));
   ok('the intro video is the same YouTube video as in the app, embedded without cookies', /youtube-nocookie\.com\/embed\/pjHt0Eg4Tx4/.test(yt), yt);
   ok('the LP carries the visit counter too', (await a.page.$$eval('script[data-cf-beacon]', s => s.length)) === 1);
@@ -3926,7 +3926,20 @@ await block('49', `LP（/about/）`, async () => {
   await t.tab('share');
   const al = await t.page.$eval('#aboutlink', a => ({ href: a.getAttribute('href'), text: a.textContent, inCol: !!a.closest('.colophon') }));
   ok('the app links to the LP from the share tab, outside the colophon line', al.href === 'about/' && al.text === 'Studio Planner について' && !al.inCol, JSON.stringify(al));
+  // 免責事項（寺村さんの指示）: 共有タブの最下部と LP の最下部から /about/disclaimer/
+  const dl = await t.page.$eval('#disclaimlink', a => ({ href: a.getAttribute('href'), text: a.textContent, last: a.closest('p') === a.closest('p').parentElement.lastElementChild, afterAbout: a.closest('p').previousElementSibling?.querySelector('#aboutlink') != null }));
+  ok('and to the disclaimer, as the last line of the share tab', dl.href === 'about/disclaimer/' && dl.text === '免責事項' && dl.afterAbout, JSON.stringify(dl));
   await t.ctx.close();
+  const lp3 = await mk('http://localhost:8765/about/', { width: 1280, height: 900 }, 'ja-JP');
+  ok('the LP footer links to the disclaimer', await lp3.page.$$eval('footer a[href="disclaimer/"]', ns => ns.length) === 1);
+  await lp3.ctx.close();
+  const dc = await mk('http://localhost:8765/about/disclaimer/', { width: 1280, height: 900 }, 'ja-JP');
+  ok('the disclaimer page opens with its heading, dated, and links back to the LP', (await dc.page.$eval('h1', h => h.textContent)) === '免責事項' && /2026年9月21日/.test(await dc.page.textContent('main')) && (await dc.page.$$eval('a[href="../"]', ns => ns.length)) === 1);
+  await dc.ctx.close();
+  const dce = await mk('http://localhost:8765/about/disclaimer/?eng', { width: 1280, height: 900 }, 'ja-JP');
+  const dcJa = await dce.page.evaluate(() => { const t = []; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())){ if (n.parentElement.closest('#langsw, script, style')) continue; if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(n.textContent)) t.push(n.textContent.trim()); } return t; });
+  ok('with ?eng the disclaimer is English through and through', dcJa.length === 0 && (await dce.page.$eval('h1', h => h.textContent)) === 'Disclaimer', JSON.stringify(dcJa));
+  await dce.ctx.close();
 });
 
 await browser.close(); server.close();
